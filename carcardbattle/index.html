@@ -36,44 +36,60 @@
         // ============================================
         // データ定義
         // ============================================
+        // 属性システム定義
+        const ELEMENTS = {
+            fire: { name: "火", icon: "🔥", color: "#ff4422", bgColor: "rgba(255, 68, 34, 0.3)" },
+            earth: { name: "土", icon: "🌍", color: "#8b4513", bgColor: "rgba(139, 69, 19, 0.3)" },
+            wind: { name: "風", icon: "🌪️", color: "#00cc88", bgColor: "rgba(0, 204, 136, 0.3)" },
+            thunder: { name: "雷", icon: "⚡", color: "#ffdd00", bgColor: "rgba(255, 221, 0, 0.3)" }
+        };
+
+        // 属性相性: 火＞風＞雷＞土＞火
+        const ELEMENT_ADVANTAGE = {
+            fire: "wind",     // 火は風に強い
+            wind: "thunder",  // 風は雷に強い
+            thunder: "earth", // 雷は土に強い
+            earth: "fire"     // 土は火に強い
+        };
+
         const CAR_DATA = [
             // 【N: Normal】 (AP 10-22)
-            { name: "Honda N-BOX", en: "Honda N-BOX keicar white", rarity: "N", ap: 10 },
-            { name: "Daihatsu Tanto", en: "Daihatsu Tanto keicar", rarity: "N", ap: 12 },
-            { name: "Suzuki Spacia", en: "Suzuki Spacia gear green", rarity: "N", ap: 12 },
-            { name: "Suzuki Jimny", en: "Suzuki Jimny offroad jungle", rarity: "N", ap: 15 },
-            { name: "Daihatsu Move Canbus", en: "Daihatsu Move Canbus cute two-tone", rarity: "N", ap: 11 },
-            { name: "Suzuki Hustler", en: "Suzuki Hustler orange car", rarity: "N", ap: 13 },
-            { name: "Nissan Sakura", en: "Nissan Sakura EV pink gold", rarity: "N", ap: 14 },
-            { name: "Toyota Yaris", en: "Toyota Yaris hatchback red", rarity: "N", ap: 20 },
-            { name: "Toyota Aqua", en: "Toyota Aqua Prius C blue", rarity: "N", ap: 18 },
-            { name: "Honda Fit", en: "Honda Fit Jazz white", rarity: "N", ap: 19 },
-            { name: "Nissan Note", en: "Nissan Note Aura silver", rarity: "N", ap: 22 },
-            { name: "Mazda 2", en: "Mazda 2 demio red metallic", rarity: "N", ap: 18 },
+            { name: "Honda N-BOX", en: "Honda N-BOX keicar white", rarity: "N", ap: 10, element: "wind" },
+            { name: "Daihatsu Tanto", en: "Daihatsu Tanto keicar", rarity: "N", ap: 12, element: "earth" },
+            { name: "Suzuki Spacia", en: "Suzuki Spacia gear green", rarity: "N", ap: 12, element: "wind" },
+            { name: "Suzuki Jimny", en: "Suzuki Jimny offroad jungle", rarity: "N", ap: 15, element: "earth" },
+            { name: "Daihatsu Move Canbus", en: "Daihatsu Move Canbus cute two-tone", rarity: "N", ap: 11, element: "wind" },
+            { name: "Suzuki Hustler", en: "Suzuki Hustler orange car", rarity: "N", ap: 13, element: "fire" },
+            { name: "Nissan Sakura", en: "Nissan Sakura EV pink gold", rarity: "N", ap: 14, element: "thunder" },
+            { name: "Toyota Yaris", en: "Toyota Yaris hatchback red", rarity: "N", ap: 20, element: "fire" },
+            { name: "Toyota Aqua", en: "Toyota Aqua Prius C blue", rarity: "N", ap: 18, element: "thunder" },
+            { name: "Honda Fit", en: "Honda Fit Jazz white", rarity: "N", ap: 19, element: "wind" },
+            { name: "Nissan Note", en: "Nissan Note Aura silver", rarity: "N", ap: 22, element: "thunder" },
+            { name: "Mazda 2", en: "Mazda 2 demio red metallic", rarity: "N", ap: 18, element: "fire" },
 
             // 【R: Rare】 (AP 32-42)
-            { name: "Toyota Voxy", en: "Toyota Voxy minivan black sharp front", rarity: "R", ap: 35 },
-            { name: "Honda Step WGN", en: "Honda Step WGN boxy white", rarity: "R", ap: 34 },
-            { name: "Nissan Serena", en: "Nissan Serena highway star silver", rarity: "R", ap: 33 },
-            { name: "Mitsubishi Delica D:5", en: "Mitsubishi Delica D5 offroad gray", rarity: "R", ap: 38 },
-            { name: "Toyota Harrier", en: "Toyota Venza Harrier luxury SUV black", rarity: "R", ap: 40 },
-            { name: "Toyota RAV4", en: "Toyota RAV4 adventure offroad mud", rarity: "R", ap: 42 },
-            { name: "Mazda CX-5", en: "Mazda CX-5 soul red crystal", rarity: "R", ap: 39 },
-            { name: "Subaru Forester", en: "Subaru Forester wilderness forest", rarity: "R", ap: 41 },
-            { name: "Honda Vezel", en: "Honda HR-V Vezel white", rarity: "R", ap: 32 },
-            { name: "Suzuki Swift Sport", en: "Suzuki Swift Sport yellow circuit", rarity: "R", ap: 36 },
+            { name: "Toyota Voxy", en: "Toyota Voxy minivan black sharp front", rarity: "R", ap: 35, element: "earth" },
+            { name: "Honda Step WGN", en: "Honda Step WGN boxy white", rarity: "R", ap: 34, element: "wind" },
+            { name: "Nissan Serena", en: "Nissan Serena highway star silver", rarity: "R", ap: 33, element: "thunder" },
+            { name: "Mitsubishi Delica D:5", en: "Mitsubishi Delica D5 offroad gray", rarity: "R", ap: 38, element: "earth" },
+            { name: "Toyota Harrier", en: "Toyota Harrier luxury SUV black", rarity: "R", ap: 40, element: "fire" },
+            { name: "Toyota RAV4", en: "Toyota RAV4 adventure offroad mud", rarity: "R", ap: 42, element: "earth" },
+            { name: "Mazda CX-5", en: "Mazda CX-5 soul red crystal", rarity: "R", ap: 39, element: "fire" },
+            { name: "Subaru Forester", en: "Subaru Forester wilderness forest", rarity: "R", ap: 41, element: "wind" },
+            { name: "Honda Vezel", en: "Honda HR-V Vezel white", rarity: "R", ap: 32, element: "wind" },
+            { name: "Suzuki Swift Sport", en: "Suzuki Swift Sport yellow circuit", rarity: "R", ap: 36, element: "thunder" },
 
             // 【SR: Super Rare】 (AP 50-70)
-            { name: "Toyota Alphard", en: "Toyota Alphard luxury van executive lounge black", rarity: "SR", ap: 55 },
-            { name: "Toyota Land Cruiser 300", en: "Toyota Land Cruiser 300 desert", rarity: "SR", ap: 65 },
-            { name: "Toyota Crown Crossover", en: "Toyota Crown Crossover bronze", rarity: "SR", ap: 50 },
-            { name: "Lexus RX", en: "Lexus RX 500h f sport white", rarity: "SR", ap: 60 },
-            { name: "Nissan Fairlady Z", en: "Nissan Z Proto yellow sports car", rarity: "SR", ap: 68 },
-            { name: "Honda Civic Type R", en: "Honda Civic Type R FL5 white racing", rarity: "SR", ap: 70 },
+            { name: "Toyota Alphard", en: "Toyota Alphard luxury van executive lounge black", rarity: "SR", ap: 55, element: "earth" },
+            { name: "Toyota Land Cruiser 300", en: "Toyota Land Cruiser 300 desert", rarity: "SR", ap: 65, element: "earth" },
+            { name: "Toyota Crown Crossover", en: "Toyota Crown Crossover bronze", rarity: "SR", ap: 50, element: "thunder" },
+            { name: "Lexus RX", en: "Lexus RX 500h f sport white", rarity: "SR", ap: 60, element: "wind" },
+            { name: "Nissan Fairlady Z", en: "Nissan Z Proto yellow sports car", rarity: "SR", ap: 68, element: "thunder" },
+            { name: "Honda Civic Type R", en: "Honda Civic Type R FL5 white racing", rarity: "SR", ap: 70, element: "fire" },
 
             // 【SEC: Secret】 (AP 95-99)
-            { name: "Nissan GT-R NISMO", en: "Nissan GT-R Nismo circuit run smoke", rarity: "SEC", ap: 95 },
-            { name: "Ferrari 296 GTB", en: "Ferrari 296 GTB red italian supercar", rarity: "SEC", ap: 99 }
+            { name: "Nissan GT-R NISMO", en: "Nissan GT-R Nismo circuit run smoke", rarity: "SEC", ap: 95, element: "thunder" },
+            { name: "Ferrari 296 GTB", en: "Ferrari 296 GTB red italian supercar", rarity: "SEC", ap: 99, element: "fire" }
         ];
 
         const RARITY_ORDER = ["N", "R", "SR", "SEC"];
@@ -197,34 +213,41 @@
                 const ctx = this.ctx;
                 const rarity = carData.rarity;
                 const colors = RARITY_COLORS[rarity] || RARITY_COLORS.N;
+                const element = ELEMENTS[carData.element];
 
                 ctx.save();
                 ctx.globalAlpha = animProgress;
 
                 // カード背景とフレーム
-                this.drawCardFrame(x, y, width, height, colors, rarity, isAnother);
+                this.drawCardFrame(x, y, width, height, colors, rarity, isAnother, carData.element);
+
+                // 属性オーバーレイ（カード全体に薄く）
+                ctx.fillStyle = element.bgColor;
+                ctx.beginPath();
+                ctx.roundRect(x + 2, y + 2, width - 4, height - 4, 13);
+                ctx.fill();
 
                 // 車画像
                 if (image) {
                     const imgPadding = 15;
                     const imgWidth = width - imgPadding * 2;
-                    const imgHeight = height * 0.6;
+                    const imgHeight = height * 0.55;
                     ctx.save();
                     ctx.beginPath();
-                    ctx.roundRect(x + imgPadding, y + imgPadding + 30, imgWidth, imgHeight, 8);
+                    ctx.roundRect(x + imgPadding, y + imgPadding + 35, imgWidth, imgHeight, 8);
                     ctx.clip();
-                    ctx.drawImage(image, x + imgPadding, y + imgPadding + 30, imgWidth, imgHeight);
+                    ctx.drawImage(image, x + imgPadding, y + imgPadding + 35, imgWidth, imgHeight);
                     ctx.restore();
 
                     // 裏モードオーバーレイ
                     if (isAnother) {
                         ctx.fillStyle = "rgba(138, 43, 226, 0.3)";
-                        ctx.fillRect(x + imgPadding, y + imgPadding + 30, imgWidth, imgHeight);
+                        ctx.fillRect(x + imgPadding, y + imgPadding + 35, imgWidth, imgHeight);
                     }
                 } else {
                     // ローディング表示
                     ctx.fillStyle = "#333";
-                    ctx.fillRect(x + 15, y + 45, width - 30, height * 0.6);
+                    ctx.fillRect(x + 15, y + 50, width - 30, height * 0.55);
                     ctx.fillStyle = "#fff";
                     ctx.font = "16px Arial";
                     ctx.textAlign = "center";
@@ -234,6 +257,9 @@
                 // レアリティバッジ
                 this.drawRarityBadge(x + 10, y + 10, rarity, isAnother);
 
+                // 属性バッジ（右上に表示）
+                this.drawElementBadge(x + width - 50, y + 10, carData.element);
+
                 // 車名
                 ctx.fillStyle = "#fff";
                 ctx.font = "bold 16px Arial";
@@ -242,10 +268,10 @@
                 ctx.shadowBlur = 4;
                 ctx.fillText(carData.name, x + width / 2, y + height - 40);
 
-                // AP表示
+                // AP表示（属性色をアクセントに）
                 ctx.font = "bold 24px Arial";
-                ctx.fillStyle = isAnother ? "#ff00ff" : "#ffcc00";
-                ctx.shadowColor = isAnother ? "#ff00ff" : "#ffcc00";
+                ctx.fillStyle = isAnother ? "#ff00ff" : element.color;
+                ctx.shadowColor = isAnother ? "#ff00ff" : element.color;
                 ctx.shadowBlur = 10;
                 const displayAp = isAnother ? Math.floor(carData.ap * 1.5) : carData.ap;
                 ctx.fillText(`AP: ${displayAp}`, x + width / 2, y + height - 15);
@@ -262,11 +288,101 @@
                 if (isAnother) {
                     this.drawAnotherAura(x, y, width, height);
                 }
+
+                // 属性エフェクト
+                this.drawElementEffect(x, y, width, height, carData.element);
             }
 
-            drawCardFrame(x, y, width, height, colors, rarity, isAnother) {
+            drawElementBadge(x, y, elementKey) {
+                const ctx = this.ctx;
+                const element = ELEMENTS[elementKey];
+
+                // バッジ背景
+                ctx.fillStyle = element.color;
+                ctx.shadowColor = element.color;
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.roundRect(x, y, 40, 24, 5);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                // アイコン
+                ctx.fillStyle = "#fff";
+                ctx.font = "16px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText(element.icon, x + 20, y + 18);
+            }
+
+            drawElementEffect(x, y, width, height, elementKey) {
+                const ctx = this.ctx;
+                const element = ELEMENTS[elementKey];
+
+                // 属性ごとの微細なエフェクト
+                ctx.save();
+                ctx.globalAlpha = 0.3;
+
+                switch (elementKey) {
+                    case "fire":
+                        // 炎のパーティクル
+                        for (let i = 0; i < 3; i++) {
+                            const px = x + Math.random() * width;
+                            const py = y + height - Math.random() * 30;
+                            const size = Math.random() * 4 + 2;
+                            ctx.fillStyle = `rgba(255, ${Math.floor(Math.random() * 100 + 100)}, 0, ${Math.random() * 0.5 + 0.3})`;
+                            ctx.beginPath();
+                            ctx.arc(px, py, size, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                        break;
+                    case "wind":
+                        // 風の線
+                        ctx.strokeStyle = element.color;
+                        ctx.lineWidth = 1;
+                        for (let i = 0; i < 2; i++) {
+                            const startY = y + 50 + Math.random() * (height - 100);
+                            ctx.beginPath();
+                            ctx.moveTo(x, startY);
+                            ctx.bezierCurveTo(
+                                x + width * 0.3, startY - 10,
+                                x + width * 0.7, startY + 10,
+                                x + width, startY
+                            );
+                            ctx.stroke();
+                        }
+                        break;
+                    case "thunder":
+                        // 雷の閃光
+                        if (Math.random() < 0.1) {
+                            ctx.strokeStyle = element.color;
+                            ctx.lineWidth = 2;
+                            ctx.beginPath();
+                            const startX = x + Math.random() * width;
+                            ctx.moveTo(startX, y);
+                            let currentY = y;
+                            while (currentY < y + height * 0.3) {
+                                currentY += 10;
+                                ctx.lineTo(startX + (Math.random() - 0.5) * 20, currentY);
+                            }
+                            ctx.stroke();
+                        }
+                        break;
+                    case "earth":
+                        // 土の粒子
+                        for (let i = 0; i < 4; i++) {
+                            const px = x + Math.random() * width;
+                            const py = y + height - 10 - Math.random() * 20;
+                            ctx.fillStyle = element.color;
+                            ctx.fillRect(px, py, 3, 3);
+                        }
+                        break;
+                }
+                ctx.restore();
+            }
+
+            drawCardFrame(x, y, width, height, colors, rarity, isAnother, elementKey = null) {
                 const ctx = this.ctx;
                 const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
+                const element = elementKey ? ELEMENTS[elementKey] : null;
 
                 if (isAnother) {
                     gradient.addColorStop(0, "#4a0080");
@@ -283,13 +399,18 @@
                     gradient.addColorStop(0.5, "#ffd700");
                     gradient.addColorStop(0.7, "#daa520");
                     gradient.addColorStop(1, "#ffd700");
+                } else if (element) {
+                    // 属性色をフレームに反映
+                    gradient.addColorStop(0, element.color);
+                    gradient.addColorStop(0.5, colors.primary);
+                    gradient.addColorStop(1, element.color);
                 } else {
                     gradient.addColorStop(0, colors.primary);
                     gradient.addColorStop(1, colors.secondary);
                 }
 
-                // 外枠グロー
-                ctx.shadowColor = isAnother ? "#ff00ff" : colors.glow;
+                // 外枠グロー（属性色も反映）
+                ctx.shadowColor = isAnother ? "#ff00ff" : (element ? element.color : colors.glow);
                 ctx.shadowBlur = 20;
 
                 // カード本体
@@ -432,6 +553,31 @@
                 this.screenShake = 0;
                 this.attackPosition = { x: 0, y: 0 };
                 this.message = "画面下部をクリックしてガチャを回そう！";
+                this.lastElementBonus = null; // 属性相性ボーナス表示用
+            }
+
+            // 属性相性チェック: attackerがdefenderに有利かどうか
+            checkElementAdvantage(attackerElement, defenderElement) {
+                return ELEMENT_ADVANTAGE[attackerElement] === defenderElement;
+            }
+
+            // ダメージ計算（属性相性込み）
+            calculateDamage(baseDamage, attackerElement, defenderElement, isAnother = false) {
+                let damage = baseDamage;
+                let elementBonus = 1.0;
+
+                // 裏モードボーナス
+                if (isAnother) {
+                    damage = Math.floor(damage * 1.5);
+                }
+
+                // 属性相性チェック
+                if (this.checkElementAdvantage(attackerElement, defenderElement)) {
+                    elementBonus = 1.5;
+                    damage = Math.floor(damage * elementBonus);
+                }
+
+                return { damage, elementBonus };
             }
 
             getEnemyRarity() {
@@ -482,7 +628,8 @@
                 });
 
                 const rarityText = this.isPlayerAnother ? `${rarity}★ 裏モード!!!` : rarity;
-                this.message = `${this.playerCard.name} (${rarityText}) を召喚！`;
+                const elemInfo = ELEMENTS[this.playerCard.element];
+                this.message = `${elemInfo.icon} ${this.playerCard.name} (${rarityText}) を召喚！`;
             }
 
             attack(canvasWidth, canvasHeight) {
@@ -525,12 +672,23 @@
                         this.attackPosition.y = canvasHeight * 0.7 - (canvasHeight * 0.7 - targetY) * Math.min(1, this.animationProgress);
 
                         if (this.animationProgress >= 1) {
-                            // ダメージ計算
-                            let damage = this.playerCard.ap;
-                            if (this.isPlayerAnother) damage = Math.floor(damage * 1.5);
+                            // ダメージ計算（属性相性込み）
+                            const { damage, elementBonus } = this.calculateDamage(
+                                this.playerCard.ap,
+                                this.playerCard.element,
+                                this.currentEnemy.element,
+                                this.isPlayerAnother
+                            );
+                            this.lastElementBonus = elementBonus;
 
                             this.enemyHp = Math.max(0, this.enemyHp - damage);
-                            this.screenShake = 20;
+                            this.screenShake = elementBonus > 1 ? 30 : 20;
+
+                            // ダメージポップアップの色を属性に応じて変更
+                            let popupColor = this.isPlayerAnother ? "#ff00ff" : "#ff4444";
+                            if (elementBonus > 1) {
+                                popupColor = ELEMENTS[this.playerCard.element].color;
+                            }
 
                             this.damagePopups.push({
                                 x: canvasWidth / 2,
@@ -538,10 +696,18 @@
                                 damage,
                                 life: 1,
                                 alpha: 1,
-                                color: this.isPlayerAnother ? "#ff00ff" : "#ff4444"
+                                color: popupColor,
+                                isElementBonus: elementBonus > 1
                             });
 
-                            this.message = `${damage} ダメージ！`;
+                            // メッセージに属性相性を表示
+                            const playerElem = ELEMENTS[this.playerCard.element];
+                            const enemyElem = ELEMENTS[this.currentEnemy.element];
+                            if (elementBonus > 1) {
+                                this.message = `${playerElem.icon}${playerElem.name}＞${enemyElem.name}${enemyElem.icon} 効果抜群！ ${damage} ダメージ！`;
+                            } else {
+                                this.message = `${damage} ダメージ！`;
+                            }
 
                             if (this.enemyHp <= 0) {
                                 this.battleState = "victory";
@@ -773,11 +939,12 @@
                     // 敵HPバー
                     this.drawHPBar(w / 2 - 150, 55, 300, 25, bm.enemyHp, bm.maxEnemyHp, "#ff4444", "#aa0000");
 
-                    // 敵車種名
+                    // 敵車種名と属性
+                    const enemyElem = ELEMENTS[bm.currentEnemy.element];
                     ctx.fillStyle = "#fff";
                     ctx.font = "bold 20px Arial";
                     ctx.textAlign = "center";
-                    ctx.fillText(`${bm.currentEnemy.name} [${bm.currentEnemy.rarity}]`, w / 2, 105);
+                    ctx.fillText(`${enemyElem.icon} ${bm.currentEnemy.name} [${bm.currentEnemy.rarity}]`, w / 2, 105);
 
                     // 敵カード
                     const cardWidth = 280;
