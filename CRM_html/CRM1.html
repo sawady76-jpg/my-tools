@@ -1,0 +1,624 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>社内ミニCRM (OneDrive対応)</title>
+  <style>
+    :root {
+      --bg: #0b1020; --panel: #121a33; --muted: #94a3b8; --text: #e6eefc; --accent: #4f46e5; --accent-2: #22c55e; --danger: #ef4444; --warn: #f59e0b; --border: #263055;
+    }
+    * { box-sizing: border-box; } html, body { height: 100%; }
+    body { margin: 0; background: linear-gradient(180deg, #0b1020, #0a1330); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Noto Sans JP", "メイリオ", sans-serif; }
+    a { color: var(--accent); text-decoration: none; }
+    label, .sub, h2, h1, strong { color: var(--text); }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    header { display:flex; align-items:center; gap:14px; }
+    .logo { width: 36px; height: 36px; border-radius: 10px; background: radial-gradient(circle at 30% 30%, #6ee7b7, #3b82f6 60%, #a78bfa); box-shadow: 0 0 30px rgba(79,70,229,.35); }
+    h1 { font-size: 20px; margin: 0; letter-spacing: .5px; }
+    .sub { font-size: 12px; }
+
+    .grid { display: grid; grid-template-columns: 280px 1fr; gap: 18px; margin-top: 16px; }
+    .card { background: linear-gradient(180deg, #121a33, #0f162d); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: 0 10px 24px rgba(0,0,0,.25); }
+    .card h2 { font-size: 15px; margin: 0 0 10px; letter-spacing: .3px; }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+    .toolbar input[type="search"] { flex: 1 1 240px; min-width: 200px; }
+
+    .input, select, textarea { background: #0b1328; border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 10px 12px; outline: none; font-size: 14px; }
+    textarea { width: 100%; min-height: 80px; resize: vertical; }
+
+    .btn { background: #111a36; color: var(--text); border: 1px solid var(--border); padding: 9px 12px; border-radius: 10px; font-size: 14px; cursor: pointer; transition: .15s ease; }
+    .btn:hover { background: #0e1530; }
+    .btn.primary { background: var(--accent); border-color: #3940c6; }
+    .btn.primary:hover { filter: brightness(1.05); }
+    .btn.success { background: var(--accent-2); border-color: #16a34a; }
+    .btn.danger { background: var(--danger); border-color: #b91c1c; }
+    .btn.warn { background: var(--warn); border-color: #d97706; color: #111; }
+    .btn.ghost { background: transparent; border-color: var(--border); }
+
+    .badges { display:flex; gap:8px; flex-wrap:wrap; }
+    .badge { font-size: 12px; padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); background: #0b1328; }
+    .status { font-weight: 600; }
+    .s-new { color: #38bdf8; background: rgba(56,189,248,.08); border-color: rgba(56,189,248,.25); }
+    .s-follow { color: #fbbf24; background: rgba(251,191,36,.12); border-color: rgba(251,191,36,.35); }
+    .s-won { color: #34d399; background: rgba(52,211,153,.12); border-color: rgba(52,211,153,.35); }
+    .s-lost { color: #f87171; background: rgba(248,113,113,.12); border-color: rgba(248,113,113,.35); }
+    .due { color: #fca5a5; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #1f2a4d; vertical-align: top; }
+    thead th { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; }
+    tbody tr { transition: background .15s ease; }
+    tbody tr:hover { background: rgba(56, 189, 248, 0.06); }
+
+    .row-actions { display:flex; gap:6px; }
+    .footer { margin-top: 12px; display:flex; align-items:center; justify-content: space-between; color: var(--muted); font-size: 12px; }
+    .pill { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); background: #0b1328; }
+
+    .kpi { display:grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .kpi .item { background: #0b1328; border:1px solid var(--border); border-radius: 10px; padding: 10px; }
+    .kpi .n { font-size: 18px; font-weight: 700; }
+    .kpi .l { color: var(--muted); font-size: 12px; }
+
+    dialog { border: none; border-radius: 14px; padding: 0; max-width: 900px; width: 96vw; }
+    .dlg { background: linear-gradient(180deg, #111a36, #0f162d); border: 1px solid var(--border); border-radius: 14px; }
+    .dlg header { padding: 14px; border-bottom: 1px solid var(--border); justify-content: space-between; }
+    .dlg main { padding: 14px; }
+    .grid-form { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-form .full { grid-column: 1 / -1; }
+    .dlg footer { display:flex; justify-content: flex-end; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
+
+    @media (max-width: 860px){ .grid { grid-template-columns: 1fr; } .grid-form { grid-template-columns: 1fr; } }
+  </style>
+  <!-- MSAL (Microsoft Identity) → OneDrive/Graph API 用 -->
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>社内ミニCRM</h1>
+        <div class="sub">HTMLファイル1枚 / ブラウザの <code>localStorage</code> に保存（PCごと・ブラウザごと）</div>
+      </div>
+    </header>
+
+    <div class="grid">
+      <!-- 左：サマリー / 絞り込み -->
+      <section class="card">
+        <h2>サマリー</h2>
+        <div class="kpi" id="kpi"></div>
+        <hr style="border-color:#1f2a4d; opacity:.4; margin:12px 0;" />
+        <h2>絞り込み</h2>
+        <div style="display:grid; gap:10px;">
+          <label>
+            ステータス
+            <select id="filterStatus">
+              <option value="">(すべて)</option>
+              <option>新規</option>
+              <option>フォロー中</option>
+              <option>成約</option>
+              <option>失注</option>
+            </select>
+          </label>
+          <label>
+            タグ
+            <select id="filterTag">
+              <option value="">(すべて)</option>
+            </select>
+          </label>
+          <button class="btn" id="btnClearFilters">絞り込みをクリア</button>
+        </div>
+        <hr style="border-color:#1f2a4d; opacity:.4; margin:12px 0;" />
+        <h2>今日/期限超過</h2>
+        <div id="dueList" class="badges" style="gap:6px; align-items:flex-start; flex-direction:column;"></div>
+      </section>
+
+      <!-- 右：メイン -->
+      <section class="card">
+        <div class="toolbar">
+          <input id="q" class="input" type="search" placeholder="検索: 会社名・担当者・営業担当・メール・電話・タグ・メモ" />
+          <button class="btn primary" id="btnAdd">＋ 追加</button>
+          <button class="btn" id="btnSample">サンプル追加</button>
+          <div style="flex:1"></div>
+          <button class="btn ghost" id="btnSignIn">Microsoft サインイン</button>
+          <button class="btn ghost" id="btnSignOut" style="display:none;">サインアウト</button>
+          <button class="btn" id="btnExport">JSONエクスポート</button>
+          <button class="btn" id="btnExportCsv">CSVエクスポート</button>
+          <input id="fileImport" type="file" accept="application/json,.json" hidden />
+          <button class="btn" id="btnImport">JSONインポート</button>
+        </div>
+
+        <div style="overflow:auto; border-radius:10px;">
+          <table>
+            <thead>
+              <tr>
+                <th data-sort="company">会社名</th>
+                <th data-sort="contact">担当者</th>
+                <th data-sort="sales">営業担当</th>
+                <th data-sort="email">メール</th>
+                <th data-sort="phone">電話</th>
+                <th data-sort="status">ステータス</th>
+                <th data-sort="next">次回対応</th>
+                <th>タグ</th>
+                <th>メモ</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="listBody"></tbody>
+          </table>
+        </div>
+        <div class="footer">
+          <div><span id="count"></span> <span class="pill" id="sortInfo"></span></div>
+          <div class="sub">保存先: <span id="storeLabel">このPCのブラウザ（localStorage）</span></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- 取引先 追加/編集 -->
+  <dialog id="dlgCompany">
+    <form method="dialog" class="dlg" id="companyForm">
+      <header>
+        <strong id="dlgTitle">取引先の追加</strong>
+        <button class="btn" value="cancel" type="submit">× 閉じる</button>
+      </header>
+      <main>
+        <input type="hidden" id="f_id" />
+        <div class="grid-form">
+          <label>会社名 *<br><input required id="f_company" class="input" placeholder="株式会社サンプル" /></label>
+          <label>担当者<br><input id="f_contact" class="input" placeholder="山田 太郎" /></label>
+          <label>営業担当<br><input id="f_sales" class="input" placeholder="自社の担当者名" /></label>
+          <label>メール<br><input id="f_email" type="email" class="input" placeholder="taro@example.com" /></label>
+          <label>電話<br><input id="f_phone" class="input" placeholder="03-1234-5678" /></label>
+          <label>ステータス<br>
+            <select id="f_status">
+              <option>新規</option>
+              <option>フォロー中</option>
+              <option>成約</option>
+              <option>失注</option>
+            </select>
+          </label>
+          <label>次回対応日<br><input id="f_next" type="date" class="input" /></label>
+          <label class="full">タグ（カンマ区切り）<br><input id="f_tags" class="input" placeholder="A顧客,建材,紹介" /></label>
+          <label class="full">メモ<br><textarea id="f_notes" placeholder="会話履歴やTODOなど"></textarea></label>
+        </div>
+      </main>
+      <footer>
+        <button class="btn danger" id="btnDelete" type="button" style="margin-right:auto; display:none">削除</button>
+        <button class="btn" value="cancel" type="submit">キャンセル</button>
+        <button class="btn success" id="btnSave" type="button">保存</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script>
+  (()=>{
+    const KEY = 'miniCRM_v2'; // スキーマ更新でキーを上げる
+    /** @type {{ companies: Company[] }} */
+    let db = { companies: [] };
+
+    /** @typedef {{ id:string, company:string, contact?:string, sales?:string, email?:string, phone?:string, status:'新規'|'フォロー中'|'成約'|'失注', next?:string, tags?:string[], notes?:string, createdAt:string, updatedAt:string }} Company */
+
+    // UI refs
+    const listBody = document.getElementById('listBody');
+    const q = document.getElementById('q');
+    const filterStatus = document.getElementById('filterStatus');
+    const filterTag = document.getElementById('filterTag');
+    const countEl = document.getElementById('count');
+    const sortInfo = document.getElementById('sortInfo');
+    const kpi = document.getElementById('kpi');
+    const dueList = document.getElementById('dueList');
+
+    // Dialog refs
+    const dlg = document.getElementById('dlgCompany');
+    const dlgTitle = document.getElementById('dlgTitle');
+    const f_id = document.getElementById('f_id');
+    const f_company = document.getElementById('f_company');
+    const f_contact = document.getElementById('f_contact');
+    const f_sales = document.getElementById('f_sales');
+    const f_email = document.getElementById('f_email');
+    const f_phone = document.getElementById('f_phone');
+    const f_status = document.getElementById('f_status');
+    const f_next = document.getElementById('f_next');
+    const f_tags = document.getElementById('f_tags');
+    const f_notes = document.getElementById('f_notes');
+    const btnDelete = document.getElementById('btnDelete');
+
+    // State
+    let sort = { key: 'updatedAt', dir: 'desc' };
+
+    // Helpers
+    const uid = () => 'C' + Math.random().toString(36).slice(2,10) + Date.now().toString(36).slice(-4);
+    const todayStr = () => new Date().toISOString().slice(0,10);
+    const fmt = (s) => s ? s : '';
+    const esc = (s='') => s.replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+    const parseTags = (s) => s ? s.split(',').map(t=>t.trim()).filter(Boolean) : [];
+
+    function save(){ localStorage.setItem(KEY, JSON.stringify(db)); }
+    function load(){
+      // v2優先で読み込み、もしv2が無ければv1を読み込み・変換
+      const rawV2 = localStorage.getItem(KEY);
+      if(rawV2){
+        try{ db = JSON.parse(rawV2); }catch{ db = {companies: []}; }
+      } else {
+        try{
+          const rawV1 = localStorage.getItem('miniCRM_v1');
+          if(rawV1){ db = JSON.parse(rawV1); db.companies = db.companies.map(c=>({...c, sales: c.sales||''})); saveWrapped(); }
+        }catch{ db = {companies: []}; }
+      }
+      db.companies ||= []; db.companies.forEach(c=>{ c.tags ||= []; c.sales ||= ''; });
+    }
+
+    function renderAll(){ renderList(); renderSummary(); renderDue(); renderTagFilter(); }
+
+    function renderSummary(){
+      const total = db.companies.length;
+      const counts = {
+        '新規': db.companies.filter(c=>c.status==='新規').length,
+        'フォロー中': db.companies.filter(c=>c.status==='フォロー中').length,
+        '成約': db.companies.filter(c=>c.status==='成約').length,
+        '失注': db.companies.filter(c=>c.status==='失注').length,
+      };
+      kpi.innerHTML = `
+        <div class="item"><div class="n">${total}</div><div class="l">合計 取引先</div></div>
+        <div class="item"><div class="n">${counts['フォロー中']}</div><div class="l">フォロー中</div></div>
+        <div class="item"><div class="n">${counts['成約']}</div><div class="l">成約</div></div>
+        <div class="item"><div class="n">${counts['失注']}</div><div class="l">失注</div></div>
+      `;
+    }
+
+    function renderTagFilter(){
+      const set = new Set(); db.companies.forEach(c=>c.tags?.forEach(t=>set.add(t)));
+      const prev = filterTag.value;
+      filterTag.innerHTML = '<option value="">(すべて)</option>' + Array.from(set).sort().map(t=>`<option ${t===prev?'selected':''}>${esc(t)}</option>`).join('');
+    }
+
+    function getFiltered(){
+      const term = q.value.trim().toLowerCase();
+      const st = filterStatus.value;
+      const tg = filterTag.value;
+      let arr = db.companies.slice();
+      if (st) arr = arr.filter(c=>c.status===st);
+      if (tg) arr = arr.filter(c=>c.tags?.includes(tg));
+      if (term){
+        arr = arr.filter(c=>[
+          c.company, c.contact, c.sales, c.email, c.phone, c.notes, (c.tags||[]).join(',')
+        ].some(v => (v||'').toLowerCase().includes(term)));
+      }
+      arr.sort((a,b)=>{
+        const dir = sort.dir === 'asc' ? 1 : -1;
+        const ak = keyVal(a, sort.key), bk = keyVal(b, sort.key);
+        if(ak==bk) return 0; return ak>bk? dir : -dir;
+      });
+      return arr;
+    }
+
+    function keyVal(c, key){
+      switch(key){
+        case 'company': return (c.company||'').toLowerCase();
+        case 'contact': return (c.contact||'').toLowerCase();
+        case 'sales': return (c.sales||'').toLowerCase();
+        case 'email': return (c.email||'').toLowerCase();
+        case 'phone': return (c.phone||'').toLowerCase();
+        case 'status': return c.status||'';
+        case 'next': return c.next||'9999-12-31';
+        case 'updatedAt': return c.updatedAt||'';
+        default: return '';
+      }
+    }
+
+    function renderList(){
+      const arr = getFiltered();
+      countEl.textContent = `${arr.length} 件表示`;
+      sortInfo.textContent = `並び: ${{
+        company:'会社名', contact:'担当者', sales:'営業担当', email:'メール', phone:'電話', status:'ステータス', next:'次回対応', updatedAt:'更新日'
+      }[sort.key]} / ${sort.dir==='asc'?'昇順':'降順'}`;
+
+      listBody.innerHTML = arr.map(c=>{
+        const statusBadge = `<span class="badge status ${clsStatus(c.status)}">${c.status}</span>`;
+        const next = c.next || '';
+        const due = next && next <= todayStr() && c.status!=='成約' && c.status!=='失注';
+        const tags = (c.tags||[]).map(t=>`<span class="badge">${esc(t)}</span>`).join(' ');
+        return `<tr>
+          <td><strong>${esc(c.company)}</strong><div class="sub">ID: ${c.id}</div></td>
+          <td>${esc(fmt(c.contact))}</td>
+          <td>${esc(fmt(c.sales))}</td>
+          <td>${esc(fmt(c.email))}</td>
+          <td>${esc(fmt(c.phone))}</td>
+          <td>${statusBadge}</td>
+          <td>${next? `<span class="${due?'due':''}">${esc(next)}</span>`: ''}</td>
+          <td>${tags}</td>
+          <td style="max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${esc(fmt(c.notes))}</td>
+          <td class="row-actions">
+            <button class="btn" data-edit="${c.id}">編集</button>
+            <button class="btn warn" data-quick="${c.id}">今日済み</button>
+          </td>
+        </tr>`
+      }).join('');
+    }
+
+    function clsStatus(s){
+      return s==='新規'? 's-new' : s==='フォロー中'? 's-follow' : s==='成約'? 's-won' : 's-lost';
+    }
+
+    function renderDue(){
+      const t = todayStr();
+      const items = db.companies
+        .filter(c=>c.next && c.next <= t && c.status!=='成約' && c.status!=='失注')
+        .sort((a,b)=> (a.next>b.next?1:-1));
+      if(!items.length){
+        dueList.innerHTML = '<span class="sub">本日対応はありません</span>';
+        return;
+      }
+      dueList.innerHTML = items.map(c=>
+        `<div class="item" style="display:flex; gap:8px; align-items:center;">
+          <span class="badge s-follow">${esc(c.next)}</span>
+          <div>
+            <div><strong>${esc(c.company)}</strong> <span class="sub">(${esc(c.contact||'')})</span></div>
+            <div class="badges">${(c.tags||[]).map(t=>`<span class='badge'>${esc(t)}</span>`).join('')}</div>
+          </div>
+          <div style="margin-left:auto; display:flex; gap:6px;">
+            <button class="btn" data-edit="${c.id}">編集</button>
+            <button class="btn success" data-done="${c.id}">完了</button>
+          </div>
+        </div>`
+      ).join('');
+    }
+
+    // Events
+    document.getElementById('btnAdd').addEventListener('click', ()=> openForm());
+    document.getElementById('btnSample').addEventListener('click', addSamples);
+    document.getElementById('btnExport').addEventListener('click', exportJson);
+    document.getElementById('btnExportCsv').addEventListener('click', exportCsv);
+    document.getElementById('btnImport').addEventListener('click', ()=> document.getElementById('fileImport').click());
+    document.getElementById('fileImport').addEventListener('change', importJson);
+    document.getElementById('btnClearFilters').addEventListener('click', ()=>{ q.value=''; filterStatus.value=''; filterTag.value=''; renderAll(); });
+
+    q.addEventListener('input', renderList);
+    filterStatus.addEventListener('change', renderAll);
+    filterTag.addEventListener('change', renderAll);
+
+    document.querySelectorAll('thead th[data-sort]').forEach(th=>{
+      th.addEventListener('click', ()=>{
+        const key = th.getAttribute('data-sort');
+        if(sort.key===key){ sort.dir = sort.dir==='asc'? 'desc':'asc'; } else { sort.key = key; sort.dir='asc'; }
+        renderList();
+      });
+    });
+
+    listBody.addEventListener('click', (e)=>{
+      const t = e.target;
+      if(t.matches('button[data-edit]')){
+        const id = t.getAttribute('data-edit');
+        const c = db.companies.find(x=>x.id===id); if(c) openForm(c);
+      }
+      if(t.matches('button[data-quick]')){
+        const id = t.getAttribute('data-quick');
+        const c = db.companies.find(x=>x.id===id); if(c){ c.updatedAt = new Date().toISOString(); saveWrapped(); renderAll(); }
+      }
+    });
+
+    dueList.addEventListener('click', (e)=>{
+      const t = e.target;
+      if(t.matches('button[data-done]')){
+        const id = t.getAttribute('data-done');
+        const c = db.companies.find(x=>x.id===id); if(c){ c.next = ''; c.updatedAt = new Date().toISOString(); saveWrapped(); renderAll(); }
+      }
+      if(t.matches('button[data-edit]')){
+        const id = t.getAttribute('data-edit');
+        const c = db.companies.find(x=>x.id===id); if(c) openForm(c);
+      }
+    });
+
+    // Dialog handlers
+    document.getElementById('btnSave').addEventListener('click', saveForm);
+    btnDelete.addEventListener('click', deleteCurrent);
+
+    function openForm(company){
+      dlgTitle.textContent = company? '取引先の編集' : '取引先の追加';
+      btnDelete.style.display = company? 'inline-flex':'none';
+      f_id.value = company?.id || '';
+      f_company.value = company?.company || '';
+      f_contact.value = company?.contact || '';
+      f_sales.value = company?.sales || '';
+      f_email.value = company?.email || '';
+      f_phone.value = company?.phone || '';
+      f_status.value = company?.status || '新規';
+      f_next.value = company?.next || '';
+      f_tags.value = (company?.tags||[]).join(', ');
+      f_notes.value = company?.notes || '';
+      dlg.showModal();
+    }
+
+    function saveForm(){
+      if(!f_company.reportValidity()) return;
+      const now = new Date().toISOString();
+      const data = {
+        id: f_id.value || uid(),
+        company: f_company.value.trim(),
+        contact: f_contact.value.trim(),
+        sales: f_sales.value.trim(),
+        email: f_email.value.trim(),
+        phone: f_phone.value.trim(),
+        status: /** @type any */ (f_status.value || '新規'),
+        next: f_next.value || '',
+        tags: parseTags(f_tags.value),
+        notes: f_notes.value.trim(),
+        createdAt: f_id.value? (db.companies.find(c=>c.id===f_id.value)?.createdAt || now) : now,
+        updatedAt: now,
+      };
+      const idx = db.companies.findIndex(c=>c.id===data.id);
+      if(idx>=0) db.companies[idx] = data; else db.companies.push(data);
+      saveWrapped(); dlg.close(); renderAll();
+    }
+
+    function deleteCurrent(){
+      const id = f_id.value; if(!id) return;
+      if(confirm('本当に削除しますか？')){
+        db.companies = db.companies.filter(c=>c.id!==id);
+        saveWrapped(); dlg.close(); renderAll();
+      }
+    }
+
+    function exportJson(){
+      const blob = new Blob([JSON.stringify(db, null, 2)], {type:'application/json'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `crm_backup_${new Date().toISOString().replace(/[:T]/g,'-').slice(0,19)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+
+    function exportCsv(){
+      const arr = getFiltered();
+      const header = ['id','会社名','担当者','営業担当','メール','電話','ステータス','次回対応日','タグ','メモ','作成日','更新日'];
+      const rows = arr.map(c=>[
+        c.id,
+        qcsv(c.company), qcsv(c.contact), qcsv(c.sales), qcsv(c.email), qcsv(c.phone), c.status, c.next||'',
+        qcsv((c.tags||[]).join('|')),
+        qcsv((c.notes||'').replace(/\n/g,' ')),
+        c.createdAt, c.updatedAt
+      ]);
+      const csv = [header.join(','), ...rows.map(r=>r.join(','))].join('\n');
+      const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'crm_export.csv'; a.click(); URL.revokeObjectURL(a.href);
+      function qcsv(s){ s = (s||'').toString(); if(/[",\n]/.test(s)) return '"'+s.replace(/"/g,'""')+'"'; return s; }
+    }
+
+    function importJson(ev){
+      const file = ev.target.files?.[0]; if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        try{
+          const data = JSON.parse(String(reader.result || '{}'));
+          if(!data || typeof data !== 'object' || !Array.isArray(data.companies)) throw new Error('フォーマット不正');
+          if(confirm('現在のデータを上書きします。よろしいですか？')){
+            db = { companies: data.companies.map(cleanCompany) };
+            saveWrapped(); renderAll();
+          }
+        }catch(err){ alert('読み込みに失敗しました: ' + err.message); }
+      };
+      reader.readAsText(file);
+      ev.target.value = '';
+    }
+
+    function cleanCompany(c){
+      return {
+        id: c.id || uid(),
+        company: String(c.company||'').trim(),
+        contact: String(c.contact||'').trim(),
+        sales: String(c.sales||'').trim(),
+        email: String(c.email||'').trim(),
+        phone: String(c.phone||'').trim(),
+        status: (['新規','フォロー中','成約','失注'].includes(c.status)? c.status : '新規'),
+        next: c.next && /\d{4}-\d{2}-\d{2}/.test(c.next) ? c.next : '',
+        tags: Array.isArray(c.tags)? c.tags.filter(Boolean).map(String) : parseTags(String(c.tags||'')),
+        notes: String(c.notes||'').trim(),
+        createdAt: c.createdAt || new Date().toISOString(),
+        updatedAt: c.updatedAt || new Date().toISOString(),
+      }
+    }
+
+    function addSamples(){
+      const t = todayStr();
+      const sample = [
+        { company:'KMネクスト', contact:'坂田', sales:'澤田', email:'sakata@example.com', phone:'03-1111-2222', status:'フォロー中', next:t, tags:['建材','既存'], notes:'受発注システム改修の見積依頼。8/20に社長承認予定。' },
+        { company:'モノタロウ', contact:'営業部A', sales:'矢野', email:'sales-a@monotaro.com', phone:'06-1234-5678', status:'新規', next: addDays(t,3), tags:['見込み'], notes:'PB品：LED投光器/防災リュックの要件ヒアリング。' },
+        { company:'岡山工務店', contact:'矢野', sales:'北出', email:'yano@okayamabuild.jp', phone:'086-000-1111', status:'フォロー中', next: addDays(t,-1), tags:['A顧客','紹介'], notes:'昨日フォローできず。急ぎ連絡。' },
+        { company:'滋賀建設', contact:'北出', sales:'大渕', email:'kitade@shigaken.co.jp', phone:'077-999-8888', status:'成約', next:'', tags:['既存'], notes:'見積→受注。納期9/5。' },
+        { company:'横浜資材', contact:'大渕', sales:'坂田', email:'obuchi@yokohama.co.jp', phone:'045-555-0000', status:'失注', next:'', tags:['B顧客'], notes:'価格競合で失注。' },
+      ].map(s=>({ id: uid(), ...s, createdAt:new Date().toISOString(), updatedAt:new Date().toISOString() }));
+      db.companies.push(...sample); saveWrapped(); renderAll();
+    }
+
+    function addDays(iso, n){ const d = new Date(iso); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+
+    // ==== OneDrive / Microsoft Graph 設定 ====
+    const graphCfg = {
+      clientId: 'YOUR_CLIENT_ID', // ← Azure AD で登録したアプリのクライアントID
+      authority: 'https://login.microsoftonline.com/YOUR_TENANT_ID', // 例: organizations or テナントID
+      redirectUri: location.origin + location.pathname, // このHTMLを開くURL
+      scopes: ['Files.ReadWrite.AppFolder'] // OneDrive アプリフォルダに読み書き
+    };
+    const msalInstance = new msal.PublicClientApplication({ auth: { clientId: graphCfg.clientId, authority: graphCfg.authority, redirectUri: graphCfg.redirectUri } });
+    let account = null; // サインイン済みアカウント
+    const storeLabel = document.getElementById('storeLabel');
+
+    async function signIn(){
+      const res = await msalInstance.loginPopup({ scopes: graphCfg.scopes });
+      account = res.account;
+      document.getElementById('btnSignIn').style.display = 'none';
+      document.getElementById('btnSignOut').style.display = 'inline-flex';
+      storeLabel.textContent = 'OneDrive（アプリフォルダ）';
+      await loadFromOneDrive();
+      renderAll();
+    }
+    async function signOut(){
+      if(account){ await msalInstance.logoutPopup({ account }); }
+      account = null; storeLabel.textContent = 'このPCのブラウザ（localStorage）';
+      document.getElementById('btnSignIn').style.display = 'inline-flex';
+      document.getElementById('btnSignOut').style.display = 'none';
+      load(); renderAll();
+    }
+    async function getToken(){
+      if(!account){ const accs = msalInstance.getAllAccounts(); if(accs.length){ account = accs[0]; } }
+      if(!account) return null;
+      try{
+        const res = await msalInstance.acquireTokenSilent({ account, scopes: graphCfg.scopes });
+        return res.accessToken;
+      }catch{
+        const res = await msalInstance.acquireTokenPopup({ scopes: graphCfg.scopes });
+        return res.accessToken;
+      }
+    }
+    async function graph(method, path, body, type='application/json'){
+      const token = await getToken(); if(!token) throw new Error('未サインイン');
+      const res = await fetch('https://graph.microsoft.com/v1.0' + path, {
+        method,
+        headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': type },
+        body
+      });
+      if(!res.ok){ throw new Error('Graph error ' + res.status); }
+      return res;
+    }
+    const APPFILE = '/me/drive/special/approot:/mini-crm/db.json'; // OneDrive アプリフォルダ
+
+    async function loadFromOneDrive(){
+      try{
+        const res = await graph('GET', APPFILE + ':/content');
+        const text = await res.text();
+        db = JSON.parse(text || '{"companies":[]}');
+        db.companies ||= []; db.companies.forEach(c=>{ c.tags ||= []; c.sales ||= ''; });
+      }catch(e){
+        // 無ければ初期化して作成
+        db = { companies: [] };
+        await saveToOneDrive();
+      }
+    }
+    async function saveToOneDrive(){
+      const blob = new Blob([JSON.stringify(db)], {type:'application/json'});
+      await graph('PUT', APPFILE + ':/content', blob, 'application/json');
+    }
+
+    // 既存 save/load をOneDriveと切替
+    const _saveLocal = save; const _loadLocal = load;
+    async function saveWrapped(){
+      if(account){ await saveToOneDrive(); } else { _saveLocal(); }
+    }
+    async function loadWrapped(){
+      const accs = msalInstance.getAllAccounts();
+      if(accs.length){ account = accs[0]; document.getElementById('btnSignIn').style.display='none'; document.getElementById('btnSignOut').style.display='inline-flex'; storeLabel.textContent = 'OneDrive（アプリフォルダ）'; await loadFromOneDrive(); }
+      else { _loadLocal(); }
+    }
+
+    document.getElementById('btnSignIn').addEventListener('click', signIn);
+    document.getElementById('btnSignOut').addEventListener('click', signOut);
+
+    // Init
+    loadWrapped().then(renderAll);
+  })();
+  </script>
+</body>
+</html>

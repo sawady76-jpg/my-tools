@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>社内ミニCRM (Supabase対応・SPA/HTML1枚)</title>
+  <style>
+    :root {
+      --bg: #0b1020; --panel: #121a33; --muted: #94a3b8; --text: #e6eefc; --accent: #4f46e5; --accent-2: #22c55e; --danger: #ef4444; --warn: #f59e0b; --border: #263055;
+    }
+    * { box-sizing: border-box; } html, body { height: 100%; }
+    body { margin: 0; background: linear-gradient(180deg, #0b1020, #0a1330); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Noto Sans JP", "メイリオ", sans-serif; }
+    a { color: var(--accent); text-decoration: none; }
+    label, .sub, h2, h1, strong { color: var(--text); }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    header { display:flex; align-items:center; gap:14px; }
+    .logo { width: 36px; height: 36px; border-radius: 10px; background: radial-gradient(circle at 30% 30%, #6ee7b7, #3b82f6 60%, #a78bfa); box-shadow: 0 0 30px rgba(79,70,229,.35); }
+    h1 { font-size: 20px; margin: 0; letter-spacing: .5px; }
+    .sub { font-size: 12px; }
+
+    .grid { display: grid; grid-template-columns: 280px 1fr; gap: 18px; margin-top: 16px; }
+    .card { background: linear-gradient(180deg, #121a33, #0f162d); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: 0 10px 24px rgba(0,0,0,.25); }
+    .card h2 { font-size: 15px; margin: 0 0 10px; letter-spacing: .3px; }
+
+    .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+    .toolbar input[type="search"] { flex: 1 1 240px; min-width: 200px; }
+
+    .input, select, textarea { background: #0b1328; border: 1px solid var(--border); color: var(--text); border-radius: 10px; padding: 10px 12px; outline: none; font-size: 14px; }
+    textarea { width: 100%; min-height: 80px; resize: vertical; }
+
+    .btn { background: #111a36; color: var(--text); border: 1px solid var(--border); padding: 9px 12px; border-radius: 10px; font-size: 14px; cursor: pointer; transition: .15s ease; }
+    .btn:hover { background: #0e1530; }
+    .btn.primary { background: var(--accent); border-color: #3940c6; }
+    .btn.primary:hover { filter: brightness(1.05); }
+    .btn.success { background: var(--accent-2); border-color: #16a34a; }
+    .btn.danger { background: var(--danger); border-color: #b91c1c; }
+    .btn.warn { background: var(--warn); border-color: #d97706; color: #111; }
+    .btn.ghost { background: transparent; border-color: var(--border); }
+
+    /* ===== バッジ（ステータス＆タグ） ===== */
+    .badges { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .badge { display:inline-flex; align-items:center; justify-content:center; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); line-height:1.2; white-space: nowrap; word-break: keep-all; }
+    .status { font-weight: 700; letter-spacing: .05em; min-width:56px; text-align:center; }
+    .s-new { background:#0ea5e9; color:#fff; border-color:#0284c7; }
+    .s-follow { background:#facc15; color:#111; border-color:#ca8a04; }
+    .s-won { background:#22c55e; color:#fff; border-color:#15803d; }
+    .s-lost { background:#ef4444; color:#fff; border-color:#b91c1c; }
+    .due { color: #fca5a5; }
+
+    .chips { display:flex; gap:6px; flex-wrap:wrap; }
+    .chips .badge { background:#1e293b; color:#e2e8f0; font-size:11px; border-radius:6px; border:1px solid #334155; padding:3px 8px; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid #1f2a4d; vertical-align: top; }
+    thead th { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; cursor: pointer; }
+    tbody tr { transition: background .15s ease; }
+    tbody tr:hover { background: rgba(56, 189, 248, 0.06); }
+
+    .row-actions { display:flex; gap:6px; }
+    .footer { margin-top: 12px; display:flex; align-items:center; justify-content: space-between; color: var(--muted); font-size: 12px; }
+    .pill { padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); background: #0b1328; }
+
+    .kpi { display:grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .kpi .item { background: #0b1328; border:1px solid var(--border); border-radius: 10px; padding: 10px; }
+    .kpi .n { font-size: 18px; font-weight: 700; }
+    .kpi .l { color: var(--muted); font-size: 12px; }
+
+    dialog { border: none; border-radius: 14px; padding: 0; max-width: 900px; width: 96vw; }
+    .dlg { background: linear-gradient(180deg, #111a36, #0f162d); border: 1px solid var(--border); border-radius: 14px; }
+    .dlg header { padding: 14px; border-bottom: 1px solid var(--border); justify-content: space-between; }
+    .dlg main { padding: 14px; }
+    .grid-form { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-form .full { grid-column: 1 / -1; }
+    .dlg footer { display:flex; justify-content: flex-end; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border); }
+
+    @media (max-width: 860px){
+      .grid { grid-template-columns: 1fr; }
+      .grid-form { grid-template-columns: 1fr; }
+      table th, table td { padding: 8px 6px; }
+      .badge { font-size: 11px; padding: 3px 8px; }
+      .chips.scroll-x { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .chips.scroll-x::-webkit-scrollbar { display:none; }
+    }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo" aria-hidden="true"></div>
+      <div>
+        <h1>社内ミニCRM</h1>
+        <div class="sub">HTML1枚 / 保存先: <span id="storeLabel">localStorage</span>（サインインでSupabaseに切替）</div>
+      </div>
+    </header>
+
+    <!-- 省略：中身は前回と同じ -->
+
+  <!-- 取引先 追加/編集 -->
+  <dialog id="dlgCompany">
+    <form method="dialog" class="dlg" id="companyForm">
+      <header>
+        <strong id="dlgTitle">取引先の追加</strong>
+        <button class="btn" value="cancel" type="submit">× 閉じる</button>
+      </header>
+      <main>
+        <!-- 入力フォーム -->
+      </main>
+      <footer>
+        <button class="btn danger" id="btnDelete" type="button" style="margin-right:auto; display:none">削除</button>
+        <button class="btn" id="btnCancel" type="button">キャンセル</button>
+        <button class="btn success" id="btnSave" type="button">保存</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script>
+    // ... 既存のスクリプト
+
+    // Dialog handlers
+    document.getElementById('btnSave').addEventListener('click', saveForm);
+    btnDelete.addEventListener('click', deleteCurrent);
+    document.getElementById('btnCancel').addEventListener('click', ()=> dlg.close());
+  </script>
+</body>
+</html>

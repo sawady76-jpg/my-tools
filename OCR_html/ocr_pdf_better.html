@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AI OCR for PDF – Improved (text-first / jpn_vert / PSM)</title>
+<style>
+:root{--fg:#111;--muted:#6b7280;--accent:#2563eb}
+*{box-sizing:border-box} body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0}
+header{padding:14px 18px;border-bottom:1px solid #eee;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+h1{font-size:18px;margin:0}
+main{max-width:1100px;margin:0 auto;padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:960px){ main{grid-template-columns:1fr} }
+.panel{border:1px solid #eee;border-radius:10px;overflow:hidden;background:#fff}
+.panel header{border:0;background:#fafafa}
+.panel .body{padding:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+select,button,input,progress{font-size:14px}
+button{padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px;background:#fff;cursor:pointer}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button:disabled{opacity:.5;cursor:not-allowed}
+.muted{color:var(--muted);font-size:12px}
+progress{width:100%}
+textarea{width:100%;min-height:360px;resize:vertical;font-family:ui-monospace,Consolas,Menlo,monospace}
+.thumbgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.thumb{border:1px solid #e5e7eb;border-radius:8px;overflow:hidden;background:#fff}
+.thumb canvas{display:block;width:100%;height:auto}
+.kvs{display:grid;grid-template-columns:auto 1fr;gap:6px 10px;font-size:13px}
+.sep{margin:14px 0;border-top:1px dashed #e5e7eb}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";</script>
+</head>
+<body>
+<header>
+  <h1>PDF OCR（テキスト優先・縦書き対応）</h1>
+  <span class="muted">PDF内の埋め込みテキストを優先抽出。無いページだけOCRします。</span>
+</header>
+
+<main>
+  <section class="panel">
+    <header><strong>PDF入力</strong></header>
+    <div class="body">
+      <div class="row">
+        <input id="pdfFile" type="file" accept="application/pdf"/>
+        <button id="sampleBtn">サンプル</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label>言語：</label>
+        <select id="lang">
+          <option value="jpn">日本語（横書き）jpn</option>
+          <option value="jpn_vert">日本語（縦書き）jpn_vert</option>
+          <option value="jpn+eng">日本語+英語 jpn+eng</option>
+          <option value="eng">English eng</option>
+        </select>
+        <label>PSM：</label>
+        <select id="psm" title="ページ分割モード。票/段組は6、明細は6/4、縦書きは6が安定。">
+          <option value="3">3: Auto(全自動)</option>
+          <option value="6" selected>6: 単一ブロック(均一)</option>
+          <option value="4">4: 単一列</option>
+          <option value="7">7: 単一行</option>
+          <option value="11">11: スパーステキスト</option>
+        </select>
+        <label>倍率：</label>
+        <select id="scale">
+          <option value="1.5" selected>1.5x（推奨）</option>
+          <option value="2">2x（高精細）</option>
+          <option value="1.2">1.2x（高速）</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <label><input id="binarize" type="checkbox" checked> 簡易二値化</label>
+        <label><input id="textFirst" type="checkbox" checked> PDFテキスト優先</label>
+        <label>範囲：</label>
+        <input id="range" type="text" placeholder="例: 1-3,5（空=全）" style="width:220px"/>
+      </div>
+      <div class="sep"></div>
+      <div class="row">
+        <button id="run" class="primary" disabled>OCR開始</button>
+        <button id="cancel" disabled>中止</button>
+        <button id="clear" disabled>クリア</button>
+      </div>
+      <div class="row" style="align-items:center;margin-top:8px">
+        <progress id="prog" max="1" value="0"></progress>
+        <span id="status" class="muted">待機中</span>
+      </div>
+      <div class="sep"></div>
+      <div class="kvs">
+        <div>ファイル名</div><div id="fname" class="muted">—</div>
+        <div>ページ数</div><div id="pages" class="muted">—</div>
+        <div>対象</div><div id="targets" class="muted">—</div>
+      </div>
+      <div class="sep"></div>
+      <div class="thumbgrid" id="thumbs" aria-label="ページプレビュー"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header><strong>結果</strong></header>
+    <div class="body">
+      <textarea id="out" placeholder="ここに結果が表示されます（--- Page n --- 区切り）"></textarea>
+      <div class="row" style="margin-top:8px">
+        <button id="dlTxt">TXT保存</button>
+        <button id="dlJson">JSON保存</button>
+        <button id="copy">コピー</button>
+      </div>
+      <div class="muted" style="margin-top:6px">
+        縦書き文書→言語で「jpn_vert」を選択。帳票はPSM=6が安定です。
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(()=> {
+  const $=id=>document.getElementById(id);
+  const pdfFile=$('pdfFile'), runBtn=$('run'), cancelBtn=$('cancel'), clearBtn=$('clear');
+  const langSel=$('lang'), psmSel=$('psm'), scaleSel=$('scale'), rangeInput=$('range');
+  const binarizeChk=$('binarize'), textFirstChk=$('textFirst');
+  const prog=$('prog'), status=$('status'), out=$('out'), thumbs=$('thumbs');
+  const fname=$('fname'), pages=$('pages'), targets=$('targets');
+  const dlTxt=$('dlTxt'), dlJson=$('dlJson'), copyBtn=$('copy'), sampleBtn=$('sampleBtn');
+
+  let pdfDoc=null, pdfBlob=null, pageCount=0, cancelFlag=false;
+  let worker=null, currentLang='';
+
+  function reset(hard=false){
+    status.textContent='待機中'; prog.value=0; runBtn.disabled=!pdfDoc; cancelBtn.disabled=true; clearBtn.disabled=!pdfDoc;
+    if(hard){
+      pdfDoc=null; pdfBlob=null; pageCount=0;
+      fname.textContent='—'; pages.textContent='—'; targets.textContent='—';
+      out.value=''; thumbs.innerHTML='';
+      runBtn.disabled=true; clearBtn.disabled=true;
+    }
+  }
+
+  function parseRange(rangeStr, total){
+    if(!rangeStr || !rangeStr.trim()) return Array.from({length:total},(_,i)=>i+1);
+    const set=new Set();
+    rangeStr.split(',').forEach(part=>{
+      const m=part.trim().match(/^(\\d+)(?:-(\\d+))?$/); if(!m) return;
+      let a=parseInt(m[1],10), b=m[2]?parseInt(m[2],10):a;
+      if(a>b) [a,b]=[b,a];
+      a=Math.max(1,Math.min(total,a)); b=Math.max(1,Math.min(total,b));
+      for(let i=a;i<=b;i++) set.add(i);
+    });
+    return Array.from(set).sort((a,b)=>a-b);
+  }
+
+  async function loadPdfFromBlob(blob){
+    pdfBlob=blob;
+    const arr = await blob.arrayBuffer();
+    pdfDoc = await pdfjsLib.getDocument({ data: arr }).promise;
+    pageCount = pdfDoc.numPages;
+    pages.textContent = String(pageCount);
+    fname.textContent = (blob.name || 'document.pdf');
+    targets.textContent = '—';
+    thumbs.innerHTML='';
+    const maxThumbs = Math.min(12, pageCount);
+    for(let p=1; p<=maxThumbs; p++){
+      const page = await pdfDoc.getPage(p);
+      const viewport = page.getViewport({ scale: 0.2 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d', { willReadFrequently:true });
+      await page.render({ canvasContext: ctx, viewport }).promise;
+      const card = document.createElement('div'); card.className='thumb'; card.title = `Page ${p}`;
+      card.appendChild(canvas); thumbs.appendChild(card);
+    }
+    runBtn.disabled=false; clearBtn.disabled=false;
+  }
+
+  pdfFile.addEventListener('change', async (e)=>{
+    const f = e.target.files?.[0];
+    if(!f) return;
+    if(f.type !== 'application/pdf'){ alert('PDFファイルを選択してください。'); return; }
+    await loadPdfFromBlob(f); reset();
+  });
+
+  // サンプルPDF（簡易）
+  sampleBtn.addEventListener('click', async ()=>{
+    const blob = await makeTinyPdfBlob("令和7年10月\\n請求金額：¥12,345\\n宛先：KMネクスト 様\\n品目：軽天材 50本");
+    await loadPdfFromBlob(blob); reset();
+  });
+
+  // Tesseractワーカー（使い回し）
+  async function ensureWorker(lang, psm){
+    if(!worker){
+      worker = await Tesseract.createWorker({ logger:m=>{
+        if(m.status){ status.textContent = m.status.replace(/_/g,' ') + (m.progress?` ${Math.round(m.progress*100)}%`: ''); }
+      }});
+      await worker.load();
+    }
+    if(currentLang !== lang){
+      await worker.loadLanguage(lang);
+      await worker.initialize(lang, 1); // oem 1: LSTMのみ
+      currentLang = lang;
+    }
+    await worker.setParameters({
+      tessedit_pageseg_mode: String(psm),
+      preserve_interword_spaces: '1'
+    });
+    return worker;
+  }
+
+  // Canvas簡易前処理（二値化）
+  function preprocessCanvas(srcCanvas){
+    if(!binarizeChk.checked) return srcCanvas;
+    const c = document.createElement('canvas'); c.width=srcCanvas.width; c.height=srcCanvas.height;
+    const ctx = c.getContext('2d', { willReadFrequently:true });
+    ctx.drawImage(srcCanvas,0,0);
+    const img = ctx.getImageData(0,0,c.width,c.height);
+    const d = img.data;
+    for(let i=0;i<d.length;i+=4){
+      const r=d[i], g=d[i+1], b=d[i+2];
+      const y = 0.2126*r + 0.7152*g + 0.0722*b;
+      const v = y > 200 ? 255 : y < 140 ? 0 : y*1.5;
+      d[i]=d[i+1]=d[i+2]=v;
+    }
+    ctx.putImageData(img,0,0);
+    return c;
+  }
+
+  // PDFテキスト抽出（埋め込みテキスト）
+  async function extractPdfText(page){
+    const textContent = await page.getTextContent({ normalizeWhitespace:true, disableCombineTextItems:false });
+    const s = textContent.items.map(it=>it.str).join('\\n').trim();
+    return s;
+  }
+
+  runBtn.addEventListener('click', async ()=>{
+    if(!pdfDoc) return;
+    cancelFlag=false; cancelBtn.disabled=false; runBtn.disabled=true; clearBtn.disabled=true;
+    out.value='';
+    const scale = parseFloat(scaleSel.value || '1.5');
+    const lang = langSel.value || 'jpn';
+    const psm = Number(psmSel.value || '6');
+    const targetPages = parseRange(rangeInput.value, pageCount);
+    targets.textContent = `${targetPages.join(', ')}（計${targetPages.length}ページ）`;
+
+    const results = [];
+    let processed = 0;
+
+    const needOCR = [];
+    for(const p of targetPages){
+      if(cancelFlag) break;
+      const page = await pdfDoc.getPage(p);
+
+      if(textFirstChk.checked){
+        const t = (await extractPdfText(page)) || '';
+        if(t && /[一-龠ぁ-ゟァ-ヿ0-9A-Za-z]/.test(t)){
+          results.push({ page: p, text: t });
+          processed++;
+          prog.value = processed / targetPages.length;
+          continue;
+        }
+      }
+      needOCR.push(p);
+    }
+
+    if(needOCR.length){
+      const w = await ensureWorker(lang, psm);
+      for(const p of needOCR){
+        if(cancelFlag) break;
+        status.textContent = `ページ ${p} をレンダリング中…`;
+        const page = await pdfDoc.getPage(p);
+        const viewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+        const ctx = canvas.getContext('2d', { willReadFrequently:true });
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        const pre = preprocessCanvas(canvas);
+
+        status.textContent = `ページ ${p} をOCR中…`;
+        let text = '';
+        try{
+          const { data } = await w.recognize(pre);
+          text = data.text || '';
+        }catch(e){
+          console.error(e);
+          text = `(Page ${p}) OCRエラー: ${e?.message||e}`;
+        }
+        results.push({ page: p, text });
+        processed++;
+        prog.value = processed / targetPages.length;
+      }
+    }
+
+    results.sort((a,b)=>a.page-b.page);
+    const joined = results.map(r => `--- Page ${r.page} ---\\n${r.text.trim()}\\n`).join('\\n');
+    out.value = joined.trim();
+
+    status.textContent = cancelFlag ? '中止しました' : '完了';
+    cancelBtn.disabled=true; runBtn.disabled=false; clearBtn.disabled=false;
+  });
+
+  cancelBtn.addEventListener('click', ()=>{ cancelFlag=true; cancelBtn.disabled=true; status.textContent='中止要求…'; });
+  clearBtn.addEventListener('click', ()=>{ reset(true); pdfFile.value=''; });
+
+  copyBtn.addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(out.value||''); copyBtn.textContent='コピー済み'; setTimeout(()=>copyBtn.textContent='コピー',800);}catch{ alert('コピー失敗'); }});
+  dlTxt.addEventListener('click', ()=>{ const blob = new Blob([out.value||''], {type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(fname.textContent||'ocr')+'.txt'; a.click(); URL.revokeObjectURL(a.href); });
+  dlJson.addEventListener('click', ()=>{ const payload = JSON.stringify({ file: fname.textContent, pages: splitTextToPages(out.value) }, null, 2); const blob = new Blob([payload], {type:'application/json;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=(fname.textContent||'ocr')+'.json'; a.click(); URL.revokeObjectURL(a.href); });
+
+  function splitTextToPages(txt){
+    const arr = []; const re=/--- Page (\\d+) ---\\n([\\s\\S]*?)(?=\\n--- Page \\d+ ---|$)/g;
+    let m; while((m=re.exec(txt))){ arr.push({ page: Number(m[1]), text: m[2].trim() }); }
+    if(arr.length===0) arr.push({ page: 1, text: txt });
+    return arr;
+  }
+
+  async function makeTinyPdfBlob(text){
+    const esc = s => s.replace(/\\\\/g,'\\\\\\\\').replace(/\\(/g,'\\\\(').replace(/\\)/g,'\\\\)');
+    const lines = esc(text).split('\\n').map((l,i)=>`BT /F1 12 Tf 50 ${760 - i*16} Td (${l}) Tj ET`).join('\\n');
+    const pdf = `%PDF-1.4
+1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
+3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj
+4 0 obj<</Length ${len(lines)+100}>>stream
+${lines}
+endstream endobj
+5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj
+xref
+0 6
+0000000000 65535 f 
+0000000010 00000 n 
+0000000062 00000 n 
+0000000114 00000 n 
+0000000309 00000 n 
+0000000531 00000 n 
+trailer<</Root 1 0 R/Size 6>>
+startxref
+650
+%%EOF`;
+    function len(s){ return s.length; }
+    return new Blob([pdf], {type:'application/pdf'});
+  }
+})();
+</script>
+</body>
+</html>

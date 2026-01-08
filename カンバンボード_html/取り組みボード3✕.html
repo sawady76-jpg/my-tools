@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>受発注課 取り組み一覧（Supabase・共同編集）</title>
+<style>
+  :root{
+    --bg:#0a0f1f; --panel:#0e1430; --line:rgba(255,255,255,.08); --muted:rgba(255,255,255,.05);
+    --text:#e6eeff; --sub:#9bb3ff; --accent:#6ef3ff; --accent2:#c67dff; --shadow:0 10px 30px rgba(0,0,0,.45);
+    --radius:14px; --gap:14px;
+  }
+  *{box-sizing:border-box;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  body{margin:0;color:var(--text);background:
+    radial-gradient(1200px 600px at 0% -10%, #16235a33, transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, #1d2b6933, transparent 60%),
+    var(--bg);}
+  header{position:sticky;top:0;z-index:5;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+    padding:14px 16px;border-bottom:1px solid var(--line);
+    backdrop-filter: blur(10px);
+    background:linear-gradient(180deg, rgba(12,18,40,.9), rgba(12,18,40,.6));}
+  .brand{font-weight:800;letter-spacing:.2px}
+  input,button,textarea{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);padding:10px 12px}
+  input::placeholder, textarea::placeholder{color:#9fb2ffaa}
+  button{cursor:pointer;box-shadow:var(--shadow);border:none}
+  button.ghost{box-shadow:none;border:1px solid var(--line);background:transparent}
+  button.primary{background:linear-gradient(180deg, #2cd9ff, #1aa8cc); color:#00121a;border:none}
+  .pill{font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:transparent;color:#bcd1ff}
+  main{padding:16px}
+  .board{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap);min-height:calc(100dvh - 130px)}
+  .col{background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+    border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;min-height:60vh;
+    box-shadow:var(--shadow);}
+  .col-header{display:flex;justify-content:space-between;align-items:center;padding:12px 12px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(110,243,255,.12), rgba(198,125,255,.08));}
+  .col-title{font-weight:800;letter-spacing:.3px}
+  .cards{display:flex;flex-direction:column;gap:10px;padding:10px;flex:1}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:var(--shadow);backdrop-filter: blur(6px)}
+  .card small{color:#a8bdff}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-left:auto}
+  .hint{color:#a8b6ff;font-size:12px}
+  .owner{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .avatar{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg, #2cd9ff55, #c67dff55);border:1px solid var(--line);font-size:12px;color:#e6eeff}
+  .drag-over{outline:2px dashed #6ef3ff; outline-offset: -6px;}
+  @media (max-width:1100px){ .board{grid-template-columns:repeat(2,1fr)} }
+  @media (max-width:700px){ .board{grid-template-columns:1fr} header{flex-direction:column;align-items:flex-start} .toolbar{margin-left:0} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">🧭 受発注課取り組み一覧（共同）</div>
+  <label>ボード名</label><input id="boardId" placeholder="例: kmnext-board" />
+  <button id="btnJoin" class="ghost">入室</button>
+  <div class="toolbar">
+    <span id="statusBadge" class="pill">未接続</span>
+    <button class="ghost" id="btnExport">JSONエクスポート</button>
+    <input type="file" id="fileImport" accept="application/json" hidden />
+    <button class="ghost" id="btnImport">JSONインポート</button>
+  </div>
+  <div class="hint" style="flex-basis:100%">※ 全員で同じボード名に入室すると、リアルタイム共同編集できます</div>
+</header>
+
+<section id="global-add" style="padding:12px 16px;border-bottom:1px dashed var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;background:linear-gradient(180deg, rgba(255,255,255,.04), transparent)">
+  <input id="gTitle" placeholder="タイトル（例：見積テンプレ見直し/山田）" style="flex:2;min-width:220px" />
+  <input id="gOwner" placeholder="担当者（空欄可：未割当）" style="flex:1;min-width:160px" />
+  <textarea id="gDesc" rows="2" placeholder="詳細（任意）" style="flex:3;min-width:260px"></textarea>
+  <button class="ghost" id="gAddBtn">＋ 追加（計画列に入る）</button>
+  <div class="hint" style="flex-basis:100%">※ 「タイトル/山田」のようにスラッシュ区切りでも担当者を自動で入れます</div>
+</section>
+
+<main>
+  <section id="board" class="board"></section>
+</main>
+
+<!-- Supabase JS -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.46.1/dist/umd/supabase.js"></script>
+<script>
+/*** Supabase 接続設定 ***/
+const SUPABASE_URL = "https://yrkaznkuztyjxhfpiyjl.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlya2F6bmt1enR5anhoZnBpeWpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1Njk3ODksImV4cCI6MjA3MTE0NTc4OX0.47EkcDXeJ7E6iYhrR2tXGuuatEXqZxkiaxbpAkiXe4k";
+
+/*** 初期化 ***/
+const { createClient } = window.supabase;
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const STATUSES = [
+  { id: "plan",   name: "計画" },
+  { id: "do",     name: "実行" },
+  { id: "check",  name: "結果チェック" },
+  { id: "act",    name: "振り返り" }
+];
+
+const boardEl = document.getElementById('board');
+const boardIdInput = document.getElementById('boardId');
+const btnJoin = document.getElementById('btnJoin');
+const statusBadge = document.getElementById('statusBadge');
+const btnExport = document.getElementById('btnExport');
+const btnImport = document.getElementById('btnImport');
+const fileImport = document.getElementById('fileImport');
+
+let currentBoardId = localStorage.getItem('kanban_board_id') || 'kmnext-board';
+boardIdInput.value = currentBoardId;
+let channel = null;
+
+function initials(name){
+  const n = (name||'').trim();
+  if (!n) return '未';
+  const ascii = /^[A-Za-z]/.test(n);
+  return ascii ? n.slice(0,2).toUpperCase() : n.slice(0,1);
+}
+function ownerLabel(o){
+  const name = (o||'').trim() || '未割当';
+  return `<div class="owner">
+    <span class="avatar" title="${escapeHtml(name)}">${escapeHtml(initials(name))}</span>
+    <small>👤 ${escapeHtml(name)}</small>
+  </div>`;
+}
+function escapeHtml(s){ return String(s||'').replace(/[&<>\"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;' }[m])); }
+
+function renderColumns(){
+  boardEl.innerHTML = '';
+  STATUSES.forEach(s=>{
+    const col = document.createElement('div');
+    col.className = 'col';
+    col.dataset.status = s.id;
+    col.innerHTML = `
+      <div class="col-header">
+        <div class="col-title">${s.name}</div>
+        <span class="pill">${s.id.toUpperCase()}</span>
+      </div>
+      <div class="cards" data-status="${s.id}"></div>
+    `;
+    boardEl.appendChild(col);
+  });
+  enableDnD();
+}
+
+function paint(cards){
+  boardEl.querySelectorAll('.cards').forEach(z=> z.innerHTML='');
+  const list = Object.fromEntries(STATUSES.map(s=>[s.id, []]));
+  for(const c of cards) list[c.status]?.push(c);
+  for(const k in list) list[k].sort((a,b)=> (a.pos??0)-(b.pos??0));
+  for(const s of STATUSES){
+    const zone = boardEl.querySelector(\`.cards[data-status="${s.id}"]\`);
+    for(const c of list[s.id]){
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.draggable = true;
+      el.dataset.id = c.id;
+      el.innerHTML = \`
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+          <div class="field-title" style="font-weight:700;line-height:1.3">\${escapeHtml(c.title || '（無題）')}</div>
+          <div style="display:flex;gap:6px">
+            <button class="ghost" data-act="del">削除</button>
+          </div>
+        </div>
+        <div class="field-descr" style="margin-top:6px;white-space:pre-wrap;color:#c6d3ff">\${escapeHtml(c.descr||'')}</div>
+        <div class="field-owner" style="margin-top:6px">\${ownerLabel(c.owner)}</div>
+        <small style="display:block;margin-top:8px;color:#8ca5ff">#\${String(c.id).slice(-5)}・\${s.name}</small>
+      \`;
+      el.querySelector('[data-act="del"]').addEventListener('click', async ()=>{
+        if (!confirm('削除しますか？')) return;
+        await sb.from('kanban_cards').delete().eq('id', c.id);
+      });
+      // inline edit
+      makeEditable(el.querySelector('.field-title'), ()=>c.title||'', v=> updateCard(c.id,{ title:v||'（無題）' }), false);
+      makeEditable(el.querySelector('.field-descr'), ()=>c.descr||'', v=> updateCard(c.id,{ descr:v||'' }), true);
+      makeEditable(el.querySelector('.field-owner'), ()=>c.owner||'', v=> updateCard(c.id,{ owner:v||'' }), false);
+      zone.appendChild(el);
+    }
+  }
+}
+
+function makeEditable(el, getter, setter, multiline=false){
+  if(!el) return;
+  el.style.cursor = 'text';
+  el.addEventListener('dblclick', ()=>{
+    const editor = multiline ? document.createElement('textarea') : document.createElement('input');
+    editor.value = getter();
+    editor.style.width = '100%'; editor.style.font='inherit'; editor.style.color='inherit';
+    editor.style.background='rgba(255,255,255,.08)'; editor.style.border='1px solid var(--line)';
+    editor.style.borderRadius='8px'; editor.style.padding='6px 8px';
+    const prev = el.innerHTML;
+    el.innerHTML=''; el.appendChild(editor); editor.focus(); if(!multiline) editor.select();
+    const commit = async ()=>{ const v = multiline?editor.value:editor.value.trim(); await setter(v); };
+    const cancel = ()=>{ el.innerHTML = prev; };
+    editor.addEventListener('keydown', (e)=>{ if(!multiline && e.key==='Enter'){ e.preventDefault(); commit(); } if(e.key==='Escape'){ e.preventDefault(); cancel(); }});
+    editor.addEventListener('blur', ()=>{ commit(); }, { once:true });
+  });
+}
+
+function enableDnD(){
+  let dragCard = null;
+  boardEl.addEventListener('dragstart', e=>{
+    const card = e.target.closest('.card'); if(!card) return;
+    dragCard = card; e.dataTransfer.setData('text/plain', card.dataset.id);
+    setTimeout(()=> card.style.opacity='.55',0);
+  });
+  boardEl.addEventListener('dragend', ()=>{ if(dragCard){ dragCard.style.opacity='1'; dragCard=null; } });
+  boardEl.querySelectorAll('.cards').forEach(zone=>{
+    zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', ()=> zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', async e=>{
+      e.preventDefault(); zone.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      await moveCard(id, zone.dataset.status);
+    });
+  });
+}
+
+async function fetchAll(){
+  const { data, error } = await sb.from('kanban_cards').select('*').eq('board_id', currentBoardId);
+  if (error) { console.error(error); statusBadge.textContent='読み込みエラー'; return []; }
+  statusBadge.textContent = `接続中：${currentBoardId}`;
+  return data||[];
+}
+
+async function addCardDefault({title, descr, owner}){
+  const { data: rows } = await sb.from('kanban_cards').select('pos').eq('board_id', currentBoardId).eq('status','plan');
+  const nextPos = (rows||[]).reduce((m,r)=>Math.max(m, r.pos||0), 0) + 1;
+  await sb.from('kanban_cards').insert([{ board_id: currentBoardId, status:'plan', title, descr, owner, pos: nextPos }]);
+}
+
+async function updateCard(id, patch){
+  await sb.from('kanban_cards').update({ ...patch }).eq('id', id).eq('board_id', currentBoardId);
+}
+async function moveCard(id, newStatus){
+  const { data: rows } = await sb.from('kanban_cards').select('pos').eq('board_id', currentBoardId).eq('status', newStatus);
+  const nextPos = (rows||[]).reduce((m,r)=>Math.max(m, r.pos||0), 0) + 1;
+  await sb.from('kanban_cards').update({ status: newStatus, pos: nextPos }).eq('id', id).eq('board_id', currentBoardId);
+}
+
+async function subscribeBoard(boardId){
+  if (channel) { await channel.unsubscribe(); channel=null; }
+  channel = sb.channel('kanban-'+boardId)
+    .on('postgres_changes', { event:'*', schema:'public', table:'kanban_cards', filter:`board_id=eq.${boardId}` },
+      async ()=>{ const rows = await fetchAll(); paint(rows); })
+    .subscribe(async (status)=>{
+      statusBadge.textContent = (status==='SUBSCRIBED') ? `接続中：${boardId}` : `接続: ${status}`;
+      if(status==='SUBSCRIBED'){ const rows = await fetchAll(); renderColumns(); paint(rows); }
+    });
+}
+
+// Export / Import
+btnExport.addEventListener('click', async ()=>{
+  const rows = await fetchAll();
+  const blob = new Blob([JSON.stringify({ boardId: currentBoardId, cards: rows }, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pdca_kanban_${currentBoardId}.json`;
+  a.click();
+});
+btnImport.addEventListener('click', ()=> fileImport.click());
+fileImport.addEventListener('change', async (e)=>{
+  const f = e.target.files[0]; if(!f) return;
+  const text = await f.text();
+  try{
+    const json = JSON.parse(text);
+    const cards = Array.isArray(json.cards) ? json.cards : [];
+    await sb.from('kanban_cards').delete().eq('board_id', currentBoardId);
+    for(const c of cards){
+      await sb.from('kanban_cards').insert([{
+        board_id: currentBoardId,
+        status: c.status || 'plan',
+        title:  c.title  || '',
+        descr:  c.descr  || '',
+        owner:  c.owner  || '',
+        pos:    Number(c.pos)||1,
+        created_at: c.created_at || null,
+        updated_at: c.updated_at || null
+      }]);
+    }
+    alert('インポート完了');
+  }catch(err){ alert('JSONの読み込みに失敗しました'); console.error(err); }
+});
+
+// Global Add form
+(function(){
+  const gTitle = document.getElementById('gTitle');
+  const gOwner = document.getElementById('gOwner');
+  const gDesc  = document.getElementById('gDesc');
+  const gAdd   = document.getElementById('gAddBtn');
+  if (gAdd) {
+    gAdd.addEventListener('click', async ()=>{
+      let title = (gTitle.value||'').trim();
+      let owner = (gOwner.value||'').trim();
+      const descr = (gDesc.value||'').trim();
+      if (!title) { alert('タイトルを入力してください'); return; }
+      if (title.includes('/') && !owner){
+        const parts = title.split('/'); owner = parts.pop().trim(); title = parts.join('/').trim() || '（無題）';
+      }
+      await addCardDefault({ title, descr, owner });
+      gTitle.value=''; gOwner.value=''; gDesc.value='';
+    });
+  }
+})();
+
+// Join
+btnJoin.addEventListener('click', ()=>{
+  const id = boardIdInput.value.trim();
+  if (!id) return alert('ボード名を入力してください');
+  currentBoardId = id;
+  localStorage.setItem('kanban_board_id', currentBoardId);
+  subscribeBoard(currentBoardId);
+});
+
+// init
+renderColumns();
+subscribeBoard(currentBoardId);
+</script>
+</body>
+</html>

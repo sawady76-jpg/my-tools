@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文字変換ツール</title>
+<style>
+    /* スクロールを出さない設定 */
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+    
+    body { 
+        font-family: "Helvetica Neue", Arial, sans-serif; 
+        background-color: #fff0f5; 
+        color: #555; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        padding: 10px; 
+        box-sizing: border-box;
+    }
+
+    .container { 
+        width: 100%; 
+        max-width: 1000px; 
+        height: 98vh; 
+        background: #fff; 
+        padding: 15px 25px; 
+        border-radius: 15px; 
+        box-shadow: 0 5px 20px rgba(255, 182, 193, 0.4); 
+        border: 2px solid #fff; 
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column; 
+    }
+    
+    /* タイトル */
+    h2 { 
+        text-align: center; 
+        color: #ff6b81; 
+        margin: 0 0 10px 0; 
+        font-size: 1.2rem; 
+        letter-spacing: 1px; 
+        flex-shrink: 0; 
+    }
+
+    /* 設定エリア */
+    .settings-area { 
+        margin-bottom: 10px; 
+        display: flex; 
+        justify-content: center; 
+        gap: 20px;
+        flex-shrink: 0;
+        border-bottom: 1px dashed #ffd1dc;
+        padding-bottom: 10px;
+    }
+    
+    .setting-group {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .category-label { 
+        font-size: 0.8rem; 
+        font-weight: bold; 
+        color: #ff8da1; 
+        writing-mode: vertical-rl; 
+        margin-right: 5px;
+    }
+    
+    /* トグルボタン */
+    .toggle-btn { position: relative; cursor: pointer; user-select: none; margin: 0; }
+    .toggle-btn input { display: none; }
+    .toggle-content {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        width: 100px; height: 50px; 
+        background: #f9f9f9; border: 1px solid #eee; border-radius: 8px;
+        transition: 0.2s; color: #aaa; text-align: center; padding: 2px;
+    }
+    .toggle-content strong { font-size: 0.8rem; margin-bottom: 0; display: block; color: #777; }
+    .toggle-content small { font-size: 0.65rem; opacity: 0.8; line-height: 1.1; }
+
+    .toggle-btn input:checked + .toggle-content {
+        background: #fff5f7; border-color: #ff6b81; color: #ff6b81;
+        box-shadow: 0 2px 5px rgba(255, 107, 129, 0.2);
+    }
+    .toggle-btn input:checked + .toggle-content strong { color: #ff6b81; }
+    
+    /* 入出力エリア */
+    .flex-box { 
+        display: flex; 
+        gap: 15px; 
+        margin-top: 5px; 
+        flex-grow: 1; 
+        min-height: 0; 
+    }
+    .box-half { 
+        flex: 1; 
+        display: flex; 
+        flex-direction: column; 
+    }
+    
+    label { font-weight: bold; display: block; margin-bottom: 5px; color: #777; font-size: 0.85em; }
+    
+    textarea { 
+        flex-grow: 1; 
+        width: 100%; 
+        padding: 10px; 
+        border: 2px solid #f0f0f0; border-radius: 8px; 
+        font-size: 15px; line-height: 1.5; font-family: monospace; 
+        box-sizing: border-box; resize: none; 
+        outline: none;
+    }
+    textarea:focus { border-color: #ff6b81; background: #fffbfb; }
+    
+    /* プレデキスト（placeholder）の色調整 */
+    textarea::placeholder { color: #ccc; }
+
+    .arrow-area { 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        color: #ffb6c1; 
+        font-size: 1.5rem; 
+    }
+
+    /* ボタンエリア */
+    .btn-area { 
+        margin-top: 15px; 
+        text-align: center; 
+        display: flex; 
+        gap: 15px; 
+        justify-content: center; 
+        flex-shrink: 0; 
+    }
+    
+    .btn-convert { 
+        background: linear-gradient(45deg, #ff9a9e, #fecfef); 
+        color: white; border: none; padding: 10px 40px; 
+        font-size: 1rem; font-weight: bold; border-radius: 30px; 
+        cursor: pointer; transition: 0.3s; box-shadow: 0 3px 10px rgba(255, 154, 158, 0.4);
+        display: flex; align-items: center; gap: 5px;
+    }
+    .btn-convert:hover { transform: translateY(-2px); }
+
+    .btn-copy {
+        background: white; border: 2px solid #2ed573; color: #2ed573;
+        padding: 10px 30px; font-size: 0.95rem; font-weight: bold; border-radius: 30px;
+        cursor: pointer; transition: 0.3s;
+    }
+    .btn-copy:hover { background: #2ed573; color: white; }
+    
+    .btn-clear {
+        background: #eee; color: #777; border: none; padding: 10px 20px; border-radius: 30px; cursor: pointer; font-size: 0.9rem;
+    }
+    .btn-clear:hover { background: #ddd; }
+
+    #toast { visibility: hidden; min-width: 200px; margin-left: -100px; background-color: #333; color: #fff; text-align: center; border-radius: 50px; padding: 10px; position: fixed; z-index: 100; left: 50%; bottom: 80px; font-size: 14px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+    #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+    
+    @keyframes fadein { from {bottom: 50px; opacity: 0;} to {bottom: 80px; opacity: 1;} }
+    @keyframes fadeout { from {bottom: 80px; opacity: 1;} to {bottom: 50px; opacity: 0;} }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>✨ 文字変換ツール</h2>
+    
+    <div class="settings-area">
+        <div class="setting-group">
+            <span class="category-label">英数</span>
+            <label class="toggle-btn">
+                <input type="checkbox" id="mode_num_half" checked onchange="toggleGroup('num', 'half')">
+                <div class="toggle-content">
+                    <strong>半角へ</strong>
+                    <small>１２３→123</small>
+                </div>
+            </label>
+            <label class="toggle-btn">
+                <input type="checkbox" id="mode_num_full" onchange="toggleGroup('num', 'full')">
+                <div class="toggle-content">
+                    <strong>全角へ</strong>
+                    <small>123→１２３</small>
+                </div>
+            </label>
+        </div>
+
+        <div class="setting-group" style="border-left:1px dashed #ffd1dc; padding-left:15px; margin-left:5px;">
+            <span class="category-label">カナ</span>
+            <label class="toggle-btn">
+                <input type="checkbox" id="mode_kana_full" onchange="toggleGroup('kana', 'full')">
+                <div class="toggle-content">
+                    <strong>全角へ</strong>
+                    <small>ｱｲｳ→アイウ</small>
+                </div>
+            </label>
+            <label class="toggle-btn">
+                <input type="checkbox" id="mode_kana_half" onchange="toggleGroup('kana', 'half')">
+                <div class="toggle-content">
+                    <strong>半角へ</strong>
+                    <small>アイウ→ｱｲｳ</small>
+                </div>
+            </label>
+        </div>
+
+        <div class="setting-group" style="border-left:1px dashed #ffd1dc; padding-left:15px; margin-left:5px;">
+            <span class="category-label">掃除</span>
+            <label class="toggle-btn">
+                <input type="checkbox" id="checkRemoveSpace">
+                <div class="toggle-content">
+                    <strong>空白削除</strong>
+                    <small>スペースのみ</small>
+                </div>
+            </label>
+            <label class="toggle-btn">
+                <input type="checkbox" id="checkRemoveHyphen">
+                <div class="toggle-content">
+                    <strong>ハイフン</strong>
+                    <small>090- → 090</small>
+                </div>
+            </label>
+        </div>
+    </div>
+
+    <div class="flex-box">
+        <div class="box-half">
+            <label>変換前 (Ctrl+V)</label>
+            <textarea id="inputText" placeholder="例：&#13;１２３－４５６７&#13;ＡＢＣ　ＤＥＦ&#13;０９０－１２３４－５６７８"></textarea>
+        </div>
+
+        <div class="arrow-area">➡</div>
+
+        <div class="box-half">
+            <label>変換結果</label>
+            <textarea id="outputText" readonly placeholder="変換ボタンを押すと&#13;ここに結果が出ます"></textarea>
+        </div>
+    </div>
+
+    <div class="btn-area">
+        <button class="btn-clear" onclick="clearText()">リセット</button>
+        <button class="btn-convert" onclick="convertText()">✨ 変換</button>
+        <button class="btn-copy" onclick="copyToClipboard()">📋 コピー</button>
+    </div>
+</div>
+
+<div id="toast">コピーしました！✨</div>
+
+<script>
+    function toggleGroup(type, mode) {
+        if (type === 'num') {
+            if (mode === 'half' && document.getElementById('mode_num_half').checked) {
+                document.getElementById('mode_num_full').checked = false;
+            } else if (mode === 'full' && document.getElementById('mode_num_full').checked) {
+                document.getElementById('mode_num_half').checked = false;
+            }
+        }
+        if (type === 'kana') {
+            if (mode === 'full' && document.getElementById('mode_kana_full').checked) {
+                document.getElementById('mode_kana_half').checked = false;
+            } else if (mode === 'half' && document.getElementById('mode_kana_half').checked) {
+                document.getElementById('mode_kana_full').checked = false;
+            }
+        }
+    }
+
+    function convertText() {
+        let text = document.getElementById('inputText').value;
+
+        // 1. 英数
+        if (document.getElementById('mode_num_half').checked) {
+            text = text.replace(/[！-～]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+            text = text.replace(/　/g, ' ');
+        }
+        if (document.getElementById('mode_num_full').checked) {
+            text = text.replace(/[!-~]/g, s => String.fromCharCode(s.charCodeAt(0) + 0xFEE0));
+            text = text.replace(/ /g, '　');
+        }
+
+        // 2. カナ
+        if (document.getElementById('mode_kana_full').checked) {
+            const kanaMap = {
+                'ｶﾞ': 'ガ', 'ｷﾞ': 'ギ', 'ｸﾞ': 'グ', 'ｹﾞ': 'ゲ', 'ｺﾞ': 'ゴ', 'ｻﾞ': 'ザ', 'ｼﾞ': 'ジ', 'ｽﾞ': 'ズ', 'ｾﾞ': 'ゼ', 'ｿﾞ': 'ゾ',
+                'ﾀﾞ': 'ダ', 'ﾁﾞ': 'ヂ', 'ﾂﾞ': 'ヅ', 'ﾃﾞ': 'デ', 'ﾄﾞ': 'ド', 'ﾊﾞ': 'バ', 'ﾋﾞ': 'ビ', 'ﾌﾞ': 'ブ', 'ﾍﾞ': 'ベ', 'ﾎﾞ': 'ボ',
+                'ﾊﾟ': 'パ', 'ﾋﾟ': 'ピ', 'ﾌﾟ': 'プ', 'ﾍﾟ': 'ペ', 'ﾎﾟ': 'ポ', 'ｳﾞ': 'ヴ', 'ﾜﾞ': 'ヷ', 'ｦﾞ': 'ヺ',
+                'ｱ': 'ア', 'ｲ': 'イ', 'ｳ': 'ウ', 'ｴ': 'エ', 'ｵ': 'オ', 'ｶ': 'カ', 'ｷ': 'キ', 'ｸ': 'ク', 'ｹ': 'ケ', 'ｺ': 'コ',
+                'ｻ': 'サ', 'ｼ': 'シ', 'ｽ': 'ス', 'ｾ': 'セ', 'ｿ': 'ソ', 'ﾀ': 'タ', 'ﾁ': 'チ', 'ﾂ': 'ツ', 'ﾃ': 'テ', 'ﾄ': 'ト',
+                'ﾅ': 'ナ', 'ﾆ': 'ニ', 'ﾇ': 'ヌ', 'ﾈ': 'ネ', 'ﾉ': 'ノ', 'ﾊ': 'ハ', 'ﾋ': 'ヒ', 'ﾌ': 'フ', 'ﾍ': 'ヘ', 'ﾎ': 'ホ',
+                'ﾏ': 'マ', 'ﾐ': 'ミ', 'ﾑ': 'ム', 'ﾒ': 'メ', 'ﾓ': 'モ', 'ﾔ': 'ヤ', 'ﾕ': 'ユ', 'ﾖ': 'ヨ', 'ﾗ': 'ラ', 'ﾘ': 'リ',
+                'ﾙ': 'ル', 'ﾚ': 'レ', 'ﾛ': 'ロ', 'ﾜ': 'ワ', 'ｦ': 'ヲ', 'ﾝ': 'ン', 'ｧ': 'ァ', 'ｨ': 'ィ', 'ｩ': 'ゥ', 'ｪ': 'ェ',
+                'ｫ': 'ォ', 'ｯ': 'ッ', 'ｬ': 'ャ', 'ｭ': 'ュ', 'ｮ': 'ョ', '｡': '。', '｢': '「', '｣': '」', '､': '、', '･': '・', 'ｰ': 'ー'
+            };
+            let reg = new RegExp('(' + Object.keys(kanaMap).join('|') + ')', 'g');
+            text = text.replace(reg, match => kanaMap[match]);
+            text = text.replace(/ﾞ/g, '゛').replace(/ﾟ/g, '゜');
+        }
+        if (document.getElementById('mode_kana_half').checked) {
+            const fullToHalfMap = {
+                'ガ': 'ｶﾞ', 'ギ': 'ｷﾞ', 'グ': 'ｸﾞ', 'ゲ': 'ｹﾞ', 'ゴ': 'ｺﾞ', 'ザ': 'ｻﾞ', 'ジ': 'ｼﾞ', 'ズ': 'ｽﾞ', 'ゼ': 'ｾﾞ', 'ゾ': 'ｿﾞ',
+                'ダ': 'ﾀﾞ', 'ヂ': 'ﾁﾞ', 'ヅ': 'ﾂﾞ', 'デ': 'ﾃﾞ', 'ド': 'ﾄﾞ', 'バ': 'ﾊﾞ', 'ビ': 'ﾋﾞ', 'ブ': 'ﾌﾞ', 'ベ': 'ﾍﾞ', 'ボ': 'ﾎﾞ',
+                'パ': 'ﾊﾟ', 'ピ': 'ﾋﾟ', 'プ': 'ﾌﾟ', 'ペ': 'ﾍﾟ', 'ポ': 'ﾎﾟ', 'ヴ': 'ｳﾞ', 'ヷ': 'ﾜﾞ', 'ヺ': 'ｦﾞ',
+                'ア': 'ｱ', 'イ': 'ｲ', 'ウ': 'ｳ', 'エ': 'ｴ', 'オ': 'ｵ', 'カ': 'ｶ', 'キ': 'ｷ', 'ク': 'ｸ', 'ケ': 'ｹ', 'コ': 'ｺ',
+                'サ': 'ｻ', 'シ': 'ｼ', 'ス': 'ｽ', 'セ': 'ｾ', 'ソ': 'ｿ', 'タ': 'ﾀ', 'チ': 'ﾁ', 'ツ': 'ﾂ', 'テ': 'ﾃ', 'ト': 'ﾄ',
+                'ナ': 'ﾅ', 'ニ': 'ﾆ', 'ヌ': 'ﾇ', 'ネ': 'ﾈ', 'ノ': 'ﾉ', 'ハ': 'ﾊ', 'ヒ': 'ﾋ', 'フ': 'ﾌ', 'ヘ': 'ﾍ', 'ホ': 'ﾎ',
+                'マ': 'ﾏ', 'ミ': 'ﾐ', 'ム': 'ﾑ', 'メ': 'ﾒ', 'モ': 'ﾓ', 'ヤ': 'ﾔ', 'ユ': 'ﾕ', 'ヨ': 'ﾖ', 'ラ': 'ﾗ', 'リ': 'ﾘ',
+                'ル': 'ﾙ', 'レ': 'ﾚ', 'ロ': 'ﾛ', 'ワ': 'ﾜ', 'ヲ': 'ｦ', 'ン': 'ﾝ', 'ァ': 'ｧ', 'ィ': 'ｨ', 'ゥ': 'ｩ', 'ェ': 'ｪ',
+                'ォ': 'ｫ', 'ッ': 'ｯ', 'ャ': 'ｬ', 'ュ': 'ｭ', 'ョ': 'ｮ', '。': '｡', '「': '｢', '」': '｣', '、': '､', '・': '･', 'ー': 'ｰ',
+                '゛': 'ﾞ', '゜': 'ﾟ'
+            };
+            text = text.replace(/[ァ-ンヴー゛゜「」。、・]/g, s => fullToHalfMap[s] || s);
+        }
+
+        // 3. 掃除
+        if (document.getElementById('checkRemoveSpace').checked) {
+            text = text.replace(/[ 　\t]+/g, '');
+        }
+        if (document.getElementById('checkRemoveHyphen').checked) {
+            text = text.replace(/-/g, '').replace(/ー/g, '').replace(/－/g, '');
+        }
+
+        document.getElementById('outputText').value = text;
+    }
+
+    function copyToClipboard() {
+        const copyText = document.getElementById("outputText");
+        if(!copyText.value) return; 
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(copyText.value).then(() => {
+            showToast();
+        });
+    }
+    
+    function clearText() {
+        document.getElementById('inputText').value = '';
+        document.getElementById('outputText').value = '';
+        document.getElementById('inputText').focus();
+    }
+
+    function showToast() {
+        const x = document.getElementById("toast");
+        x.className = "show";
+        setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+    }
+</script>
+
+</body>
+</html>

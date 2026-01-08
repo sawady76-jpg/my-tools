@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>受発注課計算ツール</title>
+<style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f9; color: #333; padding: 20px; }
+    .container { max-width: 1200px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-top: 6px solid #007bff; transition: border-color 0.3s; }
+    
+    .header-area { text-align: center; margin-bottom: 20px; }
+    h2 { color: #007bff; margin-bottom: 15px; font-size: 1.6rem; letter-spacing: 1px; transition: color 0.3s; }
+
+    /* モード切替スイッチ */
+    .mode-switch { display: inline-flex; background: #e0e0e0; padding: 4px; border-radius: 30px; position: relative; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1); }
+    .mode-switch input { display: none; }
+    .mode-label { 
+        padding: 10px 25px; cursor: pointer; border-radius: 25px; font-weight: bold; color: #666; transition: 0.3s; display: flex; align-items: center; gap: 8px;
+    }
+    .mode-label:hover { color: #333; }
+    
+    #modeMultiply:checked ~ .label-multiply { background: #007bff; color: white; box-shadow: 0 2px 5px rgba(0,123,255,0.3); }
+    #modeDivide:checked ~ .label-divide { background: #ff9800; color: white; box-shadow: 0 2px 5px rgba(255,152,0,0.3); }
+
+    /* 設定エリア */
+    .settings-panel { background: #eef5fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #dae1e7; transition: background 0.3s; }
+    .row { display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; }
+    .col { flex: 1; min-width: 150px; }
+    
+    label { font-weight: bold; display: block; margin-bottom: 5px; color: #555; font-size: 0.9em; }
+    input[type="number"], select { width: 100%; padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; font-size: 18px; outline: none; box-sizing: border-box; transition: 0.3s; }
+    input[type="number"]:focus, select:focus { border-color: #007bff; background: #fff; }
+
+    .preset-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 5px; }
+    .btn-preset { background: #fff; border: 1px solid #cbd5e0; padding: 6px 12px; border-radius: 20px; font-size: 0.85em; cursor: pointer; color: #555; transition: 0.2s; }
+    .btn-preset:hover { background: #007bff; color: white; border-color: #007bff; }
+    .btn-preset.active { background: #007bff; color: white; border-color: #007bff; font-weight: bold; }
+
+    .toggle-label { display: flex; align-items: center; cursor: pointer; gap: 8px; user-select: none; font-weight: bold; color: #333; }
+    .toggle-label input { width: 20px; height: 20px; accent-color: #007bff; }
+
+    /* メインエリア */
+    .main-area { display: flex; gap: 20px; align-items: stretch; margin-top: 10px; }
+    .box-half { flex: 1; display: flex; flex-direction: column; }
+    .box-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .count-badge { font-size: 0.8em; background: #eee; padding: 2px 8px; border-radius: 4px; color: #666; }
+    
+    textarea { 
+        flex: 1; width: 100%; height: 60vh; min-height: 400px; padding: 15px; 
+        border: 2px solid #e0e0e0; border-radius: 8px; font-size: 16px; font-family: monospace; 
+        box-sizing: border-box; resize: vertical; white-space: pre; overflow: auto; line-height: 1.6; 
+    }
+    textarea:focus { border-color: #007bff; outline: none; }
+    
+    #inputArea { background-color: #fafafa; }
+    #outputArea { background-color: #f0fff4; border-color: #c3e6cb; color: #155724; font-weight: bold; }
+
+    .btn-copy { margin-top: 15px; width: 100%; background-color: #28a745; color: white; border: none; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .btn-copy:hover { background-color: #218838; transform: translateY(-1px); }
+
+    .arrow-icon { display: flex; align-items: center; color: #aaa; font-size: 24px; font-weight: bold; }
+
+    /* 履歴エリア */
+    .history-section { margin-top: 40px; border-top: 2px dashed #e0e0e0; padding-top: 20px; }
+    .history-title { font-size: 1.1rem; color: #666; margin-bottom: 15px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+    .history-list { list-style: none; padding: 0; margin: 0; max-height: 300px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; }
+    .history-item { display: flex; align-items: center; padding: 10px 15px; border-bottom: 1px solid #eee; font-size: 0.9em; gap: 10px; background: #fff; }
+    .history-item:nth-child(even) { background: #fcfcfc; }
+    .history-item:last-child { border-bottom: none; }
+    
+    .h-time { color: #999; font-size: 0.8em; min-width: 60px; }
+    .h-mode { font-weight: bold; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; min-width: 80px; text-align: center; }
+    .h-mode.m-mul { background: #e3f2fd; color: #007bff; }
+    .h-mode.m-div { background: #fff3e0; color: #e65100; }
+    .h-detail { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #444; }
+    .h-btn { background: #666; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8em; transition: 0.2s; }
+    .h-btn:hover { background: #444; }
+
+    /* 割り戻しモードのスタイル上書き */
+    body.mode-divide .container { border-top-color: #ff9800; }
+    body.mode-divide h2 { color: #e65100; }
+    body.mode-divide .settings-panel { background: #fff3e0; border-color: #ffe0b2; }
+    body.mode-divide input[type="number"]:focus { border-color: #ff9800; }
+    body.mode-divide .btn-preset:hover, body.mode-divide .btn-preset.active { background: #ff9800; border-color: #ff9800; }
+    body.mode-divide .toggle-label input { accent-color: #ff9800; }
+    body.mode-divide textarea:focus { border-color: #ff9800; }
+
+</style>
+</head>
+<body class="mode-multiply">
+
+<div class="container">
+    <div class="header-area">
+        <h2 id="appTitle">受発注課計算ツール</h2>
+        
+        <div class="mode-switch">
+            <input type="radio" name="mode" id="modeMultiply" value="multiply" checked onchange="changeMode()">
+            <label for="modeMultiply" class="mode-label label-multiply">✖ 定価 × 掛け率</label>
+            
+            <input type="radio" name="mode" id="modeDivide" value="divide" onchange="changeMode()">
+            <label for="modeDivide" class="mode-label label-divide">➗ 原価 ÷ 割り戻し</label>
+        </div>
+    </div>
+
+    <div class="settings-panel">
+        <div class="row">
+            <div class="col">
+                <label id="rateLabel">掛け率（％）</label>
+                <input type="number" id="multiplier" value="70" step="0.1" oninput="handleInputMultiplier()">
+                <div class="preset-group">
+                    <button class="btn-preset" onclick="setMultiplier(50)">50%</button>
+                    <button class="btn-preset" onclick="setMultiplier(60)">60%</button>
+                    <button class="btn-preset" onclick="setMultiplier(65)">65%</button>
+                    <button class="btn-preset" onclick="setMultiplier(70)">70%</button>
+                    <button class="btn-preset" onclick="setMultiplier(80)">80%</button>
+                    <button class="btn-preset" onclick="setMultiplier(85)">85%</button>
+                </div>
+            </div>
+            <div class="col">
+                <label>端数処理</label>
+                <select id="roundingMode" onchange="calculate()">
+                    <option value="floor" selected>切り捨て (推奨)</option>
+                    <option value="round">四捨五入</option>
+                    <option value="ceil">切り上げ</option>
+                </select>
+                <div style="margin-top:15px;">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="checkTax" onchange="calculate()">
+                        <span>税込価格にする (×1.10)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-area">
+        <div class="box-half">
+            <div class="box-header">
+                <label id="inputLabel">【入力】定価リスト</label>
+                <span class="count-badge" id="countInput">0行</span>
+            </div>
+            <textarea id="inputArea" placeholder="ここにExcelの列を貼り付け" oninput="calculate()"></textarea>
+            <div style="font-size:0.8em; color:#888; margin-top:5px;">※文字の行はそのまま空欄になります</div>
+        </div>
+
+        <div class="arrow-icon" id="arrowIcon">➡</div>
+
+        <div class="box-half">
+            <div class="box-header">
+                <label id="outputLabel">【結果】仕切価格</label>
+                <span class="count-badge" id="countOutput">0行</span>
+            </div>
+            <textarea id="outputArea" readonly></textarea>
+        </div>
+    </div>
+
+    <button class="btn-copy" onclick="copyToClipboard()">📋 結果をコピーして履歴に残す</button>
+
+    <div class="history-section">
+        <div class="history-title">
+            <span>🕒 計算履歴 (直近30件)</span>
+            <button onclick="clearHistory()" style="font-size:0.8em; background:none; border:none; color:#d32f2f; cursor:pointer; text-decoration:underline;">履歴を全消去</button>
+        </div>
+        <ul id="historyList" class="history-list">
+            </ul>
+    </div>
+</div>
+
+<script>
+    // 履歴データ保持用
+    let historyData = [];
+
+    // 起動時
+    window.onload = function() {
+        handleInputMultiplier();
+        loadHistory(); // 履歴読み込み
+    };
+
+    function changeMode() {
+        const isDivide = document.getElementById('modeDivide').checked;
+        const body = document.body;
+        
+        if (isDivide) {
+            body.classList.remove('mode-multiply');
+            body.classList.add('mode-divide');
+            document.getElementById('rateLabel').textContent = "割り戻し率（％）";
+            document.getElementById('inputLabel').textContent = "【入力】原価リスト";
+            document.getElementById('outputLabel').textContent = "【結果】売値 (利益乗せ)";
+            document.getElementById('arrowIcon').textContent = "➗";
+            if(document.getElementById('multiplier').value == "70") {
+                document.getElementById('multiplier').value = "85"; 
+            }
+        } else {
+            body.classList.remove('mode-divide');
+            body.classList.add('mode-multiply');
+            document.getElementById('rateLabel').textContent = "掛け率（％）";
+            document.getElementById('inputLabel').textContent = "【入力】定価リスト";
+            document.getElementById('outputLabel').textContent = "【結果】仕切価格";
+            document.getElementById('arrowIcon').textContent = "✖";
+        }
+        handleInputMultiplier(); 
+    }
+
+    function setMultiplier(val) {
+        document.getElementById('multiplier').value = val;
+        handleInputMultiplier();
+    }
+
+    function handleInputMultiplier() {
+        const val = document.getElementById('multiplier').value;
+        document.querySelectorAll('.btn-preset').forEach(btn => {
+            if (btn.textContent.replace('%','') == val) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        calculate();
+    }
+
+    function calculate() {
+        const inputText = document.getElementById('inputArea').value;
+        const multiplierStr = document.getElementById('multiplier').value;
+        const roundingMode = document.getElementById('roundingMode').value;
+        const isTax = document.getElementById('checkTax').checked;
+        const isDivide = document.getElementById('modeDivide').checked;
+
+        let rate = parseFloat(multiplierStr);
+        if (isNaN(rate)) rate = 0;
+
+        const lines = inputText.split('\n');
+        
+        document.getElementById('countInput').textContent = lines.length + "行";
+        document.getElementById('countOutput').textContent = lines.length + "行";
+
+        const resultLines = lines.map(line => {
+            let cleanLine = line.replace(/[^\d.]/g, '');
+            if (cleanLine === "") return "";
+            let price = parseFloat(cleanLine);
+            if (isNaN(price)) return "";
+
+            let finalPrice = 0;
+            if (isDivide) {
+                if (rate === 0) finalPrice = 0;
+                else finalPrice = price / (rate / 100);
+            } else {
+                finalPrice = price * (rate / 100);
+            }
+
+            if (isTax) finalPrice = finalPrice * 1.10;
+
+            if (roundingMode === 'floor') finalPrice = Math.floor(finalPrice);
+            else if (roundingMode === 'round') finalPrice = Math.round(finalPrice);
+            else if (roundingMode === 'ceil') finalPrice = Math.ceil(finalPrice);
+
+            return finalPrice.toLocaleString();
+        });
+
+        document.getElementById('outputArea').value = resultLines.join('\n');
+    }
+
+    // --- 履歴機能 ---
+
+    function copyToClipboard() {
+        const copyText = document.getElementById("outputArea");
+        if (!copyText.value) return;
+
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(copyText.value).then(() => {
+            saveHistory(); // コピー成功時に履歴保存
+            alert("コピー完了！履歴に保存しました。");
+        });
+    }
+
+    function saveHistory() {
+        const inputVal = document.getElementById('inputArea').value;
+        const rateVal = document.getElementById('multiplier').value;
+        const isDivide = document.getElementById('modeDivide').checked;
+        const now = new Date();
+        const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+        
+        // 概要テキスト作成 (例: "10000... (他5行)")
+        const lines = inputVal.split('\n').filter(l => l.trim() !== "");
+        let summary = "";
+        if (lines.length > 0) {
+            summary = lines[0];
+            if (lines.length > 1) {
+                summary += ` (他${lines.length-1}行)`;
+            }
+        }
+
+        const newItem = {
+            time: timeStr,
+            mode: isDivide ? "divide" : "multiply",
+            rate: rateVal,
+            input: inputVal, // 全データを保存
+            summary: summary // 表示用
+        };
+
+        historyData.unshift(newItem); // 先頭に追加
+        if (historyData.length > 30) {
+            historyData.pop(); // 30件超えたら古いものを削除
+        }
+
+        localStorage.setItem('calcHistory', JSON.stringify(historyData));
+        renderHistory();
+    }
+
+    function loadHistory() {
+        const stored = localStorage.getItem('calcHistory');
+        if (stored) {
+            historyData = JSON.parse(stored);
+            renderHistory();
+        }
+    }
+
+    function renderHistory() {
+        const list = document.getElementById('historyList');
+        list.innerHTML = "";
+        
+        historyData.forEach((item, index) => {
+            const li = document.createElement('li');
+            li.className = 'history-item';
+            
+            const modeBadge = item.mode === 'divide' 
+                ? `<span class="h-mode m-div">÷ ${item.rate}%</span>` 
+                : `<span class="h-mode m-mul">× ${item.rate}%</span>`;
+
+            li.innerHTML = `
+                <span class="h-time">${item.time}</span>
+                ${modeBadge}
+                <span class="h-detail">${item.summary}</span>
+                <button class="h-btn" onclick="restoreHistory(${index})">呼出</button>
+            `;
+            list.appendChild(li);
+        });
+    }
+
+    function restoreHistory(index) {
+        const item = historyData[index];
+        if (!item) return;
+
+        // データを復元
+        document.getElementById('inputArea').value = item.input;
+        document.getElementById('multiplier').value = item.rate;
+        
+        if (item.mode === 'divide') {
+            document.getElementById('modeDivide').checked = true;
+        } else {
+            document.getElementById('modeMultiply').checked = true;
+        }
+        
+        // モード切替と計算を実行
+        changeMode(); 
+        document.getElementById('inputArea').focus();
+    }
+
+    function clearHistory() {
+        if(confirm("履歴を全て消去しますか？")) {
+            historyData = [];
+            localStorage.removeItem('calcHistory');
+            renderHistory();
+        }
+    }
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,2336 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>スタッフ評価管理・検索システム</title>
+    <style>
+        body {
+            font-family: 'Meiryo', 'Hiragino Kaku Gothic ProN', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        header {
+            background-color: #2c7873;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px 8px 0 0;
+            margin-bottom: 20px;
+        }
+        
+        h1 {
+            margin: 0;
+            font-size: 1.8rem;
+        }
+        
+        .tabs {
+            display: flex;
+            background-color: #f0f0f0;
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .tab {
+            flex: 1;
+            text-align: center;
+            padding: 15px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s;
+        }
+        
+        .tab.active {
+            background-color: #2c7873;
+            color: white;
+        }
+        
+        .tab:hover:not(.active) {
+            background-color: #ddd;
+        }
+        
+        .tab-content {
+            display: none;
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* データベース管理画面のスタイル */
+        .db-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+        
+        .db-stats {
+            background-color: #f0f8ff;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 0.9rem;
+        }
+        
+        .db-actions button {
+            padding: 8px 15px;
+            margin-left: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .add-btn {
+            background-color: #4CAF50;
+        }
+        
+        .import-btn {
+            background-color: #2196F3;
+        }
+        
+        .export-btn {
+            background-color: #FF9800;
+        }
+        
+        .clear-btn {
+            background-color: #f44336;
+        }
+        
+        .db-table-container {
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        
+        .db-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+        
+        .db-table th, 
+        .db-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+        
+        .db-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            text-align: left;
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+        }
+        
+        .db-table th.sortable:hover {
+            background-color: #e8e8e8;
+        }
+        
+        .db-table th .sort-indicator {
+            position: absolute;
+            right: 5px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8em;
+            color: #666;
+        }
+        
+        .db-table th.sort-asc .sort-indicator::after {
+            content: "▲";
+            color: #2c7873;
+        }
+        
+        .db-table th.sort-desc .sort-indicator::after {
+            content: "▼";
+            color: #2c7873;
+        }
+        
+        .db-table th:not(.sortable) {
+            cursor: default;
+        }
+        
+        .db-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .db-table tr:hover {
+            background-color: #f1f1f1;
+        }
+        
+        .actions-cell {
+            white-space: nowrap;
+            text-align: center;
+        }
+        
+        .edit-btn {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+        
+        .delete-btn {
+            background-color: #f44336;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        
+        .delete-btn:hover {
+            background-color: #d32f2f;
+        }
+        
+        .edit-btn:hover {
+            background-color: #1976D2;
+        }
+        
+        /* モーダルスタイル */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            width: 80%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 10px;
+        }
+        
+        .modal-header h2 {
+            margin: 0;
+            color: #2c7873;
+        }
+        
+        .modal-close {
+            font-size: 1.5em;
+            cursor: pointer;
+            color: #aaa;
+        }
+        
+        .modal-close:hover {
+            color: #555;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            grid-gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .form-group input, 
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .form-group textarea {
+            height: 100px;
+            resize: vertical;
+        }
+        
+        .form-buttons {
+            text-align: right;
+            margin-top: 20px;
+        }
+        
+        .form-buttons button {
+            padding: 10px 20px;
+            margin-left: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .save-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .cancel-btn {
+            background-color: #ccc;
+            color: #333;
+        }
+        
+        /* 検索システムのスタイル */
+        .search-section {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+        }
+        
+        .search-section h2 {
+            margin-top: 0;
+            color: #2c7873;
+            font-size: 1.3em;
+        }
+        
+        .search-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            grid-gap: 15px;
+        }
+        
+        .form-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin: 0 -5px;
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+            padding: 0 5px;
+            min-width: 120px;
+        }
+        
+        .search-buttons {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .search-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            margin: 0 5px;
+        }
+        
+        .search-buttons .search-btn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .search-buttons .search-btn:hover {
+            background-color: #45a049;
+        }
+        
+        .search-buttons .reset-btn {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .search-buttons .reset-btn:hover {
+            background-color: #e53935;
+        }
+        
+        .results-section {
+            margin-top: 30px;
+        }
+        
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .results-header h2 {
+            margin: 0;
+            color: #2c7873;
+        }
+        
+        .results-count {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .results-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .results-actions button {
+            padding: 5px 10px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .results-actions button:hover {
+            background-color: #1976D2;
+        }
+        
+        .results-table-container {
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        
+        .results-table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 600px;
+        }
+        
+        .results-table th, 
+        .results-table td {
+            border: 1px solid #ddd;
+            padding: 10px;
+        }
+        
+        .results-table th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            text-align: left;
+        }
+        
+        .results-table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        
+        .results-table tr:hover {
+            background-color: #f1f1f1;
+        }
+        
+        .results-table .actions {
+            text-align: center;
+            white-space: nowrap;
+        }
+        
+        .results-table .actions button {
+            padding: 5px 10px;
+            margin: 0 2px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+        }
+        
+        .results-table .actions button.view {
+            background-color: #2196F3;
+        }
+        
+        .results-table .actions button:hover {
+            opacity: 0.8;
+        }
+        
+        .pagination {
+            text-align: center;
+            margin-top: 20px;
+        }
+        
+        .pagination button {
+            padding: 5px 10px;
+            margin: 0 3px;
+            border: 1px solid #ddd;
+            background-color: white;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+        
+        .pagination button.active {
+            background-color: #4CAF50;
+            color: white;
+            border-color: #4CAF50;
+        }
+        
+        .pagination button:hover:not(.active) {
+            background-color: #f1f1f1;
+        }
+        
+        .score-good {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        .score-average {
+            color: #FF9800;
+        }
+        
+        .score-needs-improvement {
+            color: #F44336;
+        }
+        
+        .evaluation-scores {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            grid-gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .score-item {
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        
+        .score-label {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .score-value {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        
+        .evaluation-comment {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-left: 3px solid #4CAF50;
+            border-radius: 0 4px 4px 0;
+        }
+        
+        /* データがない場合のメッセージ */
+        .no-data-message {
+            text-align: center;
+            padding: 30px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            margin: 20px 0;
+            color: #666;
+        }
+        
+        /* 初期ガイドメッセージ */
+        .guide-message {
+            background-color: #e1f5fe;
+            border-left: 4px solid #03a9f4;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 0 4px 4px 0;
+            font-size: 0.95rem;
+        }
+        
+        .guide-message h3 {
+            margin-top: 0;
+            color: #0288d1;
+        }
+        
+        .guide-message ul {
+            margin-bottom: 0;
+        }
+        
+        /* CSV入力フォーム */
+        .csv-import-container {
+            margin-top: 10px;
+            padding: 15px;
+            border: 1px dashed #ccc;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+        
+        .csv-import-container textarea {
+            width: 100%;
+            height: 150px;
+            margin-bottom: 10px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+        
+        .evaluation-entry {
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            background-color: white;
+        }
+        
+        .evaluation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            background-color: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            font-weight: bold;
+        }
+        
+        .evaluation-header .evaluation-period {
+            color: #2c7873;
+        }
+        
+        .evaluation-header .evaluation-type {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        /* レスポンシブ対応 */
+        @media (max-width: 768px) {
+            .form-grid, .search-form {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-row {
+                flex-direction: column;
+            }
+            
+            .form-row .form-group {
+                width: 100%;
+                padding: 0;
+            }
+            
+            .db-controls {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .db-stats {
+                margin-bottom: 10px;
+                width: 100%;
+            }
+            
+            .db-actions {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .db-actions button {
+                margin: 5px 0;
+            }
+            
+            .modal-content {
+                width: 95%;
+                margin: 10% auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>スタッフ評価管理・検索システム</h1>
+        </header>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="database">データベース管理</div>
+            <div class="tab" data-tab="search">評価検索</div>
+            <!-- 削除確認モーダル -->
+        <div id="delete-confirm-modal" class="modal">
+            <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-header">
+                    <h2>削除確認</h2>
+                    <span class="modal-close">&times;</span>
+                </div>
+                
+                <div style="padding: 20px; text-align: center;">
+                    <p id="delete-confirm-message" style="margin-bottom: 20px; font-size: 1.1em;"></p>
+                    <p style="color: #f44336; font-weight: bold;">この操作は元に戻せません。</p>
+                </div>
+                
+                <div class="form-buttons">
+                    <button type="button" class="cancel-btn" id="delete-cancel-btn">キャンセル</button>
+                    <button type="button" class="delete-btn" id="delete-confirm-btn">削除する</button>
+                </div>
+            </div>
+        </div>
+    </div>
+        
+        <!-- データベース管理タブ -->
+        <div class="tab-content active" id="database-tab">
+            <div class="db-controls">
+                <div class="db-stats">
+                    登録スタッフ数: <span id="staff-count">0</span>名 | 評価データ数: <span id="evaluation-count">0</span>件
+                </div>
+                <div class="db-actions">
+                    <button class="add-btn" id="add-staff-btn">スタッフ追加</button>
+                    <button class="import-btn" id="import-btn">CSVインポート</button>
+                    <button class="export-btn" id="export-btn">CSVエクスポート</button>
+                    <button class="clear-btn" id="clear-db-btn">データクリア</button>
+                </div>
+            </div>
+            
+            <div class="guide-message" id="db-guide">
+                <h3>はじめに</h3>
+                <p>このシステムはブラウザ上で動作する簡易評価管理システムです。</p>
+                <ul>
+                    <li>「スタッフ追加」ボタンからスタッフ情報と評価を登録できます</li>
+                    <li>「CSVインポート」からデータを一括登録できます</li>
+                    <li>登録したデータは「評価検索」タブで検索できます</li>
+                    <li>すべてのデータはブラウザ内に保存されます</li>
+                </ul>
+            </div>
+            
+            <div class="db-table-container">
+                <table class="db-table" id="staff-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>名前</th>
+                            <th class="sortable" data-sort="department">所属<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="position">職位<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="totalScore">総合評価<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="lastEvaluation">最終評価日<span class="sort-indicator"></span></th>
+                            <th class="sortable" data-sort="evalType">評価者<span class="sort-indicator"></span></th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="staff-table-body">
+                        <!-- スタッフデータがここに表示されます -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- 検索システムタブ -->
+        <div class="tab-content" id="search-tab">
+            <div class="search-section">
+                <h2>検索条件</h2>
+                <div class="search-form">
+                    <div class="form-group">
+                        <label for="name-search">名前</label>
+                        <input type="text" id="name-search" placeholder="名前で検索...">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="department-filter">部署</label>
+                        <select id="department-filter">
+                            <option value="">全ての部署</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="position-filter">職位</label>
+                        <select id="position-filter">
+                            <option value="">全ての職位</option>
+                            <option value="課長代理">課長代理</option>
+                            <option value="係長">係長</option>
+                            <option value="主任">主任</option>
+                            <option value="一般">一般</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="period-filter">評価期間</label>
+                        <select id="period-filter">
+                            <option value="">全ての期間</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="score-min">総合評価（最小）</label>
+                        <input type="number" id="score-min" min="0" max="5" step="0.1" placeholder="例: 1.5">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="score-max">総合評価（最大）</label>
+                        <input type="number" id="score-max" min="0" max="5" step="0.1" placeholder="例: 3.0">
+                    </div>
+                </div>
+                
+                <div class="search-buttons">
+                    <button class="search-btn" id="search-button">検索</button>
+                    <button class="reset-btn" id="reset-button">条件クリア</button>
+                </div>
+            </div>
+            
+            <div class="results-section">
+                <div class="results-header">
+                    <h2>検索結果</h2>
+                    <div class="results-count"><span id="results-count-value">0</span>名が該当</div>
+                    <div class="results-actions">
+                        <button id="export-csv">CSVエクスポート</button>
+                        <button id="print-results">印刷</button>
+                    </div>
+                </div>
+                
+                <div class="results-table-container">
+                    <table class="results-table" id="results-table">
+  <thead>
+    <tr>
+      <th class="sortable" data-sort="id">ID<span class="sort-indicator"></span></th>
+      <th class="sortable" data-sort="name">名前<span class="sort-indicator"></span></th>
+      <th class="sortable" data-sort="department">所属<span class="sort-indicator"></span></th>
+      <th class="sortable" data-sort="position">職位<span class="sort-indicator"></span></th>
+      <th class="sortable" data-sort="totalScore">総合評価<span class="sort-indicator"></span></th>
+      <th class="sortable" data-sort="phoneFax">電話・FAX対応<span class="sort-indicator"></span></th>
+      <th class="sortable" data-sort="productKnowledge">商品知識<span class="sort-indicator"></span></th>
+      <th class="sortable" data-sort="inputWork">入力作業<span class="sort-indicator"></span></th>
+      <th class="sortable" data-sort="teamCooperation">チーム協力<span class="sort-indicator"></span></th>
+      <th>操作</th>
+    </tr>
+  </thead>
+                        <tbody id="results-body">
+                            <!-- 検索結果がここに表示されます -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="pagination" id="results-pagination">
+                    <!-- ページネーションがここに表示されます -->
+                </div>
+            </div>
+        </div>
+        
+        <!-- スタッフ追加/編集モーダル -->
+        <div id="staff-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="modal-title">スタッフ追加</h2>
+                    <span class="modal-close">&times;</span>
+                </div>
+                
+                <form id="staff-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="staff-id">社員番号 <span style="color: red;">*</span></label>
+                            <input type="number" id="staff-id" required min="1">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="staff-name">名前 <span style="color: red;">*</span></label>
+                            <input type="text" id="staff-name" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="staff-department">所属 <span style="color: red;">*</span></label>
+                            <input type="text" id="staff-department" list="departments" required>
+                            <datalist id="departments">
+                                <option value="横浜支店(業務)">
+                                <option value="岡山営業所(業務)">
+                                <option value="埼玉支店(業務)">
+                                <option value="滋賀営業所(業務)">
+                                <option value="仙台営業所(業務)">
+                                <option value="千葉営業所(業務)">
+                                <option value="東京支店(業務)">
+                                <option value="福岡支店(業務)">
+                                <option value="名古屋営業所(業務)">
+                                <option value="大阪支店(業務)">
+                            </datalist>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="staff-position">職位 <span style="color: red;">*</span></label>
+                            <select id="staff-position" required>
+                                <option value="">選択してください</option>
+                                <option value="課長代理">課長代理</option>
+                                <option value="係長">係長</option>
+                                <option value="主任">主任</option>
+                                <option value="一般">一般</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <h3>評価データ</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="eval-period">評価期間 <span style="color: red;">*</span></label>
+                            <input type="text" id="eval-period" value="25年6月" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="eval-type">評価者 <span style="color: red;">*</span></label>
+                            <select id="eval-type" required>
+                                <option value="上長">上長</option>
+                                <option value="本人">本人</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="eval-total-score">総合評価 <span style="color: red;">*</span></label>
+                            <input type="number" id="eval-total-score" min="0" max="5" step="0.05" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="eval-phone-fax">電話・FAX対応</label>
+                            <input type="number" id="eval-phone-fax" min="0" max="5" step="0.5">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="eval-product-knowledge">商品知識</label>
+                            <input type="number" id="eval-product-knowledge" min="0" max="5" step="0.5">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="eval-input-work">入力作業</label>
+                            <input type="number" id="eval-input-work" min="0" max="5" step="0.5">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="eval-team-cooperation">チーム協力</label>
+                            <input type="number" id="eval-team-cooperation" min="0" max="5" step="0.5">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="eval-comment">コメント</label>
+                        <textarea id="eval-comment" placeholder="評価コメントを入力してください"></textarea>
+                    </div>
+                    
+                    <div class="form-buttons">
+                        <button type="button" class="cancel-btn" id="cancel-btn">キャンセル</button>
+                        <button type="button" class="save-btn" id="save-btn">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- CSVインポートモーダル -->
+        <div id="import-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>CSVデータインポート</h2>
+                    <span class="modal-close">&times;</span>
+                </div>
+                
+                <p>以下の形式でCSVデータを入力してください。1行目はヘッダー行として扱います。</p>
+                <p><strong>フォーマット:</strong> No,名前,所属,職位,評価期間,評価者,総合評価,電話・FAX対応,商品知識,入力作業,チーム協力,コメント</p>
+                
+                <div class="csv-import-container">
+                    <textarea id="csv-data" placeholder="CSVデータをここに貼り付けてください..."></textarea>
+                    <button class="import-btn" id="do-import">インポート実行</button>
+                </div>
+                
+                <div class="form-buttons">
+                    <button type="button" class="cancel-btn" id="cancel-import">キャンセル</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- スタッフ詳細モーダル -->
+        <div id="staff-detail-modal" class="modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>スタッフ詳細情報</h2>
+                    <span class="modal-close">&times;</span>
+                </div>
+                
+                <div class="employee-info form-grid">
+                    <div class="form-group">
+                        <label>ID</label>
+                        <span id="detail-id"></span>
+                    </div>
+                    <div class="form-group">
+                        <label>名前</label>
+                        <span id="detail-name"></span>
+                    </div>
+                    <div class="form-group">
+                        <label>所属</label>
+                        <span id="detail-department"></span>
+                    </div>
+                    <div class="form-group">
+                        <label>職位</label>
+                        <span id="detail-position"></span>
+                    </div>
+                </div>
+                
+                <div class="evaluation-history">
+                    <h3>評価履歴</h3>
+                    <div id="evaluation-list">
+                        <!-- 評価履歴がここに表示されます -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        (function() {
+// ↓ ここから追加 ↓
+const STORAGE_KEY = 'staffEvaluationData';
+
+/**
+ * localStorage から読み込む
+ * @returns {Array} 保存済みスタッフ配列
+ */
+function loadStaffDataFromStorage() {
+  const json = localStorage.getItem(STORAGE_KEY);
+  return json ? JSON.parse(json) : [];
+}
+
+/**
+ * localStorage に書き出す
+ * @param {Array} data 保存するスタッフ配列
+ */
+function saveStaffDataToStorage(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+// ↑ ここまで追加 ↑
+
+            // DOM要素の参照を取得
+            const tabs = document.querySelectorAll('.tab');
+            const tabContents = document.querySelectorAll('.tab-content');
+            const staffTableBody = document.getElementById('staff-table-body');
+            const staffModal = document.getElementById('staff-modal');
+            const importModal = document.getElementById('import-modal');
+            const staffDetailModal = document.getElementById('staff-detail-modal');
+            const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+            const staffForm = document.getElementById('staff-form');
+            const modalCloseButtons = document.querySelectorAll('.modal-close');
+            const addStaffBtn = document.getElementById('add-staff-btn');
+            const importBtn = document.getElementById('import-btn');
+            const exportBtn = document.getElementById('export-btn');
+            const clearDbBtn = document.getElementById('clear-db-btn');
+            const cancelBtn = document.getElementById('cancel-btn');
+            const doImportBtn = document.getElementById('do-import');
+            const cancelImportBtn = document.getElementById('cancel-import');
+            const deleteConfirmBtn = document.getElementById('delete-confirm-btn');
+            const deleteCancelBtn = document.getElementById('delete-cancel-btn');
+            const searchButton = document.getElementById('search-button');
+            const resetButton = document.getElementById('reset-button');
+            const exportCsvBtn = document.getElementById('export-csv');
+            const printResultsBtn = document.getElementById('print-results');
+            
+            //メモリ内データストレージ（localStorage から読み込む）
+            let staffDataStorage = loadStaffDataFromStorage();
+            
+            // ソート状態を管理する変数
+            let currentSort = {
+                column: null,
+                direction: 'asc' // 'asc' または 'desc'
+            };
+            
+            // 検索結果用の変数
+            let filteredStaff = [];
+            let currentPage = 1;
+            const itemsPerPage = 50;
+            
+            // 検索結果のソート状態を管理する変数
+            let searchSort = {
+                column: null,
+                direction: 'asc'
+            };
+            
+            // データをロードする関数
+            function loadStaffData() {
+                return [...staffDataStorage];
+            }
+            
+            // スタッフデータをソートする関数
+            function sortStaffData(staffData, column, direction) {
+                return [...staffData].sort((a, b) => {
+                    let valueA, valueB;
+                    
+                    switch (column) {
+                        case 'department':
+                            valueA = a.department || '';
+                            valueB = b.department || '';
+                            break;
+                        case 'position':
+                            // 職位の順序を定義
+                            const positionOrder = { '課長代理': 4, '係長': 3, '主任': 2, '一般': 1 };
+                            valueA = positionOrder[a.position] || 0;
+                            valueB = positionOrder[b.position] || 0;
+                            break;
+                        case 'totalScore':
+                            valueA = a.totalScore || 0;
+                            valueB = b.totalScore || 0;
+                            break;
+                        case 'lastEvaluation':
+                            // 最終評価日を取得
+                            valueA = '';
+                            valueB = '';
+                            if (a.evaluations && a.evaluations.length > 0) {
+                                const sortedEvals = [...a.evaluations].sort((x, y) => y.period.localeCompare(x.period));
+                                valueA = sortedEvals[0].period;
+                            }
+                            if (b.evaluations && b.evaluations.length > 0) {
+                                const sortedEvals = [...b.evaluations].sort((x, y) => y.period.localeCompare(x.period));
+                                valueB = sortedEvals[0].period;
+                            }
+                            break;
+case 'evalType':
+  // 最新評価の type (=評価者) を取り出すヘルパー
+  function getLatest(staff) {
+    if (!staff.evaluations) return null;
+    return [...staff.evaluations]
+      .sort((a, b) => b.period.localeCompare(a.period))[0] || null;
+  }
+  const la = getLatest(a), lb = getLatest(b);
+  valueA = la ? la.type : '';
+  valueB = lb ? lb.type : '';
+  break;
+
+// ─── 検索結果テーブル用の各スコア列をソートできるように ───
+case 'phoneFax':
+case 'productKnowledge':
+case 'inputWork':
+case 'teamCooperation':
+  // scores 配列内のインデックスをマッピング
+  const idxMap = {
+    phoneFax:            0,
+    productKnowledge:    1,
+    inputWork:           2,
+    teamCooperation:     3
+  };
+  const idx = idxMap[column];
+  // 「period-filter」で選択中の評価期間、または最新評価を取ってくるヘルパー
+  function getEval(staff) {
+    if (!staff.evaluations) return null;
+    const period = document.getElementById('period-filter').value;
+    if (period) {
+      return staff.evaluations.find(e => e.period === period) || null;
+    }
+    return [...staff.evaluations]
+      .sort((x, y) => y.period.localeCompare(x.period))[0] || null;
+  }
+  const evalA = getEval(a);
+  const evalB = getEval(b);
+  valueA = evalA ? evalA.scores[idx] : 0;
+  valueB = evalB ? evalB.scores[idx] : 0;
+  break;
+// ──────────────────────────────────────────────────────────
+
+                        default:
+                            return 0;
+                    }
+                    
+                    // 比較処理
+                    let comparison = 0;
+                    if (valueA < valueB) {
+                        comparison = -1;
+                    } else if (valueA > valueB) {
+                        comparison = 1;
+                    }
+                    
+                    return direction === 'desc' ? -comparison : comparison;
+                });
+            }
+            
+            // ソートインジケーターを更新する関数
+            function updateSortIndicators(activeColumn, direction) {
+                const headers = document.querySelectorAll('.db-table th.sortable');
+                headers.forEach(header => {
+                    header.classList.remove('sort-asc', 'sort-desc');
+                    if (header.getAttribute('data-sort') === activeColumn) {
+                        header.classList.add(direction === 'asc' ? 'sort-asc' : 'sort-desc');
+                    }
+                });
+            }
+            
+            // テーブル内のアクションボタンのイベントリスナーを設定する関数
+            function setupTableActionButtons() {
+                // 編集ボタンのイベントリスナーを設定
+                document.querySelectorAll('.edit-btn').forEach(button => {
+                    button.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const staffId = parseInt(this.getAttribute('data-id'));
+                        console.log('編集ボタンクリック - スタッフID:', staffId);
+                        editStaff(staffId);
+                    });
+                });
+                
+                // 削除ボタンのイベントリスナーを設定
+                document.querySelectorAll('.delete-btn').forEach(button => {
+                    button.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const staffId = parseInt(this.getAttribute('data-id'));
+                        console.log('削除ボタンクリック - スタッフID:', staffId);
+                        deleteStaff(staffId);
+                    });
+                });
+            }
+                        
+// データを保存する関数
+function saveStaffData(data) {
+    // ① メモリに反映
+    staffDataStorage = [...data];
+    // ② localStorage にも永続化
+    saveStaffDataToStorage(staffDataStorage);
+
+    // ③ 表示・統計を更新
+    updateStaffTable();
+    updateStats();
+    updateDepartmentFilter();
+    updatePeriodFilter();
+}
+
+            // スタッフテーブルを更新する関数
+            function updateStaffTable() {
+                let staffData = loadStaffData();
+                
+                // ソートが適用されている場合はソートを実行
+                if (currentSort.column) {
+                    staffData = sortStaffData(staffData, currentSort.column, currentSort.direction);
+                }
+                
+                staffTableBody.innerHTML = '';
+                
+                if (staffData.length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="7" class="no-data-message">登録されているスタッフはありません</td>';
+                    staffTableBody.appendChild(row);
+                    return;
+                }
+                
+                // ガイドメッセージを非表示にする
+                document.getElementById('db-guide').style.display = 'none';
+                
+                staffData.forEach(staff => {
+                    const row = document.createElement('tr');
+                    
+                    // 最終評価日を取得
+                    let lastEvaluation = '';
+let latestEval     = null;   // ← ここで宣言しておく！
+                    if (staff.evaluations && staff.evaluations.length > 0) {
+                        // 評価期間でソート
+                        const sortedEvals = [...staff.evaluations].sort((a, b) => {
+                            return b.period.localeCompare(a.period);
+                        });
+                        lastEvaluation = sortedEvals[0].period;
+  latestEval    = sortedEvals[0];        // ← ここを追加
+                    }
+                    
+                    // 評価クラスを決定
+                    let scoreClass = 'score-average';
+                    if (staff.totalScore >= 2.0) {
+                        scoreClass = 'score-good';
+                    } else if (staff.totalScore < 1.5) {
+                        scoreClass = 'score-needs-improvement';
+                    }
+                    
+                    row.innerHTML = `
+  <td>${staff.id}</td>
+  <td>${staff.name}</td>
+  <td>${staff.department}</td>
+  <td>${staff.position}</td>
+  <td class="${scoreClass}">${staff.totalScore.toFixed(2)}</td>
+  <td>${lastEvaluation}</td>
+  <td>${latestEval ? latestEval.type : '-'}</td>  <!-- これでOK -->
+                        <td class="actions-cell">
+                            <button class="edit-btn" data-id="${staff.id}">編集</button>
+                            <button class="delete-btn" data-id="${staff.id}">削除</button>
+                        </td>
+                    `;
+                    
+                    staffTableBody.appendChild(row);
+                });
+                
+                // 編集・削除ボタンのイベントリスナーを設定
+                setupTableActionButtons();
+                
+                // ソートインジケーターを更新
+                updateSortIndicators(currentSort.column, currentSort.direction);
+            }
+            
+            // 統計情報を更新する関数
+            function updateStats() {
+                const staffData = loadStaffData();
+                let evaluationCount = 0;
+                
+                staffData.forEach(staff => {
+                    if (staff.evaluations) {
+                        evaluationCount += staff.evaluations.length;
+                    }
+                });
+                
+                document.getElementById('staff-count').textContent = staffData.length;
+                document.getElementById('evaluation-count').textContent = evaluationCount;
+            }
+            
+            // 部署フィルターを更新する関数
+            function updateDepartmentFilter() {
+                const staffData = loadStaffData();
+                const departmentFilter = document.getElementById('department-filter');
+                const departments = new Set();
+                
+                // 既存のオプションをクリア（最初のオプションは残す）
+                while (departmentFilter.options.length > 1) {
+                    departmentFilter.remove(1);
+                }
+                
+                // 部署の一覧を収集
+                staffData.forEach(staff => {
+                    if (staff.department) {
+                        departments.add(staff.department);
+                    }
+                });
+                
+                // 部署でソート
+                const sortedDepartments = Array.from(departments).sort();
+                
+                // オプションを追加
+                sortedDepartments.forEach(dept => {
+                    const option = document.createElement('option');
+                    option.value = dept;
+                    option.textContent = dept;
+                    departmentFilter.appendChild(option);
+                });
+            }
+            
+            // 評価期間フィルターを更新する関数
+            function updatePeriodFilter() {
+                const staffData = loadStaffData();
+                const periodFilter = document.getElementById('period-filter');
+                const periods = new Set();
+                
+                // 既存のオプションをクリア（最初のオプションは残す）
+                while (periodFilter.options.length > 1) {
+                    periodFilter.remove(1);
+                }
+                
+                // 評価期間の一覧を収集
+                staffData.forEach(staff => {
+                    if (staff.evaluations) {
+                        staff.evaluations.forEach(eval => {
+                            if (eval.period) {
+                                periods.add(eval.period);
+                            }
+                        });
+                    }
+                });
+                
+                // 評価期間でソート（新しい順）
+                const sortedPeriods = Array.from(periods).sort((a, b) => b.localeCompare(a));
+                
+                // オプションを追加
+                sortedPeriods.forEach(period => {
+                    const option = document.createElement('option');
+                    option.value = period;
+                    option.textContent = period;
+                    periodFilter.appendChild(option);
+                });
+                
+                // 最新の評価期間を選択
+                if (sortedPeriods.length > 0) {
+                    periodFilter.value = sortedPeriods[0];
+                }
+            }
+            
+            // スタッフを追加/編集する関数
+            function addOrUpdateStaff(formData) {
+                const staffData = loadStaffData();
+                const staffId = formData.id;
+                
+                // 同じ社員番号が既に存在するかチェック（編集時は除く）
+                const existingStaffIndex = staffData.findIndex(staff => staff.id === staffId);
+                const isEditing = document.getElementById('modal-title').textContent === 'スタッフ編集';
+                               
+                // 評価データを作成
+                const evaluation = {
+                    period: formData.evalPeriod,
+                    type: formData.evalType,
+                    totalScore: parseFloat(formData.evalTotalScore),
+                    scores: [
+                        parseFloat(formData.evalPhoneFax) || 0,
+                        parseFloat(formData.evalProductKnowledge) || 0,
+                        parseFloat(formData.evalInputWork) || 0,
+                        parseFloat(formData.evalTeamCooperation) || 0
+                    ],
+                    comment: formData.evalComment
+                };
+                
+                if (existingStaffIndex >= 0) {
+                    // 既存のスタッフを更新
+                    const existingStaff = staffData[existingStaffIndex];
+                    
+                    // 基本情報を更新
+                    existingStaff.name = formData.name;
+                    existingStaff.department = formData.department;
+                    existingStaff.position = formData.position;
+                    
+                    // 評価を追加/更新
+                    if (!existingStaff.evaluations) {
+                        existingStaff.evaluations = [];
+                    }
+                    
+                    // 同じ期間と評価者の評価があるかチェック
+                    const evalIndex = existingStaff.evaluations.findIndex(
+                        eval => eval.period === evaluation.period && eval.type === evaluation.type
+                    );
+                    
+                    if (evalIndex >= 0) {
+                        // 既存の評価を更新
+                        existingStaff.evaluations[evalIndex] = evaluation;
+                    } else {
+                        // 新しい評価を追加
+                        existingStaff.evaluations.push(evaluation);
+                    }
+                    
+                    // 最新の評価から総合評価を更新
+                    existingStaff.totalScore = evaluation.totalScore;
+                    
+                    staffData[existingStaffIndex] = existingStaff;
+                } else {
+                    // 新しいスタッフを追加
+                    const newStaff = {
+                        id: staffId,
+                        name: formData.name,
+                        department: formData.department,
+                        position: formData.position,
+                        totalScore: evaluation.totalScore,
+                        evaluations: [evaluation]
+                    };
+                    
+                    staffData.push(newStaff);
+                }
+                
+                // データを保存
+                saveStaffData(staffData);
+            }
+            
+            // スタッフを編集モーダルを開く関数
+            function editStaff(staffId) {
+                const staffData = loadStaffData();
+                const staff = staffData.find(s => s.id === staffId);
+                
+                if (!staff) return;
+                
+                // モーダルのタイトルを変更
+                document.getElementById('modal-title').textContent = 'スタッフ編集';
+                
+                // フォームに値を設定
+                document.getElementById('staff-id').value = staff.id;
+                document.getElementById('staff-name').value = staff.name;
+                document.getElementById('staff-department').value = staff.department;
+                document.getElementById('staff-position').value = staff.position;
+                
+                // 最新の評価を取得
+                let latestEval = null;
+                if (staff.evaluations && staff.evaluations.length > 0) {
+                    // 評価期間でソート
+                    const sortedEvals = [...staff.evaluations].sort((a, b) => {
+                        return b.period.localeCompare(a.period);
+                    });
+                    latestEval = sortedEvals[0];
+                }
+                
+                // 評価データを設定
+                if (latestEval) {
+                    document.getElementById('eval-period').value = latestEval.period;
+                    document.getElementById('eval-type').value = latestEval.type;
+                    document.getElementById('eval-total-score').value = latestEval.totalScore;
+                    document.getElementById('eval-phone-fax').value = latestEval.scores[0] || '';
+                    document.getElementById('eval-product-knowledge').value = latestEval.scores[1] || '';
+                    document.getElementById('eval-input-work').value = latestEval.scores[2] || '';
+                    document.getElementById('eval-team-cooperation').value = latestEval.scores[3] || '';
+                    document.getElementById('eval-comment').value = latestEval.comment || '';
+                } else {
+                    // 評価データがない場合はクリア
+                    document.getElementById('eval-period').value = '25年6月';
+                    document.getElementById('eval-type').value = '上長';
+                    document.getElementById('eval-total-score').value = '';
+                    document.getElementById('eval-phone-fax').value = '';
+                    document.getElementById('eval-product-knowledge').value = '';
+                    document.getElementById('eval-input-work').value = '';
+                    document.getElementById('eval-team-cooperation').value = '';
+                    document.getElementById('eval-comment').value = '';
+                }
+                
+                // モーダルを表示
+                staffModal.style.display = 'block';
+            }
+            
+            // 削除対象のスタッフIDを保持する変数
+            let deleteTargetStaffId = null;
+            
+            // スタッフを削除する関数
+            function deleteStaff(staffId) {
+                console.log('削除関数が呼ばれました - スタッフID:', staffId);
+                
+                const staffData = loadStaffData();
+                const staff = staffData.find(s => s.id === staffId);
+                
+                if (!staff) {
+                    console.error('スタッフが見つかりません:', staffId);
+                    alert('指定されたスタッフが見つかりません。');
+                    return;
+                }
+                
+                console.log('削除対象スタッフ:', staff);
+                
+                // 削除対象を保存
+                deleteTargetStaffId = staffId;
+                
+                // 削除確認モーダルに情報を設定
+                const message = `${staff.name}（社員番号: ${staffId}）を削除してもよろしいですか？`;
+                document.getElementById('delete-confirm-message').textContent = message;
+                
+                // モーダルを表示
+                deleteConfirmModal.style.display = 'block';
+            }
+            
+            // 削除を実行する関数
+            function executeDelete() {
+                if (!deleteTargetStaffId) {
+                    console.error('削除対象が設定されていません');
+                    return;
+                }
+                
+                console.log('削除を実行します - スタッフID:', deleteTargetStaffId);
+                
+                const staffData = loadStaffData();
+                const staff = staffData.find(s => s.id === deleteTargetStaffId);
+                const newStaffData = staffData.filter(s => s.id !== deleteTargetStaffId);
+                
+                console.log('削除前のデータ数:', staffData.length);
+                console.log('削除後のデータ数:', newStaffData.length);
+                
+                // データを保存
+                staffDataStorage = [...newStaffData];
+                updateStaffTable();
+                updateStats();
+                updateDepartmentFilter();
+                updatePeriodFilter();
+                
+                // モーダルを閉じる
+                deleteConfirmModal.style.display = 'none';
+                deleteTargetStaffId = null;
+                
+                console.log('削除完了');
+                alert(`${staff.name}のデータを削除しました。`);
+            }
+            
+            // CSVデータをインポートする関数
+            function importCsvData(csvText) {
+                const lines = csvText.split('\n');
+                if (lines.length < 2) {
+                    alert('CSVデータが不正です。少なくとも1行のヘッダーと1行のデータが必要です。');
+                    return;
+                }
+                
+                // ヘッダー行を無視して2行目から処理
+                const staffData = loadStaffData();
+                let importCount = 0;
+                let updateCount = 0;
+                
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    
+                    // CSVをパース
+                    const fields = line.split(',').map(field => field.replace(/^"(.*)"$/, '$1'));
+                    
+                    if (fields.length < 12) {
+                        console.warn(`行 ${i+1} のフィールド数が不足しています。スキップします。`);
+                        continue;
+                    }
+                    
+                    // データを取得 (新しいフィールド順序に対応)
+                    const id = parseInt(fields[0]);          // No
+                    const name = fields[1];                  // 名前
+                    const department = fields[2];            // 所属
+                    const position = fields[3];              // 職位
+                    const period = fields[4];                // 評価期間
+                    const type = fields[5];                  // 評価者
+                    const totalScore = parseFloat(fields[6]); // 総合評価
+                    const phoneFax = parseFloat(fields[7]) || 0;        // 電話・FAX対応
+                    const productKnowledge = parseFloat(fields[8]) || 0; // 商品知識
+                    const inputWork = parseFloat(fields[9]) || 0;        // 入力作業
+                    const teamCooperation = parseFloat(fields[10]) || 0; // チーム協力
+                    const comment = fields[11];              // コメント
+                    
+                    // 評価データを作成
+                    const evaluation = {
+                        period: period,
+                        type: type,
+                        totalScore: totalScore,
+                        scores: [phoneFax, productKnowledge, inputWork, teamCooperation],
+                        comment: comment
+                    };
+                    
+                    // 既存のスタッフを探す
+                    const existingStaffIndex = staffData.findIndex(staff => staff.id === id);
+                    
+                    if (existingStaffIndex >= 0) {
+                        // 既存のスタッフを更新
+                        const existingStaff = staffData[existingStaffIndex];
+                        
+                        // 基本情報を更新
+                        existingStaff.name = name;
+                        existingStaff.department = department;
+                        existingStaff.position = position;
+                        
+                        // 評価を追加/更新
+                        if (!existingStaff.evaluations) {
+                            existingStaff.evaluations = [];
+                        }
+                        
+                        // 同じ期間と評価者の評価があるかチェック
+                        const evalIndex = existingStaff.evaluations.findIndex(
+                            eval => eval.period === evaluation.period && eval.type === evaluation.type
+                        );
+                        
+                        if (evalIndex >= 0) {
+                            // 既存の評価を更新
+                            existingStaff.evaluations[evalIndex] = evaluation;
+                        } else {
+                            // 新しい評価を追加
+                            existingStaff.evaluations.push(evaluation);
+                        }
+                        
+                        // 最新の評価から総合評価を更新
+                        existingStaff.totalScore = evaluation.totalScore;
+                        
+                        staffData[existingStaffIndex] = existingStaff;
+                        updateCount++;
+                    } else {
+                        // 新しいスタッフを追加
+                        const newStaff = {
+                            id: id,
+                            name: name,
+                            department: department,
+                            position: position,
+                            totalScore: totalScore,
+                            evaluations: [evaluation]
+                        };
+                        
+                        staffData.push(newStaff);
+                        importCount++;
+                    }
+                }
+                
+                // データを保存
+                saveStaffData(staffData);
+                
+                alert(`インポートが完了しました。\n新規スタッフ: ${importCount}名\n更新したスタッフ: ${updateCount}名`);
+ updateStats();
+ updateStaffTable();
+} // ← ここが importCsvData 関数の終わり
+
+            
+            // スタッフデータをCSVにエクスポートする関数
+            function exportStaffDataToCsv() {
+                const staffData = loadStaffData();
+                if (staffData.length === 0) {
+                    alert('エクスポートするデータがありません。');
+                    return;
+                }
+                
+                // ヘッダー行
+                let csvContent = 'ID,名前,所属,職位,総合評価,電話・FAX対応,商品知識,入力作業,チーム協力,評価期間,評価者,コメント\n';
+                
+                // データ行
+                staffData.forEach(staff => {
+                    if (staff.evaluations) {
+                        staff.evaluations.forEach(eval => {
+                            const row = [
+                                staff.id,
+                                '"' + staff.name + '"',
+                                '"' + staff.department + '"',
+                                '"' + staff.position + '"',
+                                eval.totalScore,
+                                eval.scores[0] || '',
+                                eval.scores[1] || '',
+                                eval.scores[2] || '',
+                                eval.scores[3] || '',
+                                eval.period,
+                                eval.type,
+                                '"' + (eval.comment || '').replace(/"/g, '""') + '"'
+                            ].join(',');
+                            
+                            csvContent += row + '\n';
+                        });
+                    }
+                });
+                
+                // CSVファイルをダウンロード
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'スタッフ評価データ_' + new Date().toISOString().split('T')[0] + '.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+            
+  // データベースをクリアする関数
+function clearDatabase() {
+    if (!confirm('すべてのデータを削除してもよろしいですか？この操作は元に戻せません。')) {
+        return;
+    }
+
+    // ① メモリ上の配列を空にする
+    staffDataStorage = [];
+    // ② localStorage にも空配列を書き込んでクリア
+    saveStaffDataToStorage(staffDataStorage);
+
+    // ③ UI を更新
+    updateStaffTable();
+    updateStats();
+    updateDepartmentFilter();
+    updatePeriodFilter();
+
+    // ガイドメッセージを表示
+    document.getElementById('db-guide').style.display = 'block';
+}  // ← ここで関数を閉じる
+            
+            // 検索処理を行う関数
+            function searchStaff() {
+                const nameFilter = document.getElementById('name-search').value.toLowerCase();
+                const departmentFilter = document.getElementById('department-filter').value;
+                const positionFilter = document.getElementById('position-filter').value;
+                const periodFilter = document.getElementById('period-filter').value;
+                const scoreMin = document.getElementById('score-min').value ? parseFloat(document.getElementById('score-min').value) : 0;
+                const scoreMax = document.getElementById('score-max').value ? parseFloat(document.getElementById('score-max').value) : 5;
+                
+                const staffData = loadStaffData();
+                
+                // 検索条件に基づいてフィルタリング
+                filteredStaff = staffData.filter(staff => {
+                    // 名前での検索
+                    if (nameFilter && !staff.name.toLowerCase().includes(nameFilter)) {
+                        return false;
+                    }
+                    
+                    // 部署でのフィルタリング
+                    if (departmentFilter && staff.department !== departmentFilter) {
+                        return false;
+                    }
+                    
+                    // 職位でのフィルタリング
+                    if (positionFilter && staff.position !== positionFilter) {
+                        return false;
+                    }
+                    
+                    // 総合評価の範囲でのフィルタリング
+                    if (staff.totalScore < scoreMin || staff.totalScore > scoreMax) {
+                        return false;
+                    }
+                    
+                    // 評価期間でのフィルタリング
+                    if (periodFilter && (!staff.evaluations || !staff.evaluations.some(eval => eval.period === periodFilter))) {
+                        return false;
+                    }
+                    
+                    // すべての条件を満たす場合
+                    return true;
+                });
+                
+                // 検索結果を表示
+                currentPage = 1;
+                updateResultsTable();
+                updatePagination();
+                
+                // 検索結果件数を更新
+                document.getElementById('results-count-value').textContent = filteredStaff.length;
+            }
+            
+            // 検索条件をリセットする関数
+            function resetSearch() {
+                document.getElementById('name-search').value = '';
+                document.getElementById('department-filter').value = '';
+                document.getElementById('position-filter').value = '';
+                document.getElementById('period-filter').value = '';
+                document.getElementById('score-min').value = '';
+                document.getElementById('score-max').value = '';
+                
+                // すべてのスタッフを表示
+                filteredStaff = loadStaffData();
+                currentPage = 1;
+                updateResultsTable();
+                updatePagination();
+                
+                // 検索結果件数を更新
+                document.getElementById('results-count-value').textContent = filteredStaff.length;
+            }
+            
+            // 検索結果テーブルを更新する関数
+            function updateResultsTable() {
+                const resultsBody = document.getElementById('results-body');
+                resultsBody.innerHTML = '';
+                
+                // 現在のページに表示する範囲を計算
+                const startIndex = (currentPage - 1) * itemsPerPage;
+                const endIndex = Math.min(startIndex + itemsPerPage, filteredStaff.length);
+                
+                // データがない場合のメッセージ
+                if (filteredStaff.length === 0) {
+                    const noDataRow = document.createElement('tr');
+                    noDataRow.innerHTML = '<td colspan="10" class="no-data-message">該当するデータがありません</td>';
+                    resultsBody.appendChild(noDataRow);
+                    return;
+                }
+                
+                // 選択した評価期間を取得
+                const periodFilter = document.getElementById('period-filter').value;
+                
+                // 表示する範囲のデータを取り出して表示
+                for (let i = startIndex; i < endIndex; i++) {
+                    const staff = filteredStaff[i];
+                    const row = document.createElement('tr');
+                    
+                    // 評価クラスを決定
+                    let scoreClass = 'score-average';
+                    if (staff.totalScore >= 2.0) {
+                        scoreClass = 'score-good';
+                    } else if (staff.totalScore < 1.5) {
+                        scoreClass = 'score-needs-improvement';
+                    }
+                    
+                    // 該当する評価期間のデータを取得
+                    let evaluation = null;
+                    if (staff.evaluations && staff.evaluations.length > 0) {
+                        if (periodFilter) {
+                            // 特定の評価期間のデータを取得
+                            evaluation = staff.evaluations.find(eval => eval.period === periodFilter);
+                        } else {
+                            // 最新の評価データを取得
+                            const sortedEvals = [...staff.evaluations].sort((a, b) => {
+                                return b.period.localeCompare(a.period);
+                            });
+                            evaluation = sortedEvals[0];
+                        }
+                    }
+                    
+                    // スコアを表示
+                    const scores = evaluation ? evaluation.scores : [0, 0, 0, 0];
+                    
+                    // 行のHTML作成
+                    row.innerHTML = `
+                        <td>${staff.id}</td>
+                        <td>${staff.name}</td>
+                        <td>${staff.department}</td>
+                        <td>${staff.position}</td>
+                        <td class="${scoreClass}">${staff.totalScore.toFixed(2)}</td>
+                        <td>${scores[0] || '-'}</td>
+                        <td>${scores[1] || '-'}</td>
+                        <td>${scores[2] || '-'}</td>
+                        <td>${scores[3] || '-'}</td>
+                        <td class="actions">
+                            <button class="view" data-id="${staff.id}">詳細</button>
+                        </td>
+                    `;
+                    
+                    resultsBody.appendChild(row);
+                }
+                
+                // 詳細ボタンのイベントリスナーを設定
+                document.querySelectorAll('.view').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const staffId = parseInt(this.getAttribute('data-id'));
+                        showStaffDetail(staffId);
+                    });
+                });
+            }
+            
+            // ページネーションを更新する関数
+            function updatePagination() {
+                const pagination = document.getElementById('results-pagination');
+                pagination.innerHTML = '';
+                
+                // 総ページ数を計算
+                const totalPages = Math.ceil(filteredStaff.length / itemsPerPage);
+                
+                // ページネーションがない場合は表示しない
+                if (totalPages <= 1) {
+                    pagination.style.display = 'none';
+                    return;
+                } else {
+                    pagination.style.display = 'block';
+                }
+                
+                // 「前へ」ボタン
+                if (currentPage > 1) {
+                    const prevButton = document.createElement('button');
+                    prevButton.textContent = '前へ';
+                    prevButton.addEventListener('click', function() {
+                        currentPage--;
+                        updateResultsTable();
+                        updatePagination();
+                    });
+                    pagination.appendChild(prevButton);
+                }
+                
+                // ページ番号ボタン
+                const maxPagesToShow = 5; // 表示するページ番号の最大数
+                let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+                let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+                
+                if (endPage - startPage + 1 < maxPagesToShow) {
+                    startPage = Math.max(1, endPage - maxPagesToShow + 1);
+                }
+                
+                for (let i = startPage; i <= endPage; i++) {
+                    const pageButton = document.createElement('button');
+                    pageButton.textContent = i;
+                    if (i === currentPage) {
+                        pageButton.classList.add('active');
+                    }
+                    
+                    pageButton.addEventListener('click', function() {
+                        currentPage = i;
+                        updateResultsTable();
+                        updatePagination();
+                    });
+                    
+                    pagination.appendChild(pageButton);
+                }
+                
+                // 「次へ」ボタン
+                if (currentPage < totalPages) {
+                    const nextButton = document.createElement('button');
+                    nextButton.textContent = '次へ';
+                    nextButton.addEventListener('click', function() {
+                        currentPage++;
+                        updateResultsTable();
+                        updatePagination();
+                    });
+                    pagination.appendChild(nextButton);
+                }
+            }
+            
+            // スタッフ詳細を表示する関数
+            function showStaffDetail(staffId) {
+                const staffData = loadStaffData();
+                const staff = staffData.find(s => s.id === staffId);
+                
+                if (!staff) return;
+                
+                // 詳細情報を設定
+                document.getElementById('detail-id').textContent = staff.id;
+                document.getElementById('detail-name').textContent = staff.name;
+                document.getElementById('detail-department').textContent = staff.department;
+                document.getElementById('detail-position').textContent = staff.position;
+                
+                // 評価履歴を表示
+                const evaluationList = document.getElementById('evaluation-list');
+                evaluationList.innerHTML = '';
+                
+                if (!staff.evaluations || staff.evaluations.length === 0) {
+                    evaluationList.innerHTML = '<div class="no-data-message">評価データがありません</div>';
+                } else {
+                    // 評価を日付の新しい順にソート
+                    const sortedEvals = [...staff.evaluations].sort((a, b) => {
+                        return b.period.localeCompare(a.period);
+                    });
+                    
+                    // 評価履歴を表示
+                    sortedEvals.forEach(evaluation => {
+                        const evaluationEntry = document.createElement('div');
+                        evaluationEntry.className = 'evaluation-entry';
+                        
+                        // 評価クラスを決定
+                        let scoreClass = 'score-average';
+                        if (evaluation.totalScore >= 2.0) {
+                            scoreClass = 'score-good';
+                        } else if (evaluation.totalScore < 1.5) {
+                            scoreClass = 'score-needs-improvement';
+                        }
+                        
+                        // 評価ヘッダー
+                        const header = document.createElement('div');
+                        header.className = 'evaluation-header';
+                        header.innerHTML = `
+                            <div class="evaluation-period">${evaluation.period}</div>
+                            <div class="evaluation-type">${evaluation.type}評価</div>
+                        `;
+                        evaluationEntry.appendChild(header);
+                        
+                        // 評価スコア
+                        const scores = document.createElement('div');
+                        scores.className = 'evaluation-scores';
+                        scores.innerHTML = `
+                            <div class="score-item">
+                                <div class="score-label">総合評価</div>
+                                <div class="score-value ${scoreClass}">${evaluation.totalScore}</div>
+                            </div>
+                            <div class="score-item">
+                                <div class="score-label">電話・FAX対応</div>
+                                <div class="score-value">${evaluation.scores[0] || '-'}</div>
+                            </div>
+                            <div class="score-item">
+                                <div class="score-label">商品知識</div>
+                                <div class="score-value">${evaluation.scores[1] || '-'}</div>
+                            </div>
+                            <div class="score-item">
+                                <div class="score-label">入力作業</div>
+                                <div class="score-value">${evaluation.scores[2] || '-'}</div>
+                            </div>
+                            <div class="score-item">
+                                <div class="score-label">チーム協力</div>
+                                <div class="score-value">${evaluation.scores[3] || '-'}</div>
+                            </div>
+                        `;
+                        evaluationEntry.appendChild(scores);
+                        
+                        // コメントがある場合のみ表示
+                        if (evaluation.comment) {
+                            const commentDiv = document.createElement('div');
+                            commentDiv.className = 'evaluation-comment';
+                            commentDiv.textContent = evaluation.comment;
+                            evaluationEntry.appendChild(commentDiv);
+                        }
+                        
+                        evaluationList.appendChild(evaluationEntry);
+                    });
+                }
+                
+                // モーダルを表示
+                staffDetailModal.style.display = 'block';
+            }
+            
+            // 検索結果をCSVにエクスポートする関数
+            function exportSearchResultsToCsv() {
+                if (filteredStaff.length === 0) {
+                    alert('エクスポートするデータがありません。');
+                    return;
+                }
+                
+                // 選択した評価期間を取得
+                const periodFilter = document.getElementById('period-filter').value;
+                
+                // ヘッダー行
+                let csvContent = 'ID,名前,所属,職位,総合評価,電話・FAX対応,商品知識,入力作業,チーム協力,評価期間,評価者,コメント\n';
+                
+                // データ行
+                filteredStaff.forEach(staff => {
+                    // 該当する評価データを取得
+                    let evaluations = [];
+                    if (staff.evaluations && staff.evaluations.length > 0) {
+                        if (periodFilter) {
+                            // 特定の評価期間のデータを取得
+                            const eval = staff.evaluations.find(e => e.period === periodFilter);
+                            if (eval) {
+                                evaluations = [eval];
+                            }
+                        } else {
+                            // すべての評価データを使用
+                            evaluations = staff.evaluations;
+                        }
+                    }
+                    
+                    // 評価データがない場合は基本情報のみ出力
+                    if (evaluations.length === 0) {
+                        const row = [
+                            staff.id,
+                            '"' + staff.name + '"',
+                            '"' + staff.department + '"',
+                            '"' + staff.position + '"',
+                            staff.totalScore || '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            '',
+                            ''
+                        ].join(',');
+                        
+                        csvContent += row + '\n';
+                    } else {
+                        // 評価データごとに行を出力
+                        evaluations.forEach(eval => {
+                            const row = [
+                                staff.id,
+                                '"' + staff.name + '"',
+                                '"' + staff.department + '"',
+                                '"' + staff.position + '"',
+                                eval.totalScore,
+                                eval.scores[0] || '',
+                                eval.scores[1] || '',
+                                eval.scores[2] || '',
+                                eval.scores[3] || '',
+                                eval.period,
+                                eval.type,
+                                '"' + (eval.comment || '').replace(/"/g, '""') + '"'
+                            ].join(',');
+                            
+                            csvContent += row + '\n';
+                        });
+                    }
+                });
+                
+                // CSVファイルをダウンロード
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.setAttribute('href', url);
+                link.setAttribute('download', '検索結果_' + new Date().toISOString().split('T')[0] + '.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        
+            // タブ切り替え処理
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    // アクティブなタブを切り替え
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // タブコンテンツを切り替え
+                    const tabId = this.getAttribute('data-tab');
+                    tabContents.forEach(content => {
+                        content.classList.remove('active');
+                    });
+                    document.getElementById(tabId + '-tab').classList.add('active');
+                    
+                    // 検索タブに切り替えた場合、検索結果を更新
+                    if (tabId === 'search') {
+                        resetSearch();
+                    }
+                });
+            });
+            
+            // イベントリスナーの設定
+            addStaffBtn.addEventListener('click', function() {
+                document.getElementById('modal-title').textContent = 'スタッフ追加';
+                document.getElementById('staff-id').value = '';
+                document.getElementById('staff-name').value = '';
+                document.getElementById('staff-department').value = '';
+                document.getElementById('staff-position').value = '';
+                document.getElementById('eval-period').value = '25年6月';
+                document.getElementById('eval-type').value = '上長';
+                document.getElementById('eval-total-score').value = '';
+                document.getElementById('eval-phone-fax').value = '';
+                document.getElementById('eval-product-knowledge').value = '';
+                document.getElementById('eval-input-work').value = '';
+                document.getElementById('eval-team-cooperation').value = '';
+                document.getElementById('eval-comment').value = '';
+                staffModal.style.display = 'block';
+            });
+            
+            importBtn.addEventListener('click', function() {
+                document.getElementById('csv-data').value = '';
+                importModal.style.display = 'block';
+            });
+            
+            exportBtn.addEventListener('click', function() {
+                exportStaffDataToCsv();
+            });
+            
+            clearDbBtn.addEventListener('click', function() {
+                clearDatabase();
+            });
+            
+            const saveBtnModal = document.getElementById('save-btn');
+            
+            // 保存ボタンのイベントリスナーを追加
+            saveBtnModal.addEventListener('click', function() {
+                // フォームバリデーション
+                const staffId = document.getElementById('staff-id').value.trim();
+                const name = document.getElementById('staff-name').value.trim();
+                const department = document.getElementById('staff-department').value.trim();
+                const position = document.getElementById('staff-position').value;
+                const totalScore = document.getElementById('eval-total-score').value;
+                
+                if (!staffId || isNaN(parseInt(staffId)) || parseInt(staffId) <= 0) {
+                    alert('社員番号を正しい数値で入力してください。');
+                    return;
+                }
+                if (!name) {
+                    alert('名前を入力してください。');
+                    return;
+                }
+                if (!department) {
+                    alert('所属を入力してください。');
+                    return;
+                }
+                if (!position) {
+                    alert('職位を選択してください。');
+                    return;
+                }
+                if (!totalScore || isNaN(parseFloat(totalScore))) {
+                    alert('総合評価を正しい数値で入力してください。');
+                    return;
+                }
+                
+                const formData = {
+                    id: parseInt(staffId),
+                    name: name,
+                    department: department,
+                    position: position,
+                    evalPeriod: document.getElementById('eval-period').value,
+                    evalType: document.getElementById('eval-type').value,
+                    evalTotalScore: totalScore,
+                    evalPhoneFax: document.getElementById('eval-phone-fax').value,
+                    evalProductKnowledge: document.getElementById('eval-product-knowledge').value,
+                    evalInputWork: document.getElementById('eval-input-work').value,
+                    evalTeamCooperation: document.getElementById('eval-team-cooperation').value,
+                    evalComment: document.getElementById('eval-comment').value
+                };
+                
+                try {
+                    addOrUpdateStaff(formData);
+                    staffModal.style.display = 'none';
+                    alert('スタッフデータを保存しました。');
+                } catch (error) {
+                    console.error('保存エラー:', error);
+                    alert('保存中にエラーが発生しました: ' + error.message);
+                }
+            });
+            
+            staffForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+            });
+            
+            cancelBtn.addEventListener('click', function() {
+                staffModal.style.display = 'none';
+            });
+            
+            doImportBtn.addEventListener('click', function() {
+                const csvData = document.getElementById('csv-data').value;
+                if (!csvData) {
+                    alert('CSVデータを入力してください。');
+                    return;
+                }
+                importCsvData(csvData);
+                importModal.style.display = 'none';
+            });
+            
+            cancelImportBtn.addEventListener('click', function() {
+                importModal.style.display = 'none';
+            });
+            
+            deleteConfirmBtn.addEventListener('click', function() {
+                executeDelete();
+            });
+            
+            deleteCancelBtn.addEventListener('click', function() {
+                deleteConfirmModal.style.display = 'none';
+                deleteTargetStaffId = null;
+            });
+            
+            searchButton.addEventListener('click', function() {
+                searchStaff();
+            });
+            
+            resetButton.addEventListener('click', function() {
+                resetSearch();
+            });
+            
+            exportCsvBtn.addEventListener('click', function() {
+                exportSearchResultsToCsv();
+            });
+            
+            printResultsBtn.addEventListener('click', function() {
+                window.print();
+            });
+            
+            modalCloseButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const modal = this.closest('.modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            });
+            
+            window.addEventListener('click', function(event) {
+                if (event.target.classList.contains('modal')) {
+                    event.target.style.display = 'none';
+                }
+            });
+            
+            // データベース管理テーブルのソート機能
+            document.querySelectorAll('.db-table th.sortable').forEach(header => {
+                header.addEventListener('click', function() {
+                    const column = this.getAttribute('data-sort');
+                    
+                    // 同じ列をクリックした場合は昇順/降順を切り替え
+                    if (currentSort.column === column) {
+                        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                    } else {
+                        // 新しい列をクリックした場合は昇順から開始
+                        currentSort.column = column;
+                        currentSort.direction = 'asc';
+                    }
+                    
+                    // テーブルを更新
+                    updateStaffTable();
+                });
+            });
+            
+// 検索結果テーブルのソート機能
+document.querySelectorAll('#results-table th.sortable').forEach(header => {
+  header.addEventListener('click', function() {
+    const column = this.getAttribute('data-sort');
+
+    // 同じ列なら昇順⇔降順を切り替え
+    if (searchSort.column === column) {
+      searchSort.direction = searchSort.direction === 'asc' ? 'desc' : 'asc';
+    } else {
+      searchSort.column = column;
+      searchSort.direction = 'asc';
+    }
+
+    // filteredStaff をソートしてから再描画
+    filteredStaff = sortStaffData(filteredStaff, searchSort.column, searchSort.direction);
+
+    // ▲▼インジケータ更新
+    document.querySelectorAll('#results-table th.sortable')
+      .forEach(th => th.classList.remove('sort-asc','sort-desc'));
+    this.classList.add(searchSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+
+    // テーブルに反映
+    updateResultsTable();
+  });
+});
+
+    // —— ここから初期化呼び出し ——
+    // テーブル・統計・フィルタを localStorage の内容で再描画
+    updateStaffTable();
+    updateStats();
+    updateDepartmentFilter();
+    updatePeriodFilter();
+
+    // 検索タブの初期表示（全データを対象に）
+    filteredStaff = loadStaffData();
+    document.getElementById('results-count-value').textContent = filteredStaff.length;
+    updateResultsTable();
+    updatePagination();
+    // —— ここまで初期化呼び出し ——
+})();
+            
+    </script>
+</body>
+</html>

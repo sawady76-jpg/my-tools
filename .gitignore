@@ -1,0 +1,17 @@
+# Windows
+desktop.ini
+Thumbs.db
+$RECYCLE.BIN/
+*.lnk
+
+# Temporary files
+*.tmp
+*.temp
+~$*
+
+# Excel temporary files
+~$*.xlsx
+~$*.xls
+
+# Git
+.git/

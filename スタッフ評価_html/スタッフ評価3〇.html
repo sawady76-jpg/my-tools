@@ -1,0 +1,1691 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>スタッフ評価管理・検索システム</title>
+<style>
+  body{font-family:'Meiryo','Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;background:#f5f5f5;color:#333}
+  .container{max-width:1200px;margin:0 auto;padding:20px}
+  header{background:#2c7873;color:#fff;padding:15px 20px;border-radius:8px 8px 0 0;margin-bottom:20px}
+  h1{margin:0;font-size:1.8rem}
+  .tabs{display:flex;background:#f0f0f0;border-radius:8px;overflow:hidden;margin-bottom:20px}
+  .tab{flex:1;text-align:center;padding:15px;cursor:pointer;font-weight:bold;transition:.3s}
+  .tab.active{background:#2c7873;color:#fff}
+  .tab:hover:not(.active){background:#ddd}
+  .tab-content{display:none;background:#fff;border-radius:8px;padding:20px;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+  .tab-content.active{display:block}
+  .db-controls{display:flex;justify-content:space-between;margin-bottom:20px;align-items:center;gap:12px;flex-wrap:wrap}
+  .db-stats{background:#f0f8ff;padding:10px 15px;border-radius:5px;font-size:.9rem}
+  .db-actions{display:flex;flex-wrap:wrap;gap:8px}
+  .db-actions button{padding:8px 15px;border:none;border-radius:4px;cursor:pointer;color:#fff;font-weight:bold;font-size:.85rem}
+  .add-btn{background:#4CAF50}
+  .import-btn{background:#2196F3}
+  .export-btn{background:#FF9800}
+  .clear-btn{background:#f44336}
+  .backup-btn{background:#607d8b}
+  .restore-btn{background:#9c27b0}
+
+  .db-table-container{overflow-x:auto;margin-bottom:20px}
+  table{width:100%;border-collapse:collapse;min-width:900px}
+  th,td{border:1px solid #ddd;padding:10px}
+  th{background:#f2f2f2;font-weight:bold;text-align:left;position:relative;user-select:none}
+  th.sortable{cursor:pointer}
+  th.sortable:hover{background:#e8e8e8}
+  th .sort-indicator{position:absolute;right:5px;top:50%;transform:translateY(-50%);font-size:.8em;color:#666}
+  th.sort-asc .sort-indicator::after{content:"▲";color:#2c7873}
+  th.sort-desc .sort-indicator::after{content:"▼";color:#2c7873}
+  tr:nth-child(even){background:#f9f9f9}
+  tr:hover{background:#f1f1f1}
+  .actions-cell,.actions{text-align:center;white-space:nowrap}
+  .edit-btn,.delete-btn,.view,.edit-eval,.delete-eval{background:#2196F3;color:#fff;border:none;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:.8em;margin:0 2px}
+  .delete-btn,.delete-eval{background:#f44336}
+  .cell-editing{background:#fffbe6 !important;outline:2px solid #ffcc80}
+  .inline-input{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #bbb;border-radius:4px;font:inherit}
+  .inline-select{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid:#bbb;border-radius:4px;font:inherit;background:#fff}
+  .no-data-message{text-align:center;padding:30px;background:#f9f9f9;border-radius:8px;margin:20px 0;color:#666}
+  .no-data-message.small{padding:15px;margin:10px 0;font-size:.85rem}
+  .guide-message{background:#e1f5fe;border-left:4px solid #03a9f4;padding:15px;margin:20px 0;border-radius:0 4px 4px 0;font-size:.95rem}
+  .guide-message h3{margin-top:0;color:#0288d1}
+
+  /* 検索系 */
+  .search-section{background:#f9f9f9;padding:20px;border-radius:8px;margin-bottom:30px;border:1px solid #ddd}
+  .search-section h2{margin-top:0;color:#2c7873;font-size:1.3em}
+  .search-form{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));grid-gap:15px}
+  .form-row{display:flex;flex-wrap:wrap;margin:0 -5px}
+  .form-row .form-group{flex:1;padding:0 5px;min-width:120px}
+  .search-buttons{text-align:center;margin-top:20px}
+  .search-buttons button{padding:10px 20px;border:none;border-radius:4px;cursor:pointer;font-size:1em;margin:0 5px}
+  .search-btn{background:#4CAF50;color:#fff}
+  .search-btn:hover{background:#45a049}
+  .reset-btn{background:#f44336;color:#fff}
+  .reset-btn:hover{background:#e53935}
+  .results-section{margin-top:30px}
+  .results-header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap}
+  .results-header h2{margin:0;color:#2c7873}
+  .results-count{color:#666;font-size:.9em}
+  .results-actions{display:flex;gap:10px}
+  .results-actions button{padding:5px 10px;background:#2196F3;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:.85rem}
+  .results-summary{margin-top:4px;font-size:.85rem;color:#555}
+
+  /* モーダル */
+  .modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,.5)}
+  .modal-content{background:#fff;margin:3% auto;padding:20px;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,.2);width:90%;max-width:1100px;max-height:90vh;overflow-y:auto}
+  .modal-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;border-bottom:1px solid #ddd;padding-bottom:10px}
+  .modal-header h2{margin:0;color:#2c7873}
+  .modal-close{font-size:1.5em;cursor:pointer;color:#aaa}
+  .modal-close:hover{color:#555}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));grid-gap:15px;margin-bottom:20px}
+  .form-group{margin-bottom:15px}
+  .form-group label{display:block;margin-bottom:5px;font-weight:bold;color:#555}
+  .form-group input,.form-group select,.form-group textarea{width:100%;padding:8px;border:1px solid:#ddd;border-radius:4px;box-sizing:border-box}
+  .form-group textarea{height:100px;resize:vertical}
+  .form-buttons{text-align:right;margin-top:20px}
+  .form-buttons button{padding:10px 20px;margin-left:10px;border:none;border-radius:4px;cursor:pointer;font-weight:bold}
+  .save-btn{background:#4CAF50;color:#fff}
+  .cancel-btn{background:#ccc;color:#333}
+
+  /* スコア色 */
+  .score-good{color:#4CAF50;font-weight:bold}
+  .score-average{color:#FF9800}
+  .score-needs-improvement{color:#F44336}
+  .score-badge{display:inline-block;padding:2px 6px;border-radius:10px;font-size:.75rem;background:#eee}
+
+  /* 評価履歴（詳細モーダル / 編集モーダル共通） */
+  .evaluation-entry{border:1px solid #ddd;border-radius:4px;margin-bottom:15px;background:#fff}
+  .evaluation-header{display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:#f5f5f5;border-bottom:1px solid #ddd;font-weight:bold}
+  .evaluation-header .evaluation-period{color:#2c7873}
+  .evaluation-header .evaluation-type{color:#666;font-size:.9em}
+  .evaluation-scores{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));grid-gap:10px;margin:15px}
+  .evaluation-comment{margin:0 15px 15px;padding:10px;background:#f9f9f9;border-left:3px solid #4CAF50;border-radius:0 4px 4px 0}
+  .score-item .score-label{font-size:.8rem;color:#666}
+  .score-item .score-value{font-size:1rem}
+
+  /* 編集モーダル内の評価履歴 */
+  .evaluation-history-block{margin-bottom:10px}
+  .evaluation-history-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .evaluation-history-header h3{margin:0;font-size:1.05rem}
+  .small-btn{padding:5px 10px;border:none;border-radius:4px;background:#2c7873;color:#fff;cursor:pointer;font-size:.8rem}
+  .modal-eval-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+  .eval-chip{border-radius:999px;padding:4px 10px;border:1px solid #ccc;background:#fafafa;font-size:.8rem;cursor:pointer;display:flex;align-items:center;gap:6px}
+  .eval-chip span{font-size:.75rem}
+  .eval-chip .chip-period{color:#2c7873;font-weight:bold}
+  .eval-chip .chip-type{color:#666}
+  .eval-chip .chip-score{font-weight:bold}
+  .eval-chip.active{background:#2c7873;color:#fff;border-color:#2c7873}
+  .eval-chip.active .chip-period,.eval-chip.active .chip-type,.eval-chip.active .chip-score{color:#fff}
+
+  /* CSV / JSON import テキストエリア */
+  .csv-import-container textarea,
+  #json-data{width:100%;min-height:150px;margin:10px 0;padding:8px;border:1px solid #ddd;border-radius:4px;font-family:monospace;font-size:.85rem;box-sizing:border-box}
+
+  /* ページネーション */
+  .pagination{margin-top:15px;text-align:center}
+  .pagination button{margin:0 3px;padding:5px 10px;border-radius:4px;border:1px solid #ccc;background:#fff;cursor:pointer;font-size:.8rem}
+  .pagination button.active{background:#2c7873;color:#fff;border-color:#2c7873}
+
+  @media(max-width:768px){
+    .form-grid,.search-form{grid-template-columns:1fr}
+    .form-row{flex-direction:column}
+    .form-row .form-group{width:100%;padding:0}
+    .db-controls{flex-direction:column;align-items:flex-start}
+    .db-stats{margin-bottom:10px;width:100%}
+    .db-actions{width:100%;justify-content:flex-start}
+    .modal-content{width:95%;margin:10% auto}
+    table{min-width:700px}
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header><h1>スタッフ評価管理・検索システム</h1></header>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="database">データベース管理</div>
+    <div class="tab" data-tab="search">評価検索</div>
+  </div>
+
+  <!-- DB管理 -->
+  <div class="tab-content active" id="database-tab">
+    <div class="db-controls">
+      <div class="db-stats">
+        登録スタッフ数: <span id="staff-count">0</span>名 |
+        評価データ数: <span id="evaluation-count">0</span>件
+      </div>
+      <div class="db-actions">
+        <button class="add-btn" id="add-staff-btn">スタッフ追加</button>
+        <button class="import-btn" id="import-btn">CSVインポート</button>
+        <button class="export-btn" id="export-btn">CSVエクスポート</button>
+        <button class="backup-btn" id="backup-json-btn">バックアップ(JSON)</button>
+        <button class="restore-btn" id="restore-json-btn">復元(JSON)</button>
+        <button class="clear-btn" id="clear-db-btn">データクリア</button>
+      </div>
+    </div>
+
+    <div class="guide-message" id="db-guide">
+      <h3>はじめに</h3>
+      <p>このシステムはブラウザ上で動作する簡易評価管理システムです。<br>
+      左上の「スタッフ追加」、CSVインポート、右上の「評価検索」タブなどから活用できます。</p>
+      <p style="margin-bottom:0;">定期的に「バックアップ(JSON)」を取得しておくと、別PCへの移行や復元が簡単です。</p>
+    </div>
+
+    <div class="db-table-container">
+      <table class="db-table" id="staff-table">
+        <thead>
+          <tr>
+            <th class="sortable" data-sort="id">ID<span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort="name">名前<span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort="department">所属<span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort="position">職位<span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort="period">評価期間<span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort="type">評価者<span class="sort-indicator"></span></th>
+            <th class="sortable" data-sort="totalScore">総合評価<span class="sort-indicator"></span></th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="staff-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 検索タブ -->
+  <div class="tab-content" id="search-tab">
+    <div class="search-section">
+      <h2>検索条件</h2>
+      <div class="search-form">
+        <div class="form-group">
+          <label for="name-search">名前</label>
+          <input type="text" id="name-search" placeholder="名前で検索...">
+        </div>
+        <div class="form-group">
+          <label for="department-filter">部署</label>
+          <select id="department-filter"><option value="">全ての部署</option></select>
+        </div>
+        <div class="form-group">
+          <label for="position-filter">職位</label>
+          <select id="position-filter">
+            <option value="">全ての職位</option>
+            <option>課長代理</option>
+            <option>係長</option>
+            <option>主任</option>
+            <option>一般</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="period-filter">評価期間</label>
+          <select id="period-filter"><option value="">全ての期間</option></select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="score-min">総合評価（最小）</label>
+          <input type="number" id="score-min" min="0" max="5" step="0.1" placeholder="例: 1.5">
+        </div>
+        <div class="form-group">
+          <label for="score-max">総合評価（最大）</label>
+          <input type="number" id="score-max" min="0" max="5" step="0.1" placeholder="例: 3.0">
+        </div>
+      </div>
+      <div class="search-buttons">
+        <button class="search-btn" id="search-button">検索</button>
+        <button class="reset-btn" id="reset-button">条件クリア</button>
+      </div>
+    </div>
+
+    <div class="results-section">
+      <div class="results-header">
+        <h2>検索結果</h2>
+        <div class="results-count">
+          <span id="results-count-value">0</span>名が該当
+        </div>
+        <div class="results-actions">
+          <button id="export-csv">CSVエクスポート</button>
+          <button id="print-results">印刷</button>
+        </div>
+      </div>
+      <div id="results-summary" class="results-summary"></div>
+      <div class="results-table-container">
+        <table class="results-table" id="results-table">
+          <thead>
+            <tr>
+              <th class="sortable" data-sort="id">ID<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="name">名前<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="department">所属<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="position">職位<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="totalScore">総合評価<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="phoneFax">電話・FAX対応<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="productKnowledge">商品知識<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="inputWork">入力作業<span class="sort-indicator"></span></th>
+              <th class="sortable" data-sort="teamCooperation">チーム協力<span class="sort-indicator"></span></th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="results-pagination"></div>
+    </div>
+  </div>
+
+  <!-- スタッフ追加/編集モーダル -->
+  <div id="staff-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modal-title">スタッフ追加</h2>
+        <span class="modal-close">&times;</span>
+      </div>
+      <form id="staff-form">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="staff-id">社員番号 <span style="color:red">*</span></label>
+            <input type="number" id="staff-id" required min="1">
+          </div>
+          <div class="form-group">
+            <label for="staff-name">名前 <span style="color:red">*</span></label>
+            <input type="text" id="staff-name" required>
+          </div>
+          <div class="form-group">
+            <label for="staff-department">所属 <span style="color:red">*</span></label>
+            <input type="text" id="staff-department" list="departments" required>
+            <datalist id="departments">
+              <option value="横浜支店(業務)">
+              <option value="岡山営業所(業務)">
+              <option value="埼玉支店(業務)">
+              <option value="滋賀営業所(業務)">
+              <option value="仙台営業所(業務)">
+              <option value="千葉営業所(業務)">
+              <option value="東京支店(業務)">
+              <option value="福岡支店(業務)">
+              <option value="名古屋営業所(業務)">
+              <option value="大阪支店(業務)">
+            </datalist>
+          </div>
+          <div class="form-group">
+            <label for="staff-position">職位 <span style="color:red">*</span></label>
+            <select id="staff-position" required>
+              <option value="">選択してください</option>
+              <option>課長代理</option>
+              <option>係長</option>
+              <option>主任</option>
+              <option>一般</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="evaluation-history-block">
+          <div class="evaluation-history-header">
+            <h3>評価履歴</h3>
+            <button type="button" class="small-btn" id="new-eval-btn">＋ 新規評価を追加</button>
+          </div>
+          <div id="modal-eval-list" class="modal-eval-list"></div>
+        </div>
+
+        <h3>評価データ（編集中）</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="eval-period">評価期間 <span style="color:red">*</span></label>
+            <input type="text" id="eval-period" value="25年6月" required>
+          </div>
+          <div class="form-group">
+            <label for="eval-type">評価者 <span style="color:red">*</span></label>
+            <select id="eval-type" required>
+              <option>上長</option>
+              <option>本人</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="eval-total-score">総合評価 <span style="color:red">*</span></label>
+            <input type="number" id="eval-total-score" min="0" max="5" step="0.05" required>
+          </div>
+          <div class="form-group">
+            <label for="eval-phone-fax">電話・FAX対応</label>
+            <input type="number" id="eval-phone-fax" min="0" max="5" step="0.5">
+          </div>
+          <div class="form-group">
+            <label for="eval-product-knowledge">商品知識</label>
+            <input type="number" id="eval-product-knowledge" min="0" max="5" step="0.5">
+          </div>
+          <div class="form-group">
+            <label for="eval-input-work">入力作業</label>
+            <input type="number" id="eval-input-work" min="0" max="5" step="0.5">
+          </div>
+          <div class="form-group">
+            <label for="eval-team-cooperation">チーム協力</label>
+            <input type="number" id="eval-team-cooperation" min="0" max="5" step="0.5">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="eval-comment">コメント</label>
+          <textarea id="eval-comment" placeholder="評価コメントを入力してください"></textarea>
+        </div>
+
+        <input type="hidden" id="original-period">
+        <input type="hidden" id="original-type">
+
+        <div class="form-buttons">
+          <button type="button" class="cancel-btn" id="cancel-btn">キャンセル</button>
+          <button type="button" class="save-btn" id="save-btn">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- CSVインポート -->
+  <div id="import-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>CSVデータインポート</h2>
+        <span class="modal-close">&times;</span>
+      </div>
+      <p>フォーマット: No,名前,所属,職位,評価期間,評価者,総合評価,電話・FAX対応,商品知識,入力作業,チーム協力,コメント</p>
+      <div class="csv-import-container">
+        <textarea id="csv-data" placeholder="CSVデータをここに貼り付けてください..."></textarea>
+        <button class="import-btn" id="do-import">インポート実行</button>
+      </div>
+      <div class="form-buttons">
+        <button type="button" class="cancel-btn" id="cancel-import">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JSON復元モーダル -->
+  <div id="json-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>バックアップJSON復元</h2>
+        <span class="modal-close">&times;</span>
+      </div>
+      <p>バックアップしたJSONファイルの中身を貼り付けて「復元する」を押してください。</p>
+      <textarea id="json-data" placeholder='{"version":1,"data":[...]} の形式のJSONを貼り付け'></textarea>
+      <div class="form-buttons">
+        <button type="button" class="cancel-btn" id="cancel-json-import">キャンセル</button>
+        <button type="button" class="import-btn" id="do-json-import">復元する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 詳細モーダル -->
+  <div id="staff-detail-modal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>スタッフ詳細情報</h2>
+        <span class="modal-close">&times;</span>
+      </div>
+      <div class="employee-info form-grid">
+        <div class="form-group">
+          <label>ID</label>
+          <span id="detail-id"></span>
+        </div>
+        <div class="form-group">
+          <label>名前</label>
+          <span id="detail-name"></span>
+        </div>
+        <div class="form-group">
+          <label>所属</label>
+          <span id="detail-department"></span>
+        </div>
+        <div class="form-group">
+          <label>職位</label>
+          <span id="detail-position"></span>
+        </div>
+      </div>
+      <div class="evaluation-history">
+        <h3>評価履歴</h3>
+        <div id="evaluation-list"></div>
+      </div>
+      <div class="evaluation-history">
+        <h3>評価推移グラフ（総合評価）</h3>
+        <p style="font-size:0.85rem;color:#666;margin-top:0;">
+          評価期間ごとの総合評価の推移をグラフ表示します。
+        </p>
+        <canvas id="score-chart" width="800" height="380" style="max-width:100%;border:1px solid #eee;border-radius:4px;background:#fafafa;"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  /* ====== ストレージ ====== */
+  const STORAGE_KEY='staffEvaluationData';
+  const load=()=>JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');
+  const save=(d)=>localStorage.setItem(STORAGE_KEY,JSON.stringify(d));
+
+  /* ====== 状態/要素 ====== */
+  let db=load();
+  const $=s=>document.querySelector(s);
+  const $$=s=>document.querySelectorAll(s);
+  const tbody=$('#staff-table-body');
+
+  let currentSort={column:null,direction:'asc'};
+  let searchSort={column:null,direction:'asc'};
+  let filtered=[];
+  let page=1;
+  const perPage=50;
+  let inlineEditingEnabled=false;
+  let currentEditingStaff=null;
+
+  /* ====== 共通 ====== */
+  const latest=(s)=>s.evaluations?[...s.evaluations].sort((a,b)=>{
+  const toNum = p => { const m = p.match(/(\d+)年(\d+)月/); return m ? parseInt(m[1])*100 + parseInt(m[2]) : 0; };
+  return toNum(b.period) - toNum(a.period);
+})[0]:null;
+
+  function refreshAll(){
+    drawDB();
+    updateStats();
+    fillDeptOptions();
+    fillPeriodOptions();
+  }
+  function commit(newDB){
+    db=[...newDB];
+    save(db);
+    refreshAll();
+  }
+
+  /* ====== 統計/フィルタ ====== */
+  function updateStats(){
+    let cnt=0;
+    db.forEach(s=>{ if(s.evaluations) cnt+=s.evaluations.length; });
+    $('#staff-count').textContent=db.length;
+    $('#evaluation-count').textContent=cnt;
+  }
+  function fillDeptOptions(){
+    const sel=$('#department-filter');
+    while(sel.options.length>1) sel.remove(1);
+    [...new Set(db.map(s=>s.department).filter(Boolean))]
+      .sort()
+      .forEach(d=>{
+        const o=document.createElement('option');
+        o.value=d;o.textContent=d;
+        sel.appendChild(o);
+      });
+  }
+  function fillPeriodOptions(){
+    const sel=$('#period-filter');
+    while(sel.options.length>1) sel.remove(1);
+    const set=new Set();
+    db.forEach(s=>s.evaluations?.forEach(e=>e.period&&set.add(e.period)));
+    const arr=[...set].sort((a,b)=>b.localeCompare(a));
+    arr.forEach(p=>{
+      const o=document.createElement('option');
+      o.value=p;o.textContent=p;
+      sel.appendChild(o);
+    });
+    // デフォルトは最新期間に合わせる
+    if(arr.length) sel.value=arr[0];
+  }
+
+  /* ====== DBテーブル（全評価行 + セル編集） ====== */
+  function drawDB(){
+    tbody.innerHTML='';
+    if(!db.length){
+      const r=document.createElement('tr');
+      r.innerHTML='<td colspan="8" class="no-data-message">登録されているデータはありません</td>';
+      tbody.appendChild(r);
+      return;
+    }
+    const guide=$('#db-guide');
+    if(guide) guide.style.display='none';
+
+    // flatten
+    let rows=[];
+    db.forEach(s=>{
+      if(s.evaluations?.length){
+        s.evaluations.forEach(e=>{
+          rows.push({
+            id:s.id,
+            name:s.name,
+            department:s.department,
+            position:s.position,
+            period:e.period,
+            type:e.type,
+            total:e.totalScore
+          });
+        });
+      }else{
+        rows.push({
+          id:s.id,
+          name:s.name,
+          department:s.department,
+          position:s.position,
+          period:'-',
+          type:'-',
+          total:typeof s.totalScore==='number'?s.totalScore:'-'
+        });
+      }
+    });
+
+    // sort
+    if(currentSort.column){
+      const keyMap={totalScore:'total'};
+      const key=keyMap[currentSort.column]||currentSort.column;
+      rows.sort((a,b)=>{
+        const A=a[key]??'';
+        const B=b[key]??'';
+        let c=0;
+        if(A<B)c=-1;else if(A>B)c=1;
+        return currentSort.direction==='desc'?-c:c;
+      });
+    }
+
+    // draw rows
+    rows.forEach(r=>{
+      let sc='score-average';
+      if(typeof r.total==='number'){
+        if(r.total>=2) sc='score-good';
+        else if(r.total<1.5) sc='score-needs-improvement';
+      }
+      const tr=document.createElement('tr');
+      const hasEval=(r.period!=='-' && r.type!=='-');
+      const dispTotal=(typeof r.total==='number')?r.total.toFixed(2):'-';
+      tr.innerHTML=`
+        <td>${r.id}</td>
+        <td data-field="name"        data-id="${r.id}">${r.name}</td>
+        <td data-field="department"  data-id="${r.id}">${r.department||''}</td>
+        <td data-field="position"    data-id="${r.id}">${r.position||''}</td>
+        <td data-field="period"      data-id="${r.id}" data-period="${r.period}" data-type="${r.type}">${r.period}</td>
+        <td data-field="type"        data-id="${r.id}" data-period="${r.period}" data-type="${r.type}">${r.type}</td>
+        <td data-field="total"       data-id="${r.id}" data-period="${r.period}" data-type="${r.type}">
+          <span class="score-badge ${sc}">${dispTotal}</span>
+        </td>
+        <td class="actions-cell">
+          <button class="edit-btn" data-id="${r.id}" data-period="${r.period}" data-type="${r.type}">編集</button>
+          ${hasEval?`<button class="delete-btn" data-id="${r.id}" data-period="${r.period}" data-type="${r.type}">削除</button>`:''}
+        </td>`;
+      tbody.appendChild(tr);
+    });
+
+    // 編集/削除ボタン
+    $$('#staff-table .edit-btn').forEach(b=>{
+      b.addEventListener('click',()=>{
+        const id=parseInt(b.dataset.id,10);
+        const p=b.dataset.period;
+        const t=b.dataset.type;
+        if(p && t && p!=='-' && t!=='-') openEdit(id,p,t);
+        else openEdit(id);
+      });
+    });
+    $$('#staff-table .delete-btn').forEach(b=>{
+      b.addEventListener('click',()=>{
+        delEval(parseInt(b.dataset.id,10),b.dataset.period,b.dataset.type);
+      });
+    });
+
+    // ソート表示
+    $$('.db-table th.sortable').forEach(h=>{
+      h.classList.remove('sort-asc','sort-desc');
+      if(h.getAttribute('data-sort')===currentSort.column){
+        h.classList.add(currentSort.direction==='asc'?'sort-asc':'sort-desc');
+      }
+    });
+
+    // セル直接編集（初回のみイベント付与）
+    enableInlineEditing();
+  }
+
+  // ----- セル直接編集 -----
+  function enableInlineEditing(){
+    if(inlineEditingEnabled) return;
+    inlineEditingEnabled=true;
+    tbody.addEventListener('click',onCellClick);
+  }
+  function onCellClick(ev){
+    const td=ev.target.closest('td[data-field]');
+    if(!td) return;
+    if(td.classList.contains('editing')) return;
+
+    const field=td.dataset.field;
+
+    // 評価が無い行の period/type/total は直接編集させない
+    if(field!=='name' && field!=='department' && field!=='position'){
+      if(td.dataset.period==='-' || td.dataset.type==='-') return;
+    }
+    startEdit(td,field);
+  }
+  function startEdit(td,field){
+    td.classList.add('cell-editing','editing');
+    const id=parseInt(td.dataset.id,10);
+    const origText=td.textContent.trim();
+    const period=td.dataset.period;
+    const type=td.dataset.type;
+
+    let editor;
+    if(field==='position'){
+      editor=document.createElement('select');
+      editor.className='inline-select';
+      ['課長代理','係長','主任','一般'].forEach(v=>{
+        const o=document.createElement('option');
+        o.value=v;o.textContent=v;
+        if(v===origText) o.selected=true;
+        editor.appendChild(o);
+      });
+    }else if(field==='type'){
+      editor=document.createElement('select');
+      editor.className='inline-select';
+      ['上長','本人'].forEach(v=>{
+        const o=document.createElement('option');
+        o.value=v;o.textContent=v;
+        if(v===origText) o.selected=true;
+        editor.appendChild(o);
+      });
+    }else if(field==='total'){
+      editor=document.createElement('input');
+      editor.type='number';
+      editor.min='0';editor.max='5';editor.step='0.01';
+      editor.value=(origText==='-'?'':origText);
+      editor.className='inline-input';
+    }else{
+      editor=document.createElement('input');
+      editor.type='text';
+      editor.value=origText;
+      editor.className='inline-input';
+    }
+
+    td.textContent='';
+    td.appendChild(editor);
+    if(typeof editor.select==='function') editor.select();
+
+    const cancel=()=>{
+      td.classList.remove('cell-editing','editing');
+      td.textContent=origText;
+    };
+    const commitValue=()=>{
+      const val=(editor.value||'').trim();
+      if(field==='total' && val!=='' && (isNaN(parseFloat(val)) || parseFloat(val)<0 || parseFloat(val)>5)){
+        alert('総合評価は0～5の数値です');
+        editor.focus();
+        return;
+      }
+      applyCellChange({
+        id,field,oldValue:origText,newValue:val,period,type,cell:td
+      });
+    };
+
+    editor.addEventListener('keydown',e=>{
+      if(e.key==='Enter'){ e.preventDefault(); commitValue(); }
+      if(e.key==='Escape'){ e.preventDefault(); cancel(); }
+    });
+    editor.addEventListener('blur',()=>commitValue(),{once:true});
+  }
+  function applyCellChange({id,field,oldValue,newValue,period,type,cell}){
+    const data=[...db];
+    const i=data.findIndex(s=>s.id===id);
+    if(i<0){
+      cell.textContent=oldValue;
+      cell.classList.remove('cell-editing','editing');
+      return;
+    }
+    const s=data[i];
+
+    if(field==='name' || field==='department' || field==='position'){
+      s[field]=newValue;
+      data[i]=s;
+      commit(data);
+      return;
+    }
+
+    const eIdx=s.evaluations?.findIndex(e=>e.period===period && e.type===type) ?? -1;
+    if(eIdx<0){
+      cell.textContent=oldValue;
+      cell.classList.remove('cell-editing','editing');
+      return;
+    }
+    const e={...s.evaluations[eIdx]};
+
+    if(field==='total'){
+      e.totalScore=(newValue===''?0:parseFloat(newValue));
+      const copy=[...s.evaluations];
+      copy[eIdx]=e;
+      const latestEval=[...copy].sort((a,b)=>{
+  const toNum = p => { const m = p.match(/(\d+)年(\d+)月/); return m ? parseInt(m[1])*100 + parseInt(m[2]) : 0; };
+  return toNum(b.period) - toNum(a.period);
+})[0];
+      s.totalScore=latestEval.totalScore;
+      s.evaluations=copy;
+      data[i]=s;
+      commit(data);
+      return;
+    }
+
+    if(field==='period'){
+      const exists=s.evaluations.some((x,idx)=>idx!==eIdx && x.period===newValue && x.type===e.type);
+      if(exists){
+        alert('同じ「評価期間×評価者」のデータが既にあります。');
+        cell.textContent=oldValue;
+        cell.classList.remove('cell-editing','editing');
+        return;
+      }
+      e.period=newValue;
+    }
+    if(field==='type'){
+      const exists=s.evaluations.some((x,idx)=>idx!==eIdx && x.period===e.period && x.type===newValue);
+      if(exists){
+        alert('同じ「評価期間×評価者」のデータが既にあります。');
+        cell.textContent=oldValue;
+        cell.classList.remove('cell-editing','editing');
+        return;
+      }
+      e.type=newValue;
+    }
+
+    s.evaluations[eIdx]=e;
+    const latestEval=[...s.evaluations].sort((a,b)=>{
+  const toNum = p => { const m = p.match(/(\d+)年(\d+)月/); return m ? parseInt(m[1])*100 + parseInt(m[2]) : 0; };
+  return toNum(b.period) - toNum(a.period);
+})[0];
+    s.totalScore=latestEval.totalScore;
+    data[i]=s;
+    commit(data);
+  }
+
+  /* ====== 編集モーダル：開閉・評価履歴読み込み ====== */
+  function clearEvalForm(){
+    $('#eval-period').value='25年6月';
+    $('#eval-type').value='上長';
+    $('#eval-total-score').value='';
+    $('#eval-phone-fax').value='';
+    $('#eval-product-knowledge').value='';
+    $('#eval-input-work').value='';
+    $('#eval-team-cooperation').value='';
+    $('#eval-comment').value='';
+    $('#original-period').value='';
+    $('#original-type').value='';
+    // チップの選択解除
+    $$('#modal-eval-list .eval-chip').forEach(ch=>ch.classList.remove('active'));
+  }
+
+  function fillEvalForm(e){
+    $('#eval-period').value=e.period;
+    $('#eval-type').value=e.type;
+    $('#eval-total-score').value=e.totalScore;
+    $('#eval-phone-fax').value=e.scores?.[0]||'';
+    $('#eval-product-knowledge').value=e.scores?.[1]||'';
+    $('#eval-input-work').value=e.scores?.[2]||'';
+    $('#eval-team-cooperation').value=e.scores?.[3]||'';
+    $('#eval-comment').value=e.comment||'';
+    $('#original-period').value=e.period;
+    $('#original-type').value=e.type;
+  }
+
+  function buildModalEvalList(staff,targetEval){
+    const list=$('#modal-eval-list');
+    list.innerHTML='';
+    if(!staff.evaluations || !staff.evaluations.length){
+      list.innerHTML='<div class="no-data-message small">評価履歴がありません</div>';
+      return;
+    }
+    const sorted=[...staff.evaluations].sort((a,b)=>{
+  const toNum = p => { const m = p.match(/(\d+)年(\d+)月/); return m ? parseInt(m[1])*100 + parseInt(m[2]) : 0; };
+  return toNum(b.period) - toNum(a.period);
+});
+    sorted.forEach(ev=>{
+      const chip=document.createElement('button');
+      chip.type='button';
+      chip.className='eval-chip';
+      chip.dataset.period=ev.period;
+      chip.dataset.type=ev.type;
+      chip.innerHTML=`
+        <span class="chip-period">${ev.period}</span>
+        <span class="chip-type">${ev.type}</span>
+        <span class="chip-score">${typeof ev.totalScore==='number'?ev.totalScore.toFixed(2):'-'}</span>
+      `;
+      if(targetEval && ev.period===targetEval.period && ev.type===targetEval.type){
+        chip.classList.add('active');
+      }
+      list.appendChild(chip);
+    });
+  }
+
+  function openEdit(id,period,type){
+    const s=db.find(x=>x.id===id);
+    if(!s) return;
+    currentEditingStaff=s;
+
+    $('#modal-title').textContent='スタッフ編集';
+    $('#staff-id').value=s.id;
+    $('#staff-name').value=s.name;
+    $('#staff-department').value=s.department;
+    $('#staff-position').value=s.position;
+
+    let tgt=null;
+    if(s.evaluations?.length){
+      if(period&&type){
+        tgt=s.evaluations.find(e=>e.period===period && e.type===type)||null;
+      }
+      if(!tgt){
+        tgt=[...s.evaluations].sort((a,b)=>{
+  const toNum = p => { const m = p.match(/(\d+)年(\d+)月/); return m ? parseInt(m[1])*100 + parseInt(m[2]) : 0; };
+  return toNum(b.period) - toNum(a.period);
+})[0];
+      }
+    }
+
+    if(tgt){
+      fillEvalForm(tgt);
+    }else{
+      clearEvalForm();
+    }
+    buildModalEvalList(s,tgt);
+
+    $('#staff-modal').style.display='block';
+  }
+
+  function addOrUpdate(form){
+    const evaluation={
+      period:form.evalPeriod,
+      type:form.evalType,
+      totalScore:parseFloat(form.evalTotalScore),
+      scores:[
+        parseFloat(form.evalPhoneFax)||0,
+        parseFloat(form.evalProductKnowledge)||0,
+        parseFloat(form.evalInputWork)||0,
+        parseFloat(form.evalTeamCooperation)||0
+      ],
+      comment:form.evalComment
+    };
+
+    const data=[...db];
+    const i=data.findIndex(s=>s.id===form.id);
+    if(i>=0){
+      const s=data[i];
+      s.name=form.name;
+      s.department=form.department;
+      s.position=form.position;
+      if(!s.evaluations) s.evaluations=[];
+
+      // 既存評価を period/type で upsert
+      const idx=s.evaluations.findIndex(e=>e.period===evaluation.period && e.type===evaluation.type);
+      if(idx>=0){
+        s.evaluations[idx]=evaluation;
+      }else{
+        s.evaluations.push(evaluation);
+      }
+      // 最新評価を総合スコアに反映
+      const latestEval=[...s.evaluations].sort((a,b)=>{
+  const toNum = p => { const m = p.match(/(\d+)年(\d+)月/); return m ? parseInt(m[1])*100 + parseInt(m[2]) : 0; };
+  return toNum(b.period) - toNum(a.period);
+})[0];
+      s.totalScore=latestEval.totalScore;
+      data[i]=s;
+    }else{
+      data.push({
+        id:form.id,
+        name:form.name,
+        department:form.department,
+        position:form.position,
+        totalScore:evaluation.totalScore,
+        evaluations:[evaluation]
+      });
+    }
+    currentEditingStaff=null;
+    commit(data);
+  }
+
+  function delEval(id,period,type){
+    const data=[...db];
+    const i=data.findIndex(s=>s.id===id);
+    if(i<0) return;
+    const s=data[i];
+    if(!s.evaluations?.length) return;
+
+    if(!confirm(`ID:${id}「${s.name}」の評価（${period}/${type}）を削除します。よろしいですか？`)) return;
+
+    const newE=s.evaluations.filter(e=>!(e.period===period && e.type===type));
+    if(!newE.length){
+      commit(data.filter(x=>x.id!==id));
+      alert('評価が無くなったため、スタッフごと削除しました。');
+    }else{
+      newE.sort((a,b)=>{
+  const toNum = p => { const m = p.match(/(\d+)年(\d+)月/); return m ? parseInt(m[1])*100 + parseInt(m[2]) : 0; };
+  return toNum(b.period) - toNum(a.period);
+});
+      s.evaluations=newE;
+      s.totalScore=newE[0].totalScore;
+      data[i]=s;
+      commit(data);
+      alert('評価を削除しました。');
+    }
+  }
+
+  // 検索
+  function search(){
+    const name=$('#name-search').value.toLowerCase();
+    const dept=$('#department-filter').value;
+    const pos=$('#position-filter').value;
+    const period=$('#period-filter').value;
+    const min=$('#score-min').value?parseFloat($('#score-min').value):0;
+    const max=$('#score-max').value?parseFloat($('#score-max').value):5;
+
+    filtered=db.filter(s=>{
+      if(name && !s.name.toLowerCase().includes(name)) return false;
+      if(dept && s.department!==dept) return false;
+      if(pos && s.position!==pos) return false;
+      if(typeof s.totalScore==='number'){
+        if(s.totalScore<min || s.totalScore>max) return false;
+      }else{
+        // スコア無しは範囲外扱い
+        return false;
+      }
+      if(period && !s.evaluations?.some(e=>e.period===period)) return false;
+      return true;
+    });
+
+    page=1;
+    drawResults();
+    paginate();
+    $('#results-count-value').textContent=filtered.length;
+    updateResultsSummary();
+  }
+
+  function drawResults(){
+    const body=$('#results-body');
+    body.innerHTML='';
+    const start=(page-1)*perPage;
+    const end=Math.min(start+perPage,filtered.length);
+
+    if(!filtered.length){
+      const r=document.createElement('tr');
+      r.innerHTML='<td colspan="10" class="no-data-message">該当するデータがありません</td>';
+      body.appendChild(r);
+      return;
+    }
+
+    const period=$('#period-filter').value;
+    for(let i=start;i<end;i++){
+      const s=filtered[i];
+      const r=document.createElement('tr');
+
+      let sc='score-average';
+      if(s.totalScore>=2) sc='score-good';
+      else if(s.totalScore<1.5) sc='score-needs-improvement';
+
+      let e=null;
+      if(s.evaluations?.length){
+        e=period
+          ? (s.evaluations.find(x=>x.period===period)||null)
+          : [...s.evaluations].sort((a,b)=>{
+  const toNum = p => { const m = p.match(/(\d+)年(\d+)月/); return m ? parseInt(m[1])*100 + parseInt(m[2]) : 0; };
+  return toNum(b.period) - toNum(a.period);
+})[0];
+      }
+      const scores=e?e.scores:[0,0,0,0];
+
+      r.innerHTML=`
+        <td>${s.id}</td>
+        <td>${s.name}</td>
+        <td>${s.department}</td>
+        <td>${s.position}</td>
+        <td><span class="score-badge ${sc}">${s.totalScore.toFixed(2)}</span></td>
+        <td>${scores[0]||'-'}</td>
+        <td>${scores[1]||'-'}</td>
+        <td>${scores[2]||'-'}</td>
+        <td>${scores[3]||'-'}</td>
+        <td class="actions">
+          <button class="view" data-id="${s.id}">詳細</button>
+          ${e?`
+            <button class="edit-eval" data-id="${s.id}" data-period="${e.period}" data-type="${e.type}">編集</button>
+            <button class="delete-eval" data-id="${s.id}" data-period="${e.period}" data-type="${e.type}">削除</button>
+          `:''}
+        </td>`;
+      body.appendChild(r);
+    }
+
+    $$('.view').forEach(b=>{
+      b.addEventListener('click',()=>showDetail(parseInt(b.dataset.id,10)));
+    });
+    $$('.edit-eval').forEach(b=>{
+      b.addEventListener('click',()=>openEdit(parseInt(b.dataset.id,10),b.dataset.period,b.dataset.type));
+    });
+    $$('.delete-eval').forEach(b=>{
+      b.addEventListener('click',()=>delEval(parseInt(b.dataset.id,10),b.dataset.period,b.dataset.type));
+    });
+  }
+
+  function paginate(){
+    const p=$('#results-pagination');
+    p.innerHTML='';
+    const total=Math.ceil(filtered.length/perPage);
+    if(total<=1){
+      p.style.display='none';
+      return;
+    }
+    p.style.display='block';
+
+    if(page>1){
+      const prev=document.createElement('button');
+      prev.textContent='前へ';
+      prev.onclick=()=>{page--;drawResults();paginate();};
+      p.appendChild(prev);
+    }
+    const max=5;
+    let st=Math.max(1,page-Math.floor(max/2));
+    let ed=Math.min(total,st+max-1);
+    if(ed-st+1<max) st=Math.max(1,ed-max+1);
+    for(let i=st;i<=ed;i++){
+      const b=document.createElement('button');
+      b.textContent=i;
+      if(i===page) b.classList.add('active');
+      b.onclick=()=>{page=i;drawResults();paginate();};
+      p.appendChild(b);
+    }
+    if(page<total){
+      const next=document.createElement('button');
+      next.textContent='次へ';
+      next.onclick=()=>{page++;drawResults();paginate();};
+      p.appendChild(next);
+    }
+  }
+
+  function updateResultsSummary(){
+    const el=$('#results-summary');
+    if(!el) return;
+    const count=filtered.length;
+    if(!count){
+      el.textContent='';
+      return;
+    }
+    let sum=0,min=null,max=null,n=0;
+    filtered.forEach(s=>{
+      if(typeof s.totalScore==='number'){
+        const v=s.totalScore;
+        sum+=v;
+        n++;
+        if(min===null || v<min) min=v;
+        if(max===null || v>max) max=v;
+      }
+    });
+    if(!n){
+      el.textContent='総合評価の集計対象がありません。';
+      return;
+    }
+    const avg=sum/n;
+    el.textContent=`総合評価：平均 ${avg.toFixed(2)} / 最低 ${min.toFixed(2)} / 最高 ${max.toFixed(2)} （${n}名対象）`;
+  }
+
+  function showDetail(id){
+    const s=db.find(x=>x.id===id);
+    if(!s) return;
+    $('#detail-id').textContent=s.id;
+    $('#detail-name').textContent=s.name;
+    $('#detail-department').textContent=s.department;
+    $('#detail-position').textContent=s.position;
+
+    const list=$('#evaluation-list');
+    list.innerHTML='';
+    if(!s.evaluations?.length){
+      list.innerHTML='<div class="no-data-message">評価データがありません</div>';
+    }else{
+      [...s.evaluations].sort((a,b)=>{
+  const toNum = p => { const m = p.match(/(\d+)年(\d+)月/); return m ? parseInt(m[1])*100 + parseInt(m[2]) : 0; };
+  return toNum(b.period) - toNum(a.period);
+}).forEach(e=>{
+        const div=document.createElement('div');
+        div.className='evaluation-entry';
+        const cls=e.totalScore>=2?'score-good':(e.totalScore<1.5?'score-needs-improvement':'score-average');
+        div.innerHTML=`
+          <div class="evaluation-header">
+            <div class="evaluation-period">${e.period}</div>
+            <div class="evaluation-type">${e.type}評価</div>
+          </div>
+          <div class="evaluation-scores">
+            <div class="score-item">
+              <div class="score-label">総合評価</div>
+              <div class="score-value ${cls}">${e.totalScore}</div>
+            </div>
+            <div class="score-item">
+              <div class="score-label">電話・FAX対応</div>
+              <div class="score-value">${e.scores?.[0]||'-'}</div>
+            </div>
+            <div class="score-item">
+              <div class="score-label">商品知識</div>
+              <div class="score-value">${e.scores?.[1]||'-'}</div>
+            </div>
+            <div class="score-item">
+              <div class="score-label">入力作業</div>
+              <div class="score-value">${e.scores?.[2]||'-'}</div>
+            </div>
+            <div class="score-item">
+              <div class="score-label">チーム協力</div>
+              <div class="score-value">${e.scores?.[3]||'-'}</div>
+            </div>
+          </div>
+          ${e.comment?`<div class="evaluation-comment">${e.comment}</div>`:''}
+        `;
+        list.appendChild(div);
+      });
+    }
+const evals = s.evaluations ? [...s.evaluations].sort((a,b)=>{
+  const toNum = p => { const m = p.match(/(\d+)年(\d+)月/); return m ? parseInt(m[1])*100 + parseInt(m[2]) : 0; };
+  return toNum(a.period) - toNum(b.period);
+}) : [];
+renderScoreChart(evals);
+    $('#staff-detail-modal').style.display='block';
+  }
+
+// 評価推移グラフ（総合評価）
+function renderScoreChart(evals){
+  const canvas = document.getElementById('score-chart');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  // クリア
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  if(!evals || !evals.length){
+    ctx.fillStyle = '#999';
+    ctx.font = '14px sans-serif';
+    ctx.fillText('評価データがないため、グラフを表示できません。', 20, canvas.height/2);
+    return;
+  }
+
+  const labels = evals.map(e => e.period + '（' + (e.type || '') + '）');
+  const data = evals.map(e => (typeof e.totalScore === 'number' ? e.totalScore : 0));
+
+  const padding = {left:70,right:30,top:40,bottom:130};
+  const w = canvas.width - padding.left - padding.right;
+  const h = canvas.height - padding.top - padding.bottom;
+
+  const maxVal = Math.max(5, Math.max.apply(null,data));
+  const minVal = 0;
+
+  // 軸
+  ctx.strokeStyle = '#ccc';
+  ctx.lineWidth = 1;
+  // y軸
+  ctx.beginPath();
+  ctx.moveTo(padding.left, padding.top);
+  ctx.lineTo(padding.left, padding.top + h);
+  ctx.lineTo(padding.left + w, padding.top + h);
+  ctx.stroke();
+
+  // 目盛（0〜5を0.5刻み）
+  ctx.fillStyle = '#666';
+  ctx.font = '12px sans-serif';
+  const step = 0.5;
+  for(let v=minVal; v<=maxVal; v+=step){
+    const y = padding.top + h - ( (v-minVal)/(maxVal-minVal) * h );
+    ctx.strokeStyle = v === Math.round(v) ? '#e0e0e0' : '#f5f5f5';
+    ctx.beginPath();
+    ctx.moveTo(padding.left, y);
+    ctx.lineTo(padding.left + w, y);
+    ctx.stroke();
+    if(v === Math.round(v)){
+      ctx.fillStyle = '#666';
+      ctx.fillText(v.toFixed(0), padding.left - 25, y+4);
+    }
+  }
+
+  // 折れ線
+  const n = data.length;
+  const dx = n > 1 ? w / (n-1) : 0;
+  ctx.strokeStyle = '#2c7873';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  data.forEach((v,i)=>{
+    const x = padding.left + (dx * i);
+    const y = padding.top + h - ( (v-minVal)/(maxVal-minVal) * h );
+    if(i===0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+
+  // 点
+  ctx.fillStyle = '#ff9800';
+  data.forEach((v,i)=>{
+    const x = padding.left + (dx * i);
+    const y = padding.top + h - ( (v-minVal)/(maxVal-minVal) * h );
+    ctx.beginPath();
+    ctx.arc(x,y,4,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  // ラベル
+  ctx.save();
+  ctx.fillStyle = '#333';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'right';
+  labels.forEach((label,i)=>{
+    const x = padding.left + (dx * i);
+    const y = padding.top + h + 45;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-Math.PI/4);
+    ctx.fillText(label, 0, 0);
+    ctx.restore();
+  });
+  ctx.restore();
+
+  // タイトル
+  ctx.fillStyle = '#333';
+  ctx.font = '13px sans-serif';
+  ctx.fillText('総合評価の推移', padding.left, padding.top - 10);
+}
+
+  // CSV I/O・クリア
+  function importCSV(text){
+    const lines=text.split('\n');
+    if(lines.length<2){
+      alert('CSVが不正です');
+      return;
+    }
+    const data=[...db];
+    let add=0, upd=0;
+    for(let i=1;i<lines.length;i++){
+      const line=lines[i].trim();
+      if(!line) continue;
+      const f=line.split(',').map(v=>v.replace(/^"(.*)"$/,'$1'));
+      if(f.length<12) continue;
+      const id=parseInt(f[0],10);
+      const name=f[1];
+      const department=f[2];
+      const position=f[3];
+      const period=f[4];
+      const type=f[5];
+      const total=parseFloat(f[6]);
+      const s0=parseFloat(f[7])||0;
+      const s1=parseFloat(f[8])||0;
+      const s2=parseFloat(f[9])||0;
+      const s3=parseFloat(f[10])||0;
+      const comment=f[11];
+
+      const ev={
+        period,
+        type,
+        totalScore:total,
+        scores:[s0,s1,s2,s3],
+        comment
+      };
+      const idx=data.findIndex(s=>s.id===id);
+      if(idx>=0){
+        const S=data[idx];
+        S.name=name;
+        S.department=department;
+        S.position=position;
+        if(!S.evaluations) S.evaluations=[];
+        const eidx=S.evaluations.findIndex(e=>e.period===period && e.type===type);
+        if(eidx>=0){
+          S.evaluations[eidx]=ev;
+        }else{
+          S.evaluations.push(ev);
+        }
+        S.totalScore=total;
+        data[idx]=S;
+        upd++;
+      }else{
+        data.push({
+          id,
+          name,
+          department,
+          position,
+          totalScore:total,
+          evaluations:[ev]
+        });
+        add++;
+      }
+    }
+    commit(data);
+    alert(`インポート完了 新規:${add} 更新:${upd}`);
+  }
+
+  function exportDB(){
+    if(!db.length){
+      alert('エクスポート対象がありません');
+      return;
+    }
+    let csv='ID,名前,所属,職位,総合評価,電話・FAX対応,商品知識,入力作業,チーム協力,評価期間,評価者,コメント\n';
+    db.forEach(s=>{
+      s.evaluations?.forEach(e=>{
+        csv+=[
+          s.id,
+          `"${s.name}"`,
+          `"${s.department}"`,
+          `"${s.position}"`,
+          e.totalScore,
+          e.scores?.[0]||'',
+          e.scores?.[1]||'',
+          e.scores?.[2]||'',
+          e.scores?.[3]||'',
+          e.period,
+          e.type,
+          `"${(e.comment||'').replace(/"/g,'""')}"`
+        ].join(',')+'\n';
+      });
+    });
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`スタッフ評価データ_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function exportSearch(){
+    if(!filtered.length){
+      alert('エクスポート対象がありません');
+      return;
+    }
+    const period=$('#period-filter').value;
+    let csv='ID,名前,所属,職位,総合評価,電話・FAX対応,商品知識,入力作業,チーム協力,評価期間,評価者,コメント\n';
+    filtered.forEach(s=>{
+      let list=[];
+      if(s.evaluations?.length){
+        list=period ? (s.evaluations.filter(e=>e.period===period)) : s.evaluations;
+      }
+      if(!list.length){
+        csv+=[
+          s.id,
+          `"${s.name}"`,
+          `"${s.department}"`,
+          `"${s.position}"`,
+          s.totalScore,
+          '','','','','',''
+        ].join(',')+'\n';
+      }else{
+        list.forEach(e=>{
+          csv+=[
+            s.id,
+            `"${s.name}"`,
+            `"${s.department}"`,
+            `"${s.position}"`,
+            e.totalScore,
+            e.scores?.[0]||'',
+            e.scores?.[1]||'',
+            e.scores?.[2]||'',
+            e.scores?.[3]||'',
+            e.period,
+            e.type,
+            `"${(e.comment||'').replace(/"/g,'""')}"`
+          ].join(',')+'\n';
+        });
+      }
+    });
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`検索結果_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function clearDB(){
+    if(!confirm('すべてのデータを削除してもよろしいですか？')) return;
+    db=[];
+    save(db);
+    refreshAll();
+    $('#db-guide').style.display='block';
+    filtered=[];
+    drawResults();
+    paginate();
+    updateResultsSummary();
+  }
+
+  // JSONバックアップ/復元
+  function backupJSON(){
+    const payload={
+      version:1,
+      exportedAt:new Date().toISOString(),
+      data:db
+    };
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`staff-evaluation-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function restoreJSON(text){
+    let obj;
+    try{
+      obj=JSON.parse(text);
+    }catch(e){
+      alert('JSONのパースに失敗しました');
+      return;
+    }
+    const data=Array.isArray(obj)?obj:(obj.data||[]);
+    if(!Array.isArray(data)){
+      alert('JSON形式が不正です（data配列が見つかりません）');
+      return;
+    }
+    if(!confirm('現在のデータを上書きして復元します。よろしいですか？')) return;
+    db=data;
+    save(db);
+    refreshAll();
+    filtered=[...db];
+    $('#results-count-value').textContent=filtered.length;
+    drawResults();
+    paginate();
+    updateResultsSummary();
+    alert('復元しました');
+  }
+
+  /* ====== イベント束ね ====== */
+  // タブ切替
+  $$('.tab').forEach(t=>{
+    t.addEventListener('click',()=>{
+      $$('.tab').forEach(x=>x.classList.remove('active'));
+      t.classList.add('active');
+      const id=t.dataset.tab;
+      $$('.tab-content').forEach(c=>c.classList.remove('active'));
+      $('#'+id+'-tab').classList.add('active');
+      if(id==='search'){
+        resetSearch();
+      }
+    });
+  });
+
+  // DBテーブルソート
+  $$('.db-table th.sortable').forEach(h=>{
+    h.addEventListener('click',function(){
+      const c=this.dataset.sort;
+      if(currentSort.column===c){
+        currentSort.direction=currentSort.direction==='asc'?'desc':'asc';
+      }else{
+        currentSort.column=c;
+        currentSort.direction='asc';
+      }
+      drawDB();
+    });
+  });
+
+  // 検索テーブルソート
+  $$('#results-table th.sortable').forEach(h=>{
+    h.addEventListener('click',function(){
+      const c=this.dataset.sort;
+      if(searchSort.column===c){
+        searchSort.direction=searchSort.direction==='asc'?'desc':'asc';
+      }else{
+        searchSort.column=c;
+        searchSort.direction='asc';
+      }
+      filtered=sortResults(filtered,searchSort.column,searchSort.direction);
+      $$('#results-table th.sortable').forEach(x=>x.classList.remove('sort-asc','sort-desc'));
+      this.classList.add(searchSort.direction==='asc'?'sort-asc':'sort-desc');
+      drawResults();
+    });
+  });
+
+  function sortResults(list,col,dir){
+    const a=[...list];
+    return a.sort((A,B)=>{
+      let vA,vB;
+      if(col==='position'){
+        const o={'課長代理':4,'係長':3,'主任':2,'一般':1};
+        vA=o[A.position]||0;
+        vB=B.position?o[B.position]||0:0;
+      }else if(col==='totalScore'){
+        vA=A.totalScore||0;
+        vB=B.totalScore||0;
+      }else{
+        vA=A[col]||'';
+        vB=B[col]||'';
+      }
+      let c=0;
+      if(vA<vB)c=-1;
+      else if(vA>vB)c=1;
+      return dir==='desc'?-c:c;
+    });
+  }
+
+  // モーダル関連
+  $('#add-staff-btn').addEventListener('click',()=>{
+    currentEditingStaff=null;
+    $('#modal-title').textContent='スタッフ追加';
+    $('#staff-id').value='';
+    $('#staff-name').value='';
+    $('#staff-department').value='';
+    $('#staff-position').value='';
+    $('#modal-eval-list').innerHTML='<div class="no-data-message small">評価履歴がありません</div>';
+    clearEvalForm();
+    $('#staff-modal').style.display='block';
+  });
+
+  $('#import-btn').addEventListener('click',()=>{
+    $('#csv-data').value='';
+    $('#import-modal').style.display='block';
+  });
+  $('#export-btn').addEventListener('click',exportDB);
+  $('#clear-db-btn').addEventListener('click',clearDB);
+  $('#backup-json-btn').addEventListener('click',backupJSON);
+  $('#restore-json-btn').addEventListener('click',()=>{
+    $('#json-data').value='';
+    $('#json-modal').style.display='block';
+  });
+
+  $('#save-btn').addEventListener('click',()=>{
+    const id=$('#staff-id').value.trim();
+    const name=$('#staff-name').value.trim();
+    const dep=$('#staff-department').value.trim();
+    const pos=$('#staff-position').value;
+    const tot=$('#eval-total-score').value;
+
+    if(!id || +id<=0){
+      alert('社員番号を正しく入力してください');
+      return;
+    }
+    if(!name||!dep||!pos){
+      alert('必須項目を入力してください');
+      return;
+    }
+    if(!tot || isNaN(parseFloat(tot))){
+      alert('総合評価が不正です');
+      return;
+    }
+
+    addOrUpdate({
+      id:+id,
+      name,
+      department:dep,
+      position:pos,
+      evalPeriod:$('#eval-period').value,
+      evalType:$('#eval-type').value,
+      evalTotalScore:tot,
+      evalPhoneFax:$('#eval-phone-fax').value,
+      evalProductKnowledge:$('#eval-product-knowledge').value,
+      evalInputWork:$('#eval-input-work').value,
+      evalTeamCooperation:$('#eval-team-cooperation').value,
+      evalComment:$('#eval-comment').value,
+      originalPeriod:$('#original-period').value,
+      originalType:$('#original-type').value
+    });
+    $('#staff-modal').style.display='none';
+    alert('保存しました');
+  });
+
+  $('#cancel-btn').addEventListener('click',()=>{
+    $('#staff-modal').style.display='none';
+  });
+
+  $('#do-import').addEventListener('click',()=>{
+    const t=$('#csv-data').value;
+    if(!t){
+      alert('CSVデータを入力してください');
+      return;
+    }
+    importCSV(t);
+    $('#import-modal').style.display='none';
+  });
+  $('#cancel-import').addEventListener('click',()=>{
+    $('#import-modal').style.display='none';
+  });
+
+  $('#do-json-import').addEventListener('click',()=>{
+    const t=$('#json-data').value.trim();
+    if(!t){
+      alert('JSONデータを入力してください');
+      return;
+    }
+    restoreJSON(t);
+    $('#json-modal').style.display='none';
+  });
+  $('#cancel-json-import').addEventListener('click',()=>{
+    $('#json-modal').style.display='none';
+  });
+
+  $$('.modal-close').forEach(b=>{
+    b.addEventListener('click',()=>{
+      b.closest('.modal').style.display='none';
+    });
+  });
+  window.addEventListener('click',e=>{
+    if(e.target.classList.contains('modal')) e.target.style.display='none';
+  });
+
+  // 評価履歴チップクリック / 新規評価ボタン
+  const modalEvalList=$('#modal-eval-list');
+  if(modalEvalList){
+    modalEvalList.addEventListener('click',e=>{
+      const chip=e.target.closest('.eval-chip');
+      if(!chip || !currentEditingStaff) return;
+      const p=chip.dataset.period;
+      const t=chip.dataset.type;
+      const ev=currentEditingStaff.evaluations?.find(x=>x.period===p && x.type===t);
+      if(!ev) return;
+      $$('#modal-eval-list .eval-chip').forEach(c=>c.classList.remove('active'));
+      chip.classList.add('active');
+      fillEvalForm(ev);
+    });
+  }
+  $('#new-eval-btn').addEventListener('click',()=>{
+    clearEvalForm();
+  });
+
+  // 検索
+  $('#search-button').addEventListener('click',search);
+  $('#reset-button').addEventListener('click',resetSearch);
+  $('#export-csv').addEventListener('click',exportSearch);
+  $('#print-results').addEventListener('click',()=>window.print());
+
+  function resetSearch(){
+    $('#name-search').value='';
+    $('#department-filter').value='';
+    $('#position-filter').value='';
+    $('#period-filter').value='';
+    $('#score-min').value='';
+    $('#score-max').value='';
+    filtered=[...db];
+    page=1;
+    drawResults();
+    paginate();
+    $('#results-count-value').textContent=filtered.length;
+    updateResultsSummary();
+  }
+
+  /* ====== 初期化 ====== */
+  refreshAll();
+  filtered=[...db];
+  $('#results-count-value').textContent=filtered.length;
+  drawResults();
+  paginate();
+  updateResultsSummary();
+})();
+</script>
+</body>
+</html>

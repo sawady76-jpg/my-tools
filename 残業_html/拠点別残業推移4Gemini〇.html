@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>拠点別 残業モニタリング | ダッシュボード</title>
+  <meta name="description" content="Excelピボットデータを貼り付けて拠点別の残業推移を可視化するダッシュボード">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #0a0e1a;
+      --bg-card: rgba(20, 28, 50, 0.7);
+      --bg-card-hover: rgba(30, 42, 70, 0.85);
+      --bg-input: rgba(15, 23, 42, 0.9);
+      --border: rgba(99, 130, 200, 0.15);
+      --border-hover: rgba(99, 150, 255, 0.35);
+      --text: #e8f0ff;
+      --text-muted: #8b9dc3;
+      --text-dim: #5a6b8c;
+      --accent: #60a5fa;
+      --accent-glow: rgba(96, 165, 250, 0.25);
+      --success: #34d399;
+      --success-glow: rgba(52, 211, 153, 0.2);
+      --warning: #fbbf24;
+      --warning-glow: rgba(251, 191, 36, 0.15);
+      --danger: #f87171;
+      --danger-glow: rgba(248, 113, 113, 0.15);
+      --gradient-primary: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      --gradient-success: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+      --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+      --gradient-danger: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+      --shadow-glow: 0 0 40px rgba(59, 130, 246, 0.15);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      height: 100%;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-dark);
+      color: var(--text);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 20%, rgba(59, 130, 246, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 50% at 90% 80%, rgba(139, 92, 246, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse 50% 40% at 50% 50%, rgba(16, 185, 129, 0.05) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    /* ===== Layout ===== */
+    .wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .header-icon {
+      width: 52px;
+      height: 52px;
+      background: var(--gradient-primary);
+      border-radius: var(--radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-glow);
+    }
+
+    .header-icon svg {
+      width: 28px;
+      height: 28px;
+      color: white;
+    }
+
+    .header h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      background: rgba(96, 165, 250, 0.1);
+      border: 1px solid rgba(96, 165, 250, 0.25);
+      color: var(--accent);
+    }
+
+    .grid {
+      display: grid;
+      gap: 20px;
+    }
+
+    .grid.cols {
+      grid-template-columns: 1fr;
+    }
+
+    @media (min-width: 1100px) {
+      .grid.cols {
+        grid-template-columns: 1.15fr 1fr;
+        align-items: start;
+      }
+    }
+
+    /* ===== Cards ===== */
+    .card {
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      transition: var(--transition);
+    }
+
+    .card:hover {
+      border-color: var(--border-hover);
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+      transform: translateY(-2px);
+    }
+
+    .card .inner {
+      padding: 20px;
+    }
+
+    .card h2 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: #dbe4ff;
+    }
+
+    .card h2 svg {
+      width: 20px;
+      height: 20px;
+      color: var(--accent);
+    }
+
+    /* ===== Form Elements ===== */
+    .row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .row:last-child {
+      margin-bottom: 0;
+    }
+
+    .row>* {
+      flex: 1;
+      min-width: 140px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      background: var(--bg-input);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      font: inherit;
+      font-size: 0.95rem;
+      transition: var(--transition);
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+
+    textarea {
+      min-height: 130px;
+      resize: vertical;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.85rem;
+      white-space: pre;
+    }
+
+    /* ===== Buttons ===== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 20px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: var(--transition);
+      border: 1px solid transparent;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .btn.primary {
+      background: var(--gradient-primary);
+      color: white;
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+    }
+
+    .btn.primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(59, 130, 246, 0.45);
+    }
+
+    .btn.ghost {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .btn.ghost:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--border-hover);
+    }
+
+    .btn.sm {
+      padding: 8px 14px;
+      font-size: 0.8rem;
+    }
+
+    /* ===== KPI Cards ===== */
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    @media (max-width: 900px) {
+      .kpis {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .kpi {
+      padding: 18px;
+      border-radius: var(--radius);
+      background: linear-gradient(145deg, rgba(30, 45, 80, 0.6), rgba(20, 30, 55, 0.8));
+      border: 1px solid var(--border);
+      transition: var(--transition);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--gradient-primary);
+      opacity: 0;
+      transition: var(--transition);
+    }
+
+    .kpi:hover::before {
+      opacity: 1;
+    }
+
+    .kpi:hover {
+      transform: translateY(-3px);
+      border-color: var(--border-hover);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    }
+
+    .kpi .s {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .kpi .v {
+      font-size: 1.75rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* ===== Chips ===== */
+    .chips-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .chips-actions {
+      display: flex;
+      gap: 6px;
+      margin-right: 8px;
+    }
+
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      flex: 1;
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: var(--transition);
+    }
+
+    .chip:hover {
+      border-color: var(--accent);
+      background: rgba(96, 165, 250, 0.1);
+    }
+
+    .chip input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    /* ===== Table ===== */
+    .table-container {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      padding: 14px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    th[data-sort] {
+      cursor: pointer;
+      user-select: none;
+      transition: var(--transition);
+    }
+
+    th[data-sort]:hover {
+      color: var(--accent);
+      background: rgba(96, 165, 250, 0.08);
+    }
+
+    tbody tr {
+      transition: var(--transition);
+    }
+
+    tbody tr:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    tr.warn td {
+      background: var(--warning-glow);
+    }
+
+    tr.bad td {
+      background: var(--danger-glow);
+    }
+
+    .right {
+      text-align: right;
+    }
+
+    .muted {
+      color: var(--text-muted);
+    }
+
+    .small {
+      font-size: 0.85rem;
+    }
+
+    .note {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: 10px;
+      padding: 10px 14px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: var(--radius-sm);
+      border-left: 3px solid var(--accent);
+    }
+
+    /* ===== Toast ===== */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .toast {
+      padding: 14px 20px;
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--border);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      animation: slideIn 0.3s ease;
+      max-width: 360px;
+    }
+
+    .toast.success {
+      border-left: 4px solid var(--success);
+    }
+
+    .toast.error {
+      border-left: 4px solid var(--danger);
+    }
+
+    .toast.warning {
+      border-left: 4px solid var(--warning);
+    }
+
+    .toast.info {
+      border-left: 4px solid var(--accent);
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    @keyframes slideOut {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+
+      to {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+    }
+
+    /* ===== Preview ===== */
+    .preview-box {
+      background: rgba(0, 0, 0, 0.3);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      max-height: 180px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* ===== Footer ===== */
+    .footer {
+      margin-top: 32px;
+      padding: 20px;
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      border-top: 1px solid var(--border);
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    .footer a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <!-- ===== Header ===== -->
+    <div class="header">
+      <div class="header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path
+            d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+          <circle cx="12" cy="12" r="5" />
+        </svg>
+      </div>
+      <h1>拠点別 残業モニタリング</h1>
+      <span class="pill">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="16" y1="13" x2="8" y2="13" />
+          <line x1="16" y1="17" x2="8" y2="17" />
+        </svg>
+        Excelピボットを貼り付け→自動変換
+      </span>
+    </div>
+
+    <!-- ===== Main Grid ===== -->
+    <div class="grid cols">
+      <!-- Left Column -->
+      <div class="grid">
+        <!-- Input Card -->
+        <div class="card">
+          <div class="inner">
+            <h2>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+              </svg>
+              ① Excelピボットを貼り付け
+            </h2>
+            <div class="row">
+              <div>
+                <label>Excelで「行ラベル〜各拠点」の範囲をコピー→ここに貼り付け</label>
+                <textarea id="paste" spellcheck="false" placeholder="Excelからデータを貼り付けてください..."></textarea>
+                <div class="note">
+                  💡 貼り付けると自動で取り込みます。想定形式：1行目=拠点ヘッダ、2行目=スタッフ見出し（「行ラベル」を含む）、3行目以降=月別データ
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <button class="btn primary" id="btnParse">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="16 16 12 12 8 16" />
+                  <line x1="12" y1="12" x2="12" y2="21" />
+                  <path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3" />
+                </svg>
+                取り込む
+              </button>
+              <button class="btn ghost" id="btnSample">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                サンプル読込
+              </button>
+              <button class="btn ghost" id="btnClear">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
+                クリア
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Settings Card -->
+        <div class="card">
+          <div class="inner">
+            <h2>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="3" />
+                <path
+                  d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              ② 表示設定
+            </h2>
+            <div class="row">
+              <div>
+                <label>KPI集計（全社）</label>
+                <select id="aggType">
+                  <option value="avg">平均（拠点平均の平均）</option>
+                  <option value="sum">合計（全拠点合算）</option>
+                </select>
+              </div>
+              <div>
+                <label>警告しきい値（h）</label>
+                <input id="warnTh" type="number" step="0.1" value="15">
+              </div>
+              <div>
+                <label>重大しきい値（h）</label>
+                <input id="badTh" type="number" step="0.1" value="20">
+              </div>
+            </div>
+            <div class="row">
+              <div style="flex: 1 1 100%">
+                <label>拠点フィルタ（表示/非表示）</label>
+                <div class="chips-container">
+                  <div class="chips-actions">
+                    <button class="btn ghost sm" id="btnSelectAll">全選択</button>
+                    <button class="btn ghost sm" id="btnDeselectAll">全解除</button>
+                  </div>
+                  <div id="branchChips" class="chips"></div>
+                </div>
+              </div>
+            </div>
+            <div class="row">
+              <button class="btn primary" id="btnUpdate">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="23 4 23 10 17 10" />
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                </svg>
+                ダッシュボード更新
+              </button>
+              <button class="btn ghost" id="btnExportWide">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                CSV（横持ち）
+              </button>
+              <button class="btn ghost" id="btnExportLong">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                CSV（縦持ち）
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Preview Card -->
+        <div class="card">
+          <div class="inner">
+            <h2>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              ③ 取り込み結果（プレビュー）
+            </h2>
+            <div id="preview" class="preview-box">貼り付け→取り込む を実行してください。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column -->
+      <div class="grid">
+        <!-- KPI Card -->
+        <div class="card">
+          <div class="inner">
+            <h2>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+              全体KPI
+            </h2>
+            <div class="kpis">
+              <div class="kpi">
+                <div class="s">最新月（全社集計）</div>
+                <div class="v" id="kpi_latest">-</div>
+              </div>
+              <div class="kpi">
+                <div class="s">月平均（年内）</div>
+                <div class="v" id="kpi_avg">-</div>
+              </div>
+              <div class="kpi">
+                <div class="s">前月比</div>
+                <div class="v" id="kpi_mom">-</div>
+              </div>
+              <div class="kpi">
+                <div class="s">対象拠点数</div>
+                <div class="v" id="kpi_sites">-</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chart Card -->
+        <div class="card">
+          <div class="inner">
+            <h2>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+              月次トレンド（拠点別 平均残業 h）
+            </h2>
+            <canvas id="trend" height="160"></canvas>
+          </div>
+        </div>
+
+        <!-- Ranking Card -->
+        <div class="card">
+          <div class="inner">
+            <h2>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon
+                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+              </svg>
+              最新月の拠点ランキング
+            </h2>
+            <div class="table-container">
+              <table id="rank">
+                <thead>
+                  <tr>
+                    <th style="width:50px">#</th>
+                    <th>拠点</th>
+                    <th class="right" data-sort="latest">最新</th>
+                    <th class="right" data-sort="m1">-1か月</th>
+                    <th class="right" data-sort="m2">-2か月</th>
+                    <th class="right" data-sort="diff">前月差</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Log Card -->
+        <div class="card">
+          <div class="inner">
+            <h2>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+              ログ / メモ
+            </h2>
+            <div id="log" class="small muted">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      残業モニタリングダッシュボード v2.0 | 最終更新: <span id="lastUpdate">-</span>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    // ========= ユーティリティ =========
+    const $ = (q) => document.querySelector(q);
+    const $$ = (q) => [...document.querySelectorAll(q)];
+
+    const toNum = (v) => {
+      if (v == null) return null;
+      if (typeof v === 'number') return v;
+      const t = String(v).trim().replace(/[\,\s]/g, '');
+      if (t === '' || t === '-') return null;
+      const n = Number(t);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    function parseMonthKey(v) {
+      if (!v) return null;
+      const t = String(v).trim();
+      const map = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+      const m1 = t.match(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-\s_/\\.]*([0-9]{2,4})$/i);
+      if (m1) { let y = Number(m1[2]); if (y < 100) y = 2000 + y; return `${y}-${String(map[m1[1].toLowerCase()]).padStart(2, '0')}`; }
+      const m2 = t.match(/^([0-9]{4})[-/.年 ]?([0-9]{1,2})/);
+      if (m2) { const y = Number(m2[1]); const m = Number(m2[2]); return `${y}-${String(m).padStart(2, '0')}`; }
+      const m3 = t.match(/^([0-9]{1,2})月$/);
+      if (m3) { const y = new Date().getFullYear(); const m = Number(m3[1]); return `${y}-${String(m).padStart(2, '0')}`; }
+      const m4 = t.match(/^([0-9]{1,2})$/);
+      if (m4) { const y = new Date().getFullYear(); const m = Number(m4[1]); return `${y}-${String(m).padStart(2, '0')}`; }
+      return t;
+    }
+
+    function tsvToRows(tsv) {
+      return tsv
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .split("\n")
+        .filter(line => line.trim() !== '')
+        .map(line => line.split("\t"));
+    }
+
+    function unique(arr) { return [...new Set(arr)]; }
+
+    // ========= Toast通知 =========
+    function showToast(message, type = 'info', duration = 3000) {
+      const container = $('#toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+
+      const icons = {
+        success: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>',
+        error: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+        warning: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+        info: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+      };
+
+      toast.innerHTML = `${icons[type] || icons.info}<span>${message}</span>`;
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease forwards';
+        setTimeout(() => toast.remove(), 300);
+      }, duration);
+    }
+
+    // ========= 状態 =========
+    let chart;
+    let months = [];
+    let branches = [];
+    let branchSetSelected = new Set();
+    let table = {};
+    let grandTotals = {};
+    let sortColumn = 'latest';
+    let sortDirection = 'desc';
+
+    // ========= Chart.js プラグイン (しきい値描画) =========
+    const thresholdLinesPlugin = {
+      id: 'thresholdLines',
+      afterDraw(chart) {
+        const { ctx, chartArea: { left, right, top, bottom }, scales: { y } } = chart;
+        const warnVal = Number($('#warnTh').value);
+        const badVal = Number($('#badTh').value);
+
+        const drawLine = (value, color, label) => {
+          if (!isFinite(value) || value <= 0) return;
+          const yPos = y.getPixelForValue(value);
+          if (yPos >= top && yPos <= bottom) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(left, yPos);
+            ctx.lineTo(right, yPos);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = color;
+            ctx.setLineDash([6, 4]);
+            ctx.stroke();
+
+            // ラベル描画
+            ctx.fillStyle = color;
+            ctx.font = '11px Inter, sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(label, right - 8, yPos - 6);
+            ctx.restore();
+          }
+        };
+
+        drawLine(warnVal, 'rgba(251, 191, 36, 0.8)', `警告 ${warnVal}h`);
+        drawLine(badVal, 'rgba(248, 113, 113, 0.9)', `重大 ${badVal}h`);
+      }
+    };
+    Chart.register(thresholdLinesPlugin);
+
+    // ========= ピボット → 平坦化 =========
+    function parsePivotAndBuild(tsv) {
+      const rows = tsvToRows(tsv);
+      if (rows.length < 3) throw new Error('行数が足りません（貼り付け範囲を再確認してください）');
+
+      const idxRowLabel = rows.findIndex(r => (r[0] || '').includes('行ラベル'));
+      if (idxRowLabel === -1) throw new Error('ヘッダに「行ラベル」を含む行が見つかりません');
+
+      const branchRow = rows[Math.max(0, idxRowLabel - 1)] || [];
+      const staffRow = rows[idxRowLabel] || [];
+      let totalColIndex = -1;
+
+      let lastBranch = '';
+      const colMeta = staffRow.map((_, j) => {
+        let rawB = (branchRow[j] || '').trim();
+        if (!rawB && j > 0) rawB = lastBranch; else lastBranch = rawB || lastBranch;
+        const rawS = (staffRow[j] || '').trim();
+        const isAvg = /平均/.test(rawB) || /平均/.test(rawS);
+        const isTotalCol = /総計/.test(rawB) || /総計/.test(rawS);
+        if (isTotalCol && totalColIndex === -1) totalColIndex = j;
+        let bName = rawB.replace(/\s*平均.*/, '').replace(/\s*総計.*/, '').trim();
+        return { j, branch: bName, isAvg, isTotalCol, staff: rawS };
+      });
+
+      const branchCols = new Map();
+      for (let j = 1; j < colMeta.length; j++) {
+        const m = colMeta[j];
+        if (!m.branch || m.isTotalCol) continue;
+        if (!branchCols.has(m.branch)) branchCols.set(m.branch, { staffCols: [], avgCol: null });
+        if (m.isAvg) branchCols.get(m.branch).avgCol = j; else branchCols.get(m.branch).staffCols.push(j);
+      }
+
+      const dataRows = rows.slice(idxRowLabel + 1);
+      const monthKeys = [];
+      const tableTmp = {};
+      grandTotals = {};
+
+      for (const r of dataRows) {
+        const label = (r[0] || '').trim();
+        if (!label || /総計/.test(label)) continue;
+        const mk = parseMonthKey(label);
+        if (!mk) continue;
+        if (!tableTmp[mk]) tableTmp[mk] = {};
+
+        if (totalColIndex > -1) {
+          const totalVal = toNum(r[totalColIndex]);
+          if (totalVal != null && Number.isFinite(totalVal)) grandTotals[mk] = totalVal;
+        }
+
+        for (const [b, info] of branchCols.entries()) {
+          const vals = [];
+          for (const cj of info.staffCols) { const v = toNum(r[cj]); if (v != null) vals.push(v); }
+          let val = null;
+          if (vals.length > 0) { val = vals.reduce((s, n) => s + n, 0) / vals.length; }
+          else if (info.avgCol != null) { val = toNum(r[info.avgCol]); }
+          if (val != null && Number.isFinite(val)) tableTmp[mk][b] = Number(val.toFixed(2));
+        }
+        monthKeys.push(mk);
+      }
+
+      months = unique(monthKeys).sort();
+      branches = [...branchCols.keys()];
+      table = tableTmp;
+      branchSetSelected = new Set(branches);
+    }
+
+    // ========= UI：拠点チップ描画 =========
+    function renderBranchChips() {
+      const box = $('#branchChips');
+      box.innerHTML = '';
+      branches.forEach(b => {
+        const id = 'b_' + b.replace(/[^a-zA-Z0-9]/g, '');
+        const div = document.createElement('label');
+        div.className = 'chip';
+        div.innerHTML = `<input type="checkbox" id="${id}" ${branchSetSelected.has(b) ? 'checked' : ''}> <span>${b}</span>`;
+        box.appendChild(div);
+        div.querySelector('input').addEventListener('change', (e) => {
+          if (e.target.checked) branchSetSelected.add(b); else branchSetSelected.delete(b);
+          updateDashboard();
+        });
+      });
+    }
+
+    // ========= KPI/チャート/ランキング =========
+    function fmt(n, d = 2) { if (n == null || !isFinite(n)) return '-'; return Number(n).toFixed(d); }
+    function pct(a, b) { if (a == null || b == null || b === 0) return '-'; const p = ((a - b) / b) * 100; const sign = p >= 0 ? '+' : ''; return `${sign}${p.toFixed(1)}%`; }
+
+    function buildSeries() {
+      const series = {};
+      branches.forEach(b => { if (branchSetSelected.has(b)) series[b] = months.map(m => table[m]?.[b] ?? null); });
+      return series;
+    }
+
+    const chartColors = [
+      'rgba(96, 165, 250, 1)',
+      'rgba(52, 211, 153, 1)',
+      'rgba(251, 191, 36, 1)',
+      'rgba(248, 113, 113, 1)',
+      'rgba(167, 139, 250, 1)',
+      'rgba(244, 114, 182, 1)',
+      'rgba(34, 211, 238, 1)',
+      'rgba(163, 230, 53, 1)'
+    ];
+
+    function updateDashboard() {
+      if (months.length === 0) { showToast('先に「取り込む」を実行してください', 'warning'); return; }
+      const warn = Number($('#warnTh').value || 15), bad = Number($('#badTh').value || 20);
+      const agg = $('#aggType').value;
+
+      const latest = months[months.length - 1];
+      const prev = months[months.length - 2];
+      const prev2 = months[months.length - 3];
+
+      let aggLatest = null;
+      const latestVals = branches.filter(b => branchSetSelected.has(b)).map(b => table[latest]?.[b]).filter(v => v != null);
+      if (agg === 'sum') {
+        aggLatest = latestVals.length ? latestVals.reduce((s, n) => s + n, 0) : null;
+      } else {
+        if (grandTotals[latest] != null) {
+          aggLatest = grandTotals[latest];
+        } else {
+          aggLatest = latestVals.length ? latestVals.reduce((s, n) => s + n, 0) / latestVals.length : null;
+        }
+      }
+
+      let aggPrev = null;
+      const prevVals = branches.filter(b => branchSetSelected.has(b)).map(b => table[prev]?.[b]).filter(v => v != null);
+      if (agg === 'sum') {
+        aggPrev = prevVals.length ? prevVals.reduce((s, n) => s + n, 0) : null;
+      } else {
+        if (grandTotals[prev] != null) {
+          aggPrev = grandTotals[prev];
+        } else {
+          aggPrev = prevVals.length ? prevVals.reduce((s, n) => s + n, 0) / prevVals.length : null;
+        }
+      }
+
+      const monthAggs = months.map(m => {
+        const monthVals = branches.filter(b => branchSetSelected.has(b)).map(b => table[m]?.[b]).filter(v => v != null);
+        if (!monthVals.length) return null;
+        if (agg === 'sum') {
+          return monthVals.reduce((s, n) => s + n, 0);
+        } else {
+          if (grandTotals[m] != null) {
+            return grandTotals[m];
+          } else {
+            return monthVals.reduce((s, n) => s + n, 0) / monthVals.length;
+          }
+        }
+      }).filter(v => v != null);
+
+      const yearAvg = monthAggs.length ? (monthAggs.reduce((s, n) => s + n, 0) / monthAggs.length) : null;
+
+      $('#kpi_latest').textContent = fmt(aggLatest);
+      $('#kpi_avg').textContent = fmt(yearAvg);
+      $('#kpi_mom').textContent = pct(aggLatest, aggPrev);
+      $('#kpi_sites').textContent = String([...branchSetSelected].length);
+
+      // チャート
+      const ctx = $('#trend');
+      const series = buildSeries();
+      const datasets = Object.entries(series).map(([b, arr], i) => ({
+        label: b,
+        data: arr,
+        tension: 0.4,
+        borderColor: chartColors[i % chartColors.length],
+        backgroundColor: chartColors[i % chartColors.length].replace('1)', '0.1)'),
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointHoverRadius: 6,
+        fill: false
+      }));
+
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: { labels: months, datasets },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: {
+            legend: {
+              labels: { color: '#bcd1ff', font: { family: 'Inter' }, usePointStyle: true, padding: 16 }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(20, 28, 50, 0.95)',
+              titleColor: '#fff',
+              bodyColor: '#bcd1ff',
+              borderColor: 'rgba(99, 130, 200, 0.3)',
+              borderWidth: 1,
+              padding: 12,
+              cornerRadius: 8
+            }
+          },
+          scales: {
+            x: { ticks: { color: '#8b9dc3' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+            y: { beginAtZero: true, ticks: { color: '#8b9dc3' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+          }
+        }
+      });
+
+      // ランキング
+      const tbody = $('#rank tbody');
+      tbody.innerHTML = '';
+      const latestMap = table[latest] || {};
+      const prevMap = table[prev] || {};
+      const prev2Map = table[prev2] || {};
+      const rows = branches
+        .filter(b => branchSetSelected.has(b) && latestMap[b] != null)
+        .map(b => ({ branch: b, latest: latestMap[b], m1: prevMap[b] ?? null, m2: prev2Map[b] ?? null, diff: (prevMap[b] != null ? (latestMap[b] - prevMap[b]) : null) }));
+
+      rows.sort((a, b) => {
+        const valA = a[sortColumn];
+        const valB = b[sortColumn];
+        if (valA === null) return 1;
+        if (valB === null) return -1;
+        if (sortDirection === 'asc') {
+          return valA - valB;
+        } else {
+          return valB - valA;
+        }
+      });
+
+      rows.forEach((r, i) => {
+        const tr = document.createElement('tr');
+        tr.className = r.latest >= bad ? 'bad' : (r.latest >= warn ? 'warn' : '');
+        tr.innerHTML = `<td>${i + 1}</td><td>${r.branch}</td><td class="right">${fmt(r.latest, 2)}</td><td class="right">${r.m1 == null ? '-' : fmt(r.m1, 2)}</td><td class="right">${r.m2 == null ? '-' : fmt(r.m2, 2)}</td><td class="right">${r.diff == null ? '-' : fmt(r.diff, 2)}</td>`;
+        tbody.appendChild(tr);
+      });
+
+      $$('#rank th[data-sort]').forEach(th => {
+        let currentText = th.textContent.replace(/ [▲▼]/, '');
+        th.textContent = currentText;
+        if (th.dataset.sort === sortColumn) {
+          const indicator = sortDirection === 'desc' ? '▼' : '▲';
+          th.textContent = `${currentText} ${indicator}`;
+        }
+      });
+
+      const now = new Date();
+      const timestamp = now.toLocaleString('ja-JP');
+      $('#log').textContent = `更新: ${timestamp} ／ 期間: ${months[0]} ~ ${months[months.length - 1]} ／ 拠点: ${branches.length}`;
+      $('#lastUpdate').textContent = timestamp;
+
+      showToast('ダッシュボードを更新しました', 'success');
+    }
+
+    // ========= ボタン動作 =========
+    $('#btnParse').addEventListener('click', () => {
+      try {
+        const txt = $('#paste').value.trim();
+        if (!txt) { showToast('貼り付けデータが空です', 'warning'); return; }
+        parsePivotAndBuild(txt);
+        renderBranchChips();
+
+        const lines = tsvToRows(txt).slice(0, 6).map(r => r.slice(0, 10).join(' | ')).join('\n');
+        $('#preview').textContent = lines + (tsvToRows(txt).length > 6 ? '\n…（省略）' : '');
+
+        showToast(`${branches.length}拠点のデータを取り込みました`, 'success');
+        updateDashboard();
+      } catch (e) {
+        showToast('取込エラー: ' + e.message, 'error');
+      }
+    });
+
+    // 自動取り込み機能
+    $('#paste').addEventListener('paste', (e) => {
+      setTimeout(() => {
+        const txt = $('#paste').value.trim();
+        if (txt && txt.includes('行ラベル')) {
+          $('#btnParse').click();
+        }
+      }, 100);
+    });
+
+    $('#btnSample').addEventListener('click', () => {
+      const sample = [
+        '\t横浜支店\t\t\t横浜支店 平均\t岡山営業所\t\t岡山営業所 平均\t埼玉支店\t\t埼玉支店 平均',
+        '行ラベル\t奥秋素子\t吉田玲\t山崎啓右\t\t伊藤優\t河原由布子\t\t吉田夏子\t金子友希\t',
+        '1月\t19.25\t0\t19.25\t12.27\t17.25\t9.75\t13.5\t6.29\t13.5\t5.5',
+        '2月\t19.5\t0.5\t19.5\t13.17\t20\t7.25\t13.63\t5.63\t14.25\t5.5',
+        '3月\t18\t1\t18\t12.33\t25.25\t9.75\t17.5\t7.08\t15\t6.75',
+        '4月\t22.5\t2\t22.5\t15.67\t18.5\t8.5\t13.5\t8.25\t16.75\t7.5',
+        '5月\t17.25\t1.5\t17.25\t12\t21\t10.25\t15.63\t9.5\t18\t8.25',
+        '総計\t—\t—\t—\t—\t—\t—\t—\t—\t—\t—'
+      ].join('\n');
+      $('#paste').value = sample;
+      showToast('サンプルデータを読み込みました', 'info');
+    });
+
+    $('#btnClear').addEventListener('click', () => {
+      $('#paste').value = '';
+      months = [];
+      branches = [];
+      table = {};
+      branchSetSelected.clear();
+      grandTotals = {};
+      $('#branchChips').innerHTML = '';
+      $('#preview').textContent = '貼り付け→取り込む を実行してください。';
+      if (chart) chart.destroy();
+      $('#kpi_latest').textContent = $('#kpi_avg').textContent = $('#kpi_mom').textContent = '-';
+      $('#kpi_sites').textContent = '-';
+      $('#rank tbody').innerHTML = '';
+      $('#log').textContent = '—';
+      showToast('データをクリアしました', 'info');
+    });
+
+    // 全選択/全解除
+    $('#btnSelectAll').addEventListener('click', () => {
+      branchSetSelected = new Set(branches);
+      renderBranchChips();
+      if (months.length > 0) updateDashboard();
+    });
+
+    $('#btnDeselectAll').addEventListener('click', () => {
+      branchSetSelected.clear();
+      renderBranchChips();
+      if (months.length > 0) updateDashboard();
+    });
+
+    // ========= CSV出力 =========
+    function downloadCSV(name, csv) {
+      const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+      const blob = new Blob([bom, csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`${name} をダウンロードしました`, 'success');
+    }
+
+    $('#btnExportWide').addEventListener('click', () => {
+      if (!months.length) { showToast('データがありません', 'warning'); return; }
+      const active = branches.filter(b => branchSetSelected.has(b));
+      const head = ['月', ...active];
+      const lines = months.map(m => [m, ...active.map(b => table[m]?.[b] ?? '')].join(','));
+      downloadCSV('overtime_branch_wide.csv', [head.join(','), ...lines].join('\n'));
+    });
+
+    $('#btnExportLong').addEventListener('click', () => {
+      if (!months.length) { showToast('データがありません', 'warning'); return; }
+      const active = branches.filter(b => branchSetSelected.has(b));
+      const lines = ['月,拠点,平均残業(h)'];
+      months.forEach(m => { active.forEach(b => { const v = table[m]?.[b]; if (v != null) lines.push(`${m},${b},${v}`); }); });
+      downloadCSV('overtime_branch_long.csv', lines.join('\n'));
+    });
+
+    $('#btnUpdate').addEventListener('click', updateDashboard);
+
+    $$('#rank th[data-sort]').forEach(th => {
+      th.addEventListener('click', () => {
+        const newSortColumn = th.dataset.sort;
+        if (sortColumn === newSortColumn) {
+          sortDirection = (sortDirection === 'desc' ? 'asc' : 'desc');
+        } else {
+          sortColumn = newSortColumn;
+          sortDirection = 'desc';
+        }
+        updateDashboard();
+      });
+    });
+  </script>
+</body>
+
+</html>

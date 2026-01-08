@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SharePoint ガントチャート（ブラウザ版・Script Editor用 単一HTML）</title>
+  <style>
+    :root {
+      --dayWidth: 22px;       /* 1日の幅 */
+      --rowHeight: 36px;      /* 1行の高さ */
+      --barRadius: 6px;       /* バーの角丸 */
+      --todayColor: #ff3b30;  /* 今日線の色 */
+      --gridColor: #eaeaea;   /* 日グリッド */
+      --textColor: #222;
+      --muted: #777;
+
+      /* ステータス色 */
+      --col-progress: #2d7ff9; /* 進行中 */
+      --col-done: #2bb964;     /* 完了 */
+      --col-hold: #f5a623;     /* 保留 */
+      --col-late: #e74c3c;     /* 遅延 */
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", Meiryo, sans-serif; color: var(--textColor); }
+
+    .toolbar {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; gap: 8px; align-items: center;
+      padding: 12px 14px; background: #fff; border-bottom: 1px solid #ddd;
+    }
+    .toolbar h1 { font-size: 16px; margin: 0 8px 0 0; font-weight: 700; }
+    .spacer { flex: 1; }
+    .input, select, button { height: 34px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 13px; }
+    .input:focus { outline: none; border-color: #2d7ff9; box-shadow: 0 0 0 3px rgba(45,127,249,.15); }
+    .btn { background: #fff; cursor: pointer; }
+    .btn.primary { background: #2d7ff9; color: #fff; border-color: #2d7ff9; }
+    .btn.ghost { background: #f7f7f7; }
+
+    .wrap { display: grid; grid-template-columns: 420px 1fr; min-height: calc(100vh - 60px); }
+    .left { border-right: 1px solid #ddd; overflow: auto; }
+    .right { position: relative; overflow: auto; }
+
+    .thead, .row { display: grid; grid-template-columns: 40px 1fr 100px 90px 90px 70px 100px; align-items: center; column-gap: 8px; }
+    .thead { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #ddd; color: #555; font-weight: 600; }
+    .thead div, .row div { padding: 8px 10px; }
+    .row { border-bottom: 1px solid #eee; height: var(--rowHeight); }
+    .row:hover { background: #fafafa; }
+    .cell-id { color: var(--muted); }
+    .tag { display: inline-block; padding: 2px 6px; border-radius: 999px; background: #f1f5ff; color: #2747b8; font-size: 11px; margin-right: 4px; }
+
+    .timeline { position: relative; }
+    .time-header { position: sticky; top: 0; z-index: 10; background: #fff; border-bottom: 1px solid #ddd; display: block; }
+    .month-row, .day-row { display: grid; }
+    .month-cell, .day-cell { border-right: 1px solid var(--gridColor); text-align: center; font-size: 12px; padding: 6px 0; white-space: nowrap; }
+    .month-cell { font-weight: 700; background: #fafafa; }
+    .day-cell { color: #666; }
+
+    .grid { position: relative; }
+    .grid-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--gridColor); }
+    .today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--todayColor); }
+
+    .bar-row { position: relative; height: var(--rowHeight); }
+    .bar { position: absolute; top: 8px; height: calc(var(--rowHeight) - 16px); border-radius: var(--barRadius); display: flex; align-items: center; }
+    .bar .label { padding: 0 8px; font-size: 12px; color: #fff; text-shadow: 0 1px 1px rgba(0,0,0,.3); }
+    .bar .progress { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,255,255,.25); border-radius: var(--barRadius); }
+
+    .legend { display: flex; gap: 12px; align-items: center; font-size: 12px; color: #555; }
+    .legend i { display: inline-block; width: 14px; height: 8px; border-radius: 3px; margin-right: 6px; }
+
+    .empty { padding: 24px; color: #555; }
+
+    dialog { border: 1px solid #ddd; border-radius: 12px; padding: 0; max-width: 620px; width: calc(100% - 32px); }
+    .dlg-head { padding: 12px 16px; border-bottom: 1px solid #eee; font-weight: 700; }
+    .dlg-body { padding: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .dlg-foot { padding: 12px 16px; border-top: 1px solid #eee; display: flex; gap: 8px; justify-content: flex-end; }
+    .full { grid-column: 1 / -1; }
+    .help { color: var(--muted); font-size: 12px; }
+
+    .toast { position: fixed; right: 16px; bottom: 16px; background: #111; color: #fff; padding: 10px 12px; border-radius: 10px; opacity: 0; transform: translateY(10px); transition: .25s; }
+    .toast.show { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>取り組みガント（SharePoint連携）</h1>
+    <input id="q" class="input" type="search" placeholder="検索: タイトル・担当・タグ" />
+    <select id="range">
+      <option value="90">表示範囲：±90日</option>
+      <option value="120" selected>表示範囲：±120日</option>
+      <option value="180">表示範囲：±180日</option>
+      <option value="365">表示範囲：±365日</option>
+    </select>
+    <div class="spacer"></div>
+    <div class="legend">
+      <span><i style="background: var(--col-progress)"></i>進行中</span>
+      <span><i style="background: var(--col-done)"></i>完了</span>
+      <span><i style="background: var(--col-hold)"></i>保留</span>
+      <span><i style="background: var(--col-late)"></i>遅延</span>
+    </div>
+    <button id="btnAdd" class="btn primary">＋ 追加</button>
+  </div>
+
+  <div class="wrap">
+    <div class="left">
+      <div class="thead">
+        <div>#</div>
+        <div>タイトル</div>
+        <div>担当</div>
+        <div>開始</div>
+        <div>終了</div>
+        <div>進捗%</div>
+        <div>タグ</div>
+      </div>
+      <div id="leftRows"></div>
+    </div>
+    <div class="right">
+      <div class="timeline">
+        <div id="timeHeader" class="time-header"></div>
+        <div id="grid" class="grid"></div>
+        <div id="today" class="today-line" hidden></div>
+        <div id="bars"></div>
+      </div>
+    </div>
+  </div>
+
+  <dialog id="dlg">
+    <form method="dialog">
+      <div class="dlg-head">タスク追加 / 編集</div>
+      <div class="dlg-body">
+        <div class="full">
+          <label>タイトル<br>
+            <input id="fTitle" class="input" required />
+          </label>
+        </div>
+        <label>担当<br>
+          <input id="fOwner" class="input" />
+        </label>
+        <label>ステータス<br>
+          <select id="fStatus">
+            <option value="進行中">進行中</option>
+            <option value="完了">完了</option>
+            <option value="保留">保留</option>
+            <option value="遅延">遅延</option>
+          </select>
+        </label>
+        <label>開始<br>
+          <input id="fStart" class="input" type="date" required />
+        </label>
+        <label>終了<br>
+          <input id="fEnd" class="input" type="date" required />
+        </label>
+        <label>進捗%<br>
+          <input id="fPct" class="input" type="number" min="0" max="100" value="0" />
+        </label>
+        <div class="full">
+          <label>タグ（カンマ区切り）<br>
+            <input id="fTags" class="input" />
+          </label>
+        </div>
+        <div class="full">
+          <label>メモ<br>
+            <textarea id="fNote" class="input" style="height: 80px"></textarea>
+          </label>
+        </div>
+        <p class="full help">保存先リスト：<b id="listNameHelp"></b></p>
+      </div>
+      <div class="dlg-foot">
+        <button class="btn" value="cancel">キャンセル</button>
+        <button id="btnDelete" class="btn" value="delete" style="display:none; border-color:#e74c3c; color:#e74c3c">削除</button>
+        <button class="btn primary" value="ok">保存</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast"></div>
+
+  <script>
+  (function(){
+    // ====== 設定 ======
+    const LIST_TITLE = 'GanttTasks'; // ← SharePoint リスト名。必要に応じて変更（例：'取り組み一覧'）
+    const FIELD = {              // ← 列の内部名（必ずこの内部名で作成してください）
+      Title: 'Title',            // 既定
+      Owner: 'Owner',            // 1行テキスト
+      Start: 'Start',            // 日付
+      End: 'End',                // 日付
+      Pct: 'Pct',                // 数値（0-100）
+      Status: 'Status',          // 選択（進行中/完了/保留/遅延）
+      Tags: 'Tags',              // 1行テキスト
+      Note: 'Note'               // 複数行テキスト
+    };
+
+    // ====== 要素参照 ======
+    const elQ = document.getElementById('q');
+    const elRange = document.getElementById('range');
+    const elLeftRows = document.getElementById('leftRows');
+    const elTimeHeader = document.getElementById('timeHeader');
+    const elGrid = document.getElementById('grid');
+    const elBars = document.getElementById('bars');
+    const elToday = document.getElementById('today');
+    const elAdd = document.getElementById('btnAdd');
+    const dlg = document.getElementById('dlg');
+    const listNameHelp = document.getElementById('listNameHelp');
+    const toast = document.getElementById('toast');
+
+    const fTitle = document.getElementById('fTitle');
+    const fOwner = document.getElementById('fOwner');
+    const fStatus = document.getElementById('fStatus');
+    const fStart = document.getElementById('fStart');
+    const fEnd = document.getElementById('fEnd');
+    const fPct = document.getElementById('fPct');
+    const fTags = document.getElementById('fTags');
+    const fNote = document.getElementById('fNote');
+    const btnDelete = document.getElementById('btnDelete');
+
+    listNameHelp.textContent = LIST_TITLE;
+
+    // ====== 状態 ======
+    let all = [];     // 全タスク
+    let filtered = []; // フィルタ後
+    let rangeDays = parseInt(elRange.value, 10);
+    let viewStart, viewEnd, dayWidthPx;
+
+    // ====== ユーティリティ ======
+    const fmt = {
+      d: d => d ? new Date(d).toISOString().slice(0,10) : '',
+      jp: d => d ? `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}` : ''
+    };
+    const toDate = v => v ? new Date(v) : null;
+    const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
+    function statusColor(s){
+      switch(s){
+        case '完了': return getComputedStyle(document.documentElement).getPropertyValue('--col-done');
+        case '保留': return getComputedStyle(document.documentElement).getPropertyValue('--col-hold');
+        case '遅延': return getComputedStyle(document.documentElement).getPropertyValue('--col-late');
+        default: return getComputedStyle(document.documentElement).getPropertyValue('--col-progress');
+      }
+    }
+
+    function showToast(msg){
+      toast.textContent = msg; toast.classList.add('show');
+      setTimeout(()=> toast.classList.remove('show'), 2200);
+    }
+
+    // ====== SharePoint REST ======
+    const webUrl = (window._spPageContextInfo && _spPageContextInfo.webAbsoluteUrl) || '';
+
+    async function spGet(url){
+      const res = await fetch(url, { headers: { 'Accept': 'application/json;odata=nometadata' } });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }
+
+    let digestCache = { value: null, expire: 0 };
+    async function getDigest(){
+      const now = Date.now();
+      if(digestCache.value && digestCache.expire > now) return digestCache.value;
+      const res = await fetch(`${webUrl}/_api/contextinfo`, { method: 'POST', headers: { 'Accept': 'application/json;odata=nometadata' } });
+      if(!res.ok) throw new Error('contextinfo error');
+      const data = await res.json();
+      digestCache.value = data.FormDigestValue;
+      digestCache.expire = now + 25*60*1000; // 25分キャッシュ
+      return digestCache.value;
+    }
+
+    async function spPost(url, body){
+      const digest = await getDigest();
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json;odata=nometadata',
+          'Content-Type': 'application/json;odata=nometadata',
+          'X-RequestDigest': digest
+        },
+        body: JSON.stringify(body)
+      });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }
+
+    async function spMerge(url, body){
+      const digest = await getDigest();
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json;odata=nometadata',
+          'Content-Type': 'application/json;odata=nometadata',
+          'IF-MATCH': '*',
+          'X-HTTP-Method': 'MERGE',
+          'X-RequestDigest': digest
+        },
+        body: JSON.stringify(body)
+      });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return true;
+    }
+
+    async function spDelete(url){
+      const digest = await getDigest();
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json;odata=nometadata',
+          'IF-MATCH': '*',
+          'X-HTTP-Method': 'DELETE',
+          'X-RequestDigest': digest
+        }
+      });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return true;
+    }
+
+    function listUrl(){
+      return `${webUrl}/_api/web/lists/getbytitle('${encodeURIComponent(LIST_TITLE)}')`;
+    }
+
+    // ====== データ取得 ======
+    async function load(){
+      try {
+        const url = `${listUrl()}/items?$select=Id,${FIELD.Title},${FIELD.Owner},${FIELD.Start},${FIELD.End},${FIELD.Pct},${FIELD.Status},${FIELD.Tags},${FIELD.Note}&$orderby=${FIELD.Start} asc&$top=5000`;
+        const data = await spGet(url);
+        all = (data.value || []).map(x => ({
+          Id: x.Id,
+          Title: x[FIELD.Title] || '',
+          Owner: x[FIELD.Owner] || '',
+          Start: x[FIELD.Start] ? new Date(x[FIELD.Start]) : null,
+          End: x[FIELD.End] ? new Date(x[FIELD.End]) : null,
+          Pct: Number(x[FIELD.Pct] ?? 0),
+          Status: x[FIELD.Status] || '進行中',
+          Tags: (x[FIELD.Tags] || ''),
+          Note: x[FIELD.Note] || ''
+        }));
+        if(all.length === 0){
+          elLeftRows.innerHTML = `<div class="empty">リスト「${LIST_TITLE}」は空です。右上の「＋ 追加」から登録してください。</div>`;
+        }
+        applyFilter();
+      } catch(e){
+        console.warn(e);
+        demoFallback();
+      }
+    }
+
+    // デモデータ（リスト未作成でも見栄え確認用）
+    function demoFallback(){
+      const today = new Date();
+      all = [
+        {Id: 101, Title:'在庫管理KPI定義', Owner:'坂田', Start:addDays(today,-20), End:addDays(today,15), Pct:60, Status:'進行中', Tags:'在庫,業務G', Note:''},
+        {Id: 102, Title:'納品書自動発行の運用変更', Owner:'北出', Start:addDays(today,-5), End:addDays(today,7), Pct:30, Status:'遅延', Tags:'受発注,標準化', Note:''},
+        {Id: 103, Title:'岡山その後フォロー', Owner:'澤田', Start:addDays(today,-10), End:addDays(today,30), Pct:40, Status:'保留', Tags:'岡山', Note:''},
+        {Id: 104, Title:'RPA導入PoC', Owner:'黒田', Start:addDays(today,2), End:addDays(today,40), Pct:0, Status:'進行中', Tags:'RPA', Note:''},
+        {Id: 105, Title:'標準マニュアル作成', Owner:'東京課長', Start:addDays(today,-40), End:addDays(today,-5), Pct:100, Status:'完了', Tags:'標準化', Note:''}
+      ];
+      applyFilter();
+      showToast('デモ表示：SharePointリストが見つからないため、サンプルを表示中');
+    }
+
+    // ====== レンダリング ======
+    function applyFilter(){
+      const q = (elQ.value || '').trim().toLowerCase();
+      filtered = !q ? all : all.filter(t => {
+        return [t.Title, t.Owner, t.Tags].join(' ').toLowerCase().includes(q);
+      });
+      computeRange();
+      renderLeft();
+      renderTimeline();
+    }
+
+    function computeRange(){
+      // 表示範囲を計算：タスクの開始/終了の中央値付近±rangeDays、最低限「今日±rangeDays」
+      const today = new Date();
+      const baseStart = addDays(today, -rangeDays);
+      const baseEnd = addDays(today, rangeDays);
+      let minS = baseStart, maxE = baseEnd;
+      filtered.forEach(t => {
+        if(t.Start) minS = (t.Start < minS) ? t.Start : minS;
+        if(t.End) maxE = (t.End > maxE) ? t.End : maxE;
+      });
+      viewStart = new Date(minS.getFullYear(), minS.getMonth(), 1); // 月初に丸め
+      viewEnd = new Date(maxE.getFullYear(), maxE.getMonth()+1, 0); // 月末に丸め
+      dayWidthPx = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--dayWidth'));
+    }
+
+    function daysBetween(a,b){
+      const ms = (new Date(b.getFullYear(),b.getMonth(),b.getDate()) - new Date(a.getFullYear(),a.getMonth(),a.getDate()));
+      return Math.round(ms/86400000);
+    }
+
+    function renderLeft(){
+      if(filtered.length === 0){
+        elLeftRows.innerHTML = `<div class="empty">該当するタスクはありません。</div>`;
+        return;
+      }
+      const html = filtered.map(t => {
+        const tags = (t.Tags||'').split(',').map(s => s.trim()).filter(Boolean).map(s=>`<span class="tag">${esc(s)}</span>`).join('');
+        return `<div class="row" data-id="${t.Id}">
+          <div class="cell-id">${t.Id}</div>
+          <div>${esc(t.Title)}</div>
+          <div>${esc(t.Owner||'')}</div>
+          <div>${t.Start?fmt.jp(t.Start):''}</div>
+          <div>${t.End?fmt.jp(t.End):''}</div>
+          <div>${Number.isFinite(t.Pct)?t.Pct:0}</div>
+          <div>${tags}</div>
+        </div>`;
+      }).join('');
+      elLeftRows.innerHTML = html;
+
+      // クリックで編集
+      [...elLeftRows.querySelectorAll('.row')].forEach(row => {
+        row.addEventListener('click', () => openEditor( Number(row.dataset.id) ));
+      });
+    }
+
+    function renderTimeline(){
+      const totalDays = daysBetween(viewStart, addDays(viewEnd,1));
+
+      // ヘッダ（月/日）
+      // 月セル
+      let m = new Date(viewStart.getFullYear(), viewStart.getMonth(), 1);
+      const months = [];
+      while(m <= viewEnd){
+        const endOfMonth = new Date(m.getFullYear(), m.getMonth()+1, 0);
+        const spanDays = daysBetween(m, addDays(endOfMonth,1));
+        months.push(`<div class="month-cell" style="grid-column: span ${spanDays}">${m.getFullYear()}年 ${m.getMonth()+1}月</div>`);
+        m = new Date(m.getFullYear(), m.getMonth()+1, 1);
+      }
+      // 日セル
+      const days = [];
+      for(let i=0;i<totalDays;i++){
+        const d = addDays(viewStart, i);
+        const w = d.getDay();
+        const isWeekend = (w===0 || w===6);
+        days.push(`<div class="day-cell" style="background:${isWeekend?'#fcfcfc':'#fff'}">${d.getDate()}</div>`);
+      }
+      elTimeHeader.innerHTML = `
+        <div class="month-row" style="display:grid; grid-template-columns: repeat(${totalDays}, var(--dayWidth));">${months.join('')}</div>
+        <div class="day-row" style="display:grid; grid-template-columns: repeat(${totalDays}, var(--dayWidth));">${days.join('')}</div>
+      `;
+
+      // グリッド線
+      elGrid.style.height = `calc(${filtered.length} * var(--rowHeight))`;
+      elGrid.innerHTML = '';
+      elGrid.style.width = `calc(${totalDays} * var(--dayWidth))`;
+      // 5日毎に薄い線、月初は濃い目
+      for(let i=0;i<=totalDays;i++){
+        const d = addDays(viewStart, i);
+        const line = document.createElement('div');
+        line.className = 'grid-line';
+        line.style.left = `${i*dayWidthPx}px`;
+        if(d.getDate()===1){ line.style.background = '#dcdcdc'; }
+        elGrid.appendChild(line);
+      }
+
+      // 今日線
+      const today = new Date();
+      if(today >= viewStart && today <= viewEnd){
+        elToday.hidden = false;
+        const x = daysBetween(viewStart, today) * dayWidthPx;
+        elToday.style.left = `${x}px`;
+        elToday.style.height = `calc(${filtered.length} * var(--rowHeight))`;
+      } else {
+        elToday.hidden = true;
+      }
+
+      // バー
+      elBars.innerHTML = '';
+      elBars.style.width = `calc(${totalDays} * var(--dayWidth))`;
+      filtered.forEach((t, idx) => {
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        row.style.top = `calc(${idx} * var(--rowHeight))`;
+
+        if(t.Start && t.End){
+          const s = clamp(daysBetween(viewStart, t.Start), 0, totalDays);
+          const e = clamp(daysBetween(viewStart, addDays(t.End,1)), 0, totalDays); // 終了日を含む
+          const left = s * dayWidthPx;
+          const width = Math.max(6, (e - s) * dayWidthPx);
+          const bar = document.createElement('div');
+          bar.className = 'bar';
+          bar.style.left = `${left}px`;
+          bar.style.width = `${width}px`;
+          bar.style.background = statusColor(t.Status);
+          bar.title = `${t.Title}（${fmt.jp(t.Start)}〜${fmt.jp(t.End)}）`;
+
+          const progress = document.createElement('div');
+          progress.className = 'progress';
+          progress.style.width = `${clamp(Number(t.Pct)||0, 0, 100)}%`;
+          bar.appendChild(progress);
+
+          const label = document.createElement('div');
+          label.className = 'label';
+          label.textContent = `${t.Pct||0}%`;
+          bar.appendChild(label);
+
+          bar.addEventListener('click', () => openEditor(t.Id));
+          row.appendChild(bar);
+        }
+        elBars.appendChild(row);
+      });
+    }
+
+    // ====== 編集ダイアログ ======
+    let editingId = null;
+
+    function openEditor(id){
+      editingId = id;
+      const t = all.find(x => x.Id === id) || { Id: null, Title:'', Owner:'', Status:'進行中', Start:new Date(), End:addDays(new Date(), 7), Pct:0, Tags:'', Note:'' };
+      fTitle.value = t.Title || '';
+      fOwner.value = t.Owner || '';
+      fStatus.value = t.Status || '進行中';
+      fStart.value = fmt.d(t.Start || new Date());
+      fEnd.value = fmt.d(t.End || addDays(new Date(),7));
+      fPct.value = Number.isFinite(t.Pct) ? t.Pct : 0;
+      fTags.value = t.Tags || '';
+      fNote.value = t.Note || '';
+      btnDelete.style.display = t.Id ? 'inline-block' : 'none';
+      dlg.showModal();
+    }
+
+    dlg.addEventListener('close', async () => {
+      const action = dlg.returnValue; // ok / cancel / delete
+      if(action === 'ok'){
+        try {
+          const payload = {};
+          payload[FIELD.Title] = fTitle.value.trim();
+          payload[FIELD.Owner] = fOwner.value.trim();
+          payload[FIELD.Status] = fStatus.value;
+          payload[FIELD.Start] = fStart.value; // ISO日付
+          payload[FIELD.End] = fEnd.value;
+          payload[FIELD.Pct] = Number(fPct.value||0);
+          payload[FIELD.Tags] = fTags.value.trim();
+          payload[FIELD.Note] = fNote.value.trim();
+
+          if(editingId){
+            await spMerge(`${listUrl()}/items(${editingId})`, payload);
+            showToast('更新しました');
+          } else {
+            await spPost(`${listUrl()}/items`, payload);
+            showToast('追加しました');
+          }
+          await load();
+        } catch(e){
+          console.error(e); showToast('保存に失敗：列の内部名や権限を確認');
+        }
+      } else if(action === 'delete' && editingId){
+        try {
+          await spDelete(`${listUrl()}/items(${editingId})`);
+          showToast('削除しました');
+          await load();
+        } catch(e){ console.error(e); showToast('削除に失敗'); }
+      }
+      editingId = null;
+    });
+
+    // ====== 便利関数 ======
+    function esc(s){ return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+
+    // ====== イベント ======
+    elQ.addEventListener('input', applyFilter);
+    elRange.addEventListener('change', () => { rangeDays = parseInt(elRange.value,10); applyFilter(); });
+    elAdd.addEventListener('click', () => openEditor(null));
+
+    // 同期スクロール（左と右を連動）
+    const left = document.querySelector('.left');
+    const right = document.querySelector('.right');
+    left.addEventListener('scroll', () => { right.scrollTop = left.scrollTop; });
+    right.addEventListener('scroll', () => { left.scrollTop = right.scrollTop; });
+
+    // 初期化
+    load();
+    // 20秒おきに自動リロード（必要に応じて間隔変更可）
+    setInterval(() => { try { load(); } catch(e) { console.warn(e); } }, 20000);
+  })();
+  </script>
+</body>
+</html>

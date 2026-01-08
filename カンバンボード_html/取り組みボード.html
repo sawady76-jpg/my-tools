@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>かんたんカンバン（ローカル保存＋キャンバス予覧）</title>
+<style>
+  :root{--line:#e8ebf2;--muted:#f6f7fb;--text:#111;--gap:14px;--radius:12px;--shadow:0 6px 20px rgba(0,0,0,.08)}
+  *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  body{margin:0;color:var(--text);background:#fff}
+  header{position:sticky;top:0;z-index:5;display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line);background:#fff}
+  .brand{font-weight:800}
+  input,button,textarea{border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 12px}
+  button{cursor:pointer;box-shadow:var(--shadow);border:none}
+  button.ghost{box-shadow:none;border:1px solid var(--line);background:#fff}
+  .pill{font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:#fff}
+  main{padding:16px}
+  .board{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap);min-height:calc(100dvh - 90px)}
+  .col{background:var(--muted);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;min-height:60vh}
+  .col-header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px}
+  .col-title{font-weight:700}
+  .cards{display:flex;flex-direction:column;gap:10px;padding:10px;flex:1}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:var(--shadow)}
+  .card small{color:#667}
+  .add-area{padding:10px;border-top:1px dashed #dfe3f0}
+  .add-area input,.add-area textarea{width:100%}
+  .drag-over{outline:2px dashed #a6b1ff;outline-offset:-6px}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-left:auto}
+  .hint{color:#555;font-size:12px}
+  .canvas-wrap{border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .canvas-caption{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:#f6f7fb;border-bottom:1px solid var(--line)}
+  .canvas-caption b{font-weight:700}
+  @media (max-width:1100px){ .board{grid-template-columns:repeat(2,1fr)} }
+  @media (max-width:700px){ .board{grid-template-columns:1fr} header{flex-direction:column;align-items:flex-start} .toolbar{margin-left:0} }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">🗂️ かんたんカンバン（ローカル）</div>
+  <div class="hint">※データはブラウザに自動保存されます（自分用）。初回はサンプルが入っています。</div>
+  <div class="toolbar">
+    <button class="ghost" id="btnExport">JSONエクスポート</button>
+    <input type="file" id="fileImport" accept="application/json" hidden />
+    <button class="ghost" id="btnImport">JSONインポート</button>
+    <button class="ghost" id="btnHow">使い方</button>
+  </div>
+</header>
+
+<main>
+  <!-- Canvas Preview -->
+  <div class="canvas-wrap" style="margin-bottom:16px">
+    <div class="canvas-caption"><b>プレビュー（キャンバス描画）</b><span class="pill">表示のみ</span></div>
+    <canvas id="preview" width="1400" height="420" style="width:100%;display:block;background:#fff"></canvas>
+  </div>
+
+  <!-- Live Board -->
+  <section id="board" class="board"></section>
+</main>
+
+<dialog id="howDialog">
+  <div style="padding:16px;max-width:640px">
+    <h3 style="margin:0 0 10px 0">使い方</h3>
+    <ul>
+      <li>列は <b>未着手 / 対応中 / 確認・承認待ち / 完了</b> です。</li>
+      <li>カードは <b>ドラッグ＆ドロップ</b> で列を移動できます。</li>
+      <li>カードの <b>編集 / 削除</b> は各カードのボタンから。</li>
+      <li><b>＋ 追加</b> からカードを追加できます。</li>
+      <li>データはブラウザに自動保存（自分のPCのみ）。</li>
+      <li>他の人に渡すときは <b>JSONエクスポート/インポート</b> を使ってください。</li>
+    </ul>
+    <div style="text-align:right;margin-top:8px"><button id="howClose">OK</button></div>
+  </div>
+</dialog>
+
+<script>
+const STORAGE_KEY = 'kanban_board_local_v1';
+
+const STATUSES = [
+  { id: "todo",   name: "未着手" },
+  { id: "doing",  name: "対応中" },
+  { id: "review", name: "確認・承認待ち" },
+  { id: "done",   name: "完了" }
+];
+
+const boardEl = document.getElementById('board');
+const btnExport = document.getElementById('btnExport');
+const btnImport = document.getElementById('btnImport');
+const fileImport = document.getElementById('fileImport');
+const btnHow = document.getElementById('btnHow');
+const dlgHow = document.getElementById('howDialog');
+const btnHowClose = document.getElementById('howClose');
+
+const uid = () => crypto?.randomUUID ? crypto.randomUUID() : ('id-'+Math.random().toString(36).slice(2));
+
+let cards = []; // {id, status, title, descr, pos, createdAt, updatedAt}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      // 初回サンプル
+      const now = Date.now();
+      cards = [
+        { id: uid(), status:'todo',   title:'見積書テンプレの修正', descr:'社名ロゴ差し替え、税込表示', pos:1, createdAt:now, updatedAt:now },
+        { id: uid(), status:'todo',   title:'佐藤さま：お見積り作成', descr:'型番A-123 / 20個 / 8月25日まで', pos:2, createdAt:now, updatedAt:now },
+        { id: uid(), status:'doing',  title:'在庫データの更新', descr:'岡山・仙台の在庫CSVを取り込み', pos:1, createdAt:now, updatedAt:now },
+        { id: uid(), status:'review', title:'出荷遅延の報告書', descr:'課長レビュー待ち', pos:1, createdAt:now, updatedAt:now },
+        { id: uid(), status:'done',   title:'電話応対マニュアルの修正', descr:'敬語表現の見直し、FAQ追記', pos:1, createdAt:now, updatedAt:now },
+        { id: uid(), status:'done',   title:'請求書送信の自動化テスト', descr:'テスト環境で成功', pos:2, createdAt:now, updatedAt:now }
+      ];
+      save();
+    } else {
+      cards = JSON.parse(raw);
+    }
+  } catch(e) {
+    cards = [];
+  }
+}
+
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(cards)); }
+
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+function renderColumns() {
+  boardEl.innerHTML = '';
+  STATUSES.forEach(s => {
+    const col = document.createElement('div');
+    col.className = 'col';
+    col.dataset.status = s.id;
+    col.innerHTML = `
+      <div class="col-header">
+        <div class="col-title">${s.name}</div>
+        <span class="pill">${s.id}</span>
+      </div>
+      <div class="cards" data-status="${s.id}"></div>
+      <div class="add-area">
+        <input class="title" placeholder="タイトル" />
+        <textarea class="desc" rows="2" placeholder="詳細（任意）"></textarea>
+        <button class="ghost add-btn">＋ 追加</button>
+      </div>
+    `;
+    boardEl.appendChild(col);
+  });
+  boardEl.querySelectorAll('.add-btn').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const col = e.target.closest('.col');
+      const title = col.querySelector('.title').value.trim();
+      const descr = col.querySelector('.desc').value.trim();
+      if (!title) return;
+      addCard(col.dataset.status, { title, descr });
+      col.querySelector('.title').value = '';
+      col.querySelector('.desc').value = '';
+    });
+  });
+  enableDnD();
+  paint();
+  drawCanvasPreview(); // also refresh preview
+}
+
+function paint() {
+  boardEl.querySelectorAll('.cards').forEach(z=> z.innerHTML='');
+  const list = Object.fromEntries(STATUSES.map(s=>[s.id, []]));
+  for(const c of cards) list[c.status]?.push(c);
+  for(const k in list) list[k].sort((a,b)=> (a.pos??0)-(b.pos??0));
+  for(const s of STATUSES){
+    const zone = boardEl.querySelector(`.cards[data-status="${s.id}"]`);
+    for(const c of list[s.id]){
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.draggable = true;
+      el.dataset.id = c.id;
+      el.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+          <div style="font-weight:600;line-height:1.3">${escapeHtml(c.title || '（無題）')}</div>
+          <div style="display:flex;gap:6px">
+            <button class="ghost" data-act="edit">編集</button>
+            <button class="ghost" data-act="del">削除</button>
+          </div>
+        </div>
+        ${c.descr ? `<div style="margin-top:6px;white-space:pre-wrap">${escapeHtml(c.descr)}</div>` : ''}
+        <small style="display:block;margin-top:8px;color:#667">#${String(c.id).slice(-5)}・${s.name}</small>
+      `;
+      el.querySelector('[data-act="del"]').addEventListener('click', ()=>{
+        if(confirm('削除しますか？')) removeCard(c.id);
+      });
+      el.querySelector('[data-act="edit"]').addEventListener('click', ()=>{
+        const t = prompt('タイトルを編集', c.title||'');
+        if (t===null) return;
+        const d = prompt('詳細を編集（空可）', c.descr||'');
+        updateCard(c.id, { title: t, descr: d||'' });
+      });
+      zone.appendChild(el);
+    }
+  }
+}
+
+function nextPos(status){
+  const arr = cards.filter(c=>c.status===status);
+  if (!arr.length) return 1;
+  return Math.max(...arr.map(c=>c.pos||0)) + 1;
+}
+
+function addCard(status, {title, descr}){
+  const now = Date.now();
+  const item = { id: uid(), status, title, descr, pos: nextPos(status), createdAt: now, updatedAt: now };
+  cards.push(item);
+  save(); paint(); drawCanvasPreview();
+}
+
+function updateCard(id, patch){
+  const i = cards.findIndex(c=>c.id===id);
+  if (i<0) return;
+  cards[i] = { ...cards[i], ...patch, updatedAt: Date.now() };
+  save(); paint(); drawCanvasPreview();
+}
+
+function removeCard(id){
+  cards = cards.filter(c=>c.id!==id);
+  save(); paint(); drawCanvasPreview();
+}
+
+function moveCard(id, newStatus){
+  const i = cards.findIndex(c=>c.id===id);
+  if (i<0) return;
+  cards[i].status = newStatus;
+  cards[i].pos = nextPos(newStatus);
+  cards[i].updatedAt = Date.now();
+  save(); paint(); drawCanvasPreview();
+}
+
+function enableDnD(){
+  let dragCard = null;
+  boardEl.addEventListener('dragstart', e=>{
+    const card = e.target.closest('.card');
+    if(!card) return;
+    dragCard = card;
+    e.dataTransfer.setData('text/plain', card.dataset.id);
+    setTimeout(()=> card.style.opacity='.5',0);
+  });
+  boardEl.addEventListener('dragend', ()=>{
+    if(dragCard){ dragCard.style.opacity='1'; dragCard=null; }
+  });
+  boardEl.querySelectorAll('.cards').forEach(zone=>{
+    zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', ()=> zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e=>{
+      e.preventDefault(); zone.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      moveCard(id, zone.dataset.status);
+    });
+  });
+}
+
+// Export / Import
+btnExport.addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify({ cards }, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'kanban_backup.json';
+  a.click();
+});
+btnImport.addEventListener('click', ()=> fileImport.click());
+fileImport.addEventListener('change', async (e)=>{
+  const file = e.target.files[0]; if (!file) return;
+  const text = await file.text();
+  try {
+    const json = JSON.parse(text);
+    if (!Array.isArray(json.cards)) return alert('形式が不正です');
+    cards = json.cards;
+    save(); renderColumns();
+    alert('インポート完了');
+  } catch { alert('JSONの読み込みに失敗しました'); }
+});
+
+// 使い方
+btnHow.addEventListener('click', ()=> dlgHow.showModal());
+btnHowClose.addEventListener('click', ()=> dlgHow.close());
+
+// ---- Canvas Preview ----
+function drawCanvasPreview(){
+  const cvs = document.getElementById('preview');
+  const ctx = cvs.getContext('2d');
+  const W = cvs.width, H = cvs.height;
+  // clear
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0,0,W,H);
+  // title bar
+  ctx.fillStyle = '#f1f3f9';
+  ctx.fillRect(0,0,W,44);
+  ctx.fillStyle = '#111';
+  ctx.font = 'bold 16px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+  ctx.fillText('かんたんカンバン（プレビュー）', 16, 28);
+  // columns
+  const colW = (W - 80) / 4;
+  const x0 = 20;
+  const y0 = 64;
+  const cardH = 60;
+  const gap = 10;
+  STATUSES.forEach((s,idx)=>{
+    const x = x0 + idx*(colW+10);
+    // header
+    ctx.fillStyle = '#e8ebf2';
+    ctx.fillRect(x, y0, colW, 28);
+    ctx.strokeStyle = '#d0d6e4';
+    ctx.strokeRect(x, y0, colW, 28);
+    ctx.fillStyle = '#111';
+    ctx.font = 'bold 14px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.fillText(s.name, x+8, y0+20);
+    // body
+    const by = y0+28;
+    ctx.fillStyle = '#f6f7fb';
+    ctx.fillRect(x, by, colW, H-20-by);
+    ctx.strokeStyle = '#d0d6e4';
+    ctx.strokeRect(x, by, colW, H-20-by);
+    // sample cards from current data
+    const cs = cards.filter(c=>c.status===s.id).sort((a,b)=> (a.pos??0)-(b.pos??0)).slice(0,3);
+    let cy = by + gap;
+    cs.forEach((c,i)=>{
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(x+8, cy, colW-16, cardH);
+      ctx.strokeStyle = '#d0d6e4';
+      ctx.strokeRect(x+8, cy, colW-16, cardH);
+      ctx.fillStyle = '#111';
+      ctx.font = 'bold 13px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.fillText((c.title||'（無題）').slice(0,22), x+16, cy+20);
+      ctx.fillStyle = '#555';
+      ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      const sub = (c.descr||'').slice(0,30);
+      if (sub) ctx.fillText(sub, x+16, cy+40);
+      cy += cardH + gap;
+    });
+  });
+}
+
+// init
+load();
+renderColumns();
+</script>
+</body>
+</html>

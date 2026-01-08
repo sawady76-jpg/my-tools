@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>受発注課 取り組み一覧（下部完了格納庫＋往復DnD）</title>
+<style>
+:root{ --bg:#0a0f1f; --panel:#0e1430; --line:rgba(255,255,255,.08); --text:#e6eeff; --sub:#9bb3ff; --radius:12px; --gap:12px }
+*{box-sizing:border-box;font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
+body{margin:0;background:var(--bg);color:var(--text)}
+header{position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line);background:#0e1430}
+input,button,textarea{border:1px solid var(--line);border-radius:10px;background:#0e1430;color:var(--text);padding:8px 10px}
+button{cursor:pointer}
+button.ghost{background:transparent;border:1px solid var(--line)}
+.pill{font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid var(--line)}
+main{padding:14px}
+.board{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap);min-height:44vh}
+.col{background:#111636;border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-height:30vh}
+.col-header{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--line)}
+.col-tools{display:flex;gap:6px;align-items:center}
+.cards{display:flex;flex-direction:column;gap:10px;padding:10px;flex:1;min-height:24vh}
+.card{background:#141b44;border:1px solid var(--line);border-radius:12px;padding:10px}
+.card small{color:#a8b6ff}
+.log{white-space:pre-wrap;background:#0a0f1f;border:1px solid var(--line);padding:10px;border-radius:10px;color:#b8c7ff}
+.drag-over{outline:2px dashed #6ef3ff; outline-offset: -6px;}
+.actions{display:flex;gap:6px}
+.badge{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:2px 6px;opacity:.8}
+
+/* === 完了格納庫（最下部） === */
+.tray{margin-top:14px;background:#0c1230;border:1px solid var(--line);border-radius:12px;box-shadow:0 6px 20px rgba(0,0,0,.35)}
+.tray-header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border-bottom:1px dashed var(--line)}
+.tray-title{display:flex;gap:10px;align-items:center}
+.tray-title .count{font-size:12px;opacity:.8}
+.tray-tools{display:flex;gap:8px;align-items:center}
+.tray-body{padding:10px 12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;min-height:18vh}
+.tray.drop-target{outline:2px dashed #6ef3ff}
+.tray-card{background:#0f1538;border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:8px 10px;font-size:12px;line-height:1.4;opacity:.9}
+.tray-card .meta{opacity:.7;font-size:11px;margin-top:4px}
+.tray-card .owner{opacity:.85}
+.tray-collapsed .tray-body{display:none}
+.tray-toggle{font-size:12px}
+</style></head>
+<body>
+<header>
+  <div>🧭 受発注課（列＋下部完了格納庫・往復DnD）</div>
+  <label>ボード名</label><input id="boardId" placeholder="例: kmnext-board" />
+  <button id="btnJoin">入室</button>
+  <span id="statusBadge" class="pill">未接続</span>
+  <button id="btnTest" class="ghost">接続テスト</button>
+  <button id="btnExport" class="ghost">エクスポート</button>
+  <input type="file" id="fileImport" accept="application/json" hidden />
+  <button id="btnImport" class="ghost">インポート</button>
+  <div style="flex-basis:100%"></div>
+  <section id="global-add" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start">
+    <input id="gTitle" placeholder="タイトル（例：見積テンプレ見直し/山田）" style="flex:2;min-width:220px" />
+    <input id="gOwner" placeholder="担当者（空欄可）" style="flex:1;min-width:140px" />
+    <textarea id="gDesc" rows="2" placeholder="詳細（任意）" style="flex:3;min-width:260px"></textarea>
+    <button id="gAddBtn" class="ghost">＋ 追加（計画列）</button>
+  </section>
+</header>
+<main>
+  <div id="log" class="log"></div>
+  <section id="board" class="board"></section>
+
+  <!-- 最下部の“完了格納庫”（status='done' を入れる） -->
+  <section id="doneTray" class="tray tray-collapsed">
+    <div class="tray-header">
+      <div class="tray-title">
+        <strong>✅ 完了（格納庫）</strong>
+        <span id="doneCount" class="count">0 件</span>
+      </div>
+      <div class="tray-tools">
+        <button id="toggleTray" class="ghost tray-toggle">開く</button>
+        <span style="font-size:12px;opacity:.8">※ カードをここへドラッグで完了に移動 / 完了から列にも戻せます</span>
+      </div>
+    </div>
+    <div id="doneBody" class="tray-body" data-status="done"></div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.46.1/dist/umd/supabase.js"></script>
+<script>
+/*** Supabase 接続設定 ***/
+const { createClient } = window.supabase;
+const SUPABASE_URL = "https://yrkaznkuztyjxhfpiyjl.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlya2F6bmt1enR5anhoZnBpeWpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1Njk3ODksImV4cCI6MjA3MTE0NTc4OX0.47EkcDXeJ7E6iYhrR2tXGuuatEXqZxkiaxbpAkiXe4k";
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* 列定義（完了は列にしない／下部トレイに集約） */
+const STATUSES = [
+  { id:"plan", name:"計画" },
+  { id:"do",   name:"実行" },
+  { id:"check",name:"結果チェック" },
+  { id:"act",  name:"振り返り" }
+];
+
+const SORT_STATE = { plan:null, do:null, check:null, act:null }; // 列ごとのソート状態
+let _cards = []; // ローカルキャッシュ
+
+/* 要素参照 */
+const boardEl = document.getElementById('board');
+const boardIdInput = document.getElementById('boardId');
+const btnJoin = document.getElementById('btnJoin');
+const statusBadge = document.getElementById('statusBadge');
+const btnTest = document.getElementById('btnTest');
+const logEl = document.getElementById('log');
+const btnExport = document.getElementById('btnExport');
+const btnImport = document.getElementById('btnImport');
+const fileImport = document.getElementById('fileImport');
+const doneTray = document.getElementById('doneTray');
+const doneBody = document.getElementById('doneBody');
+const doneCount = document.getElementById('doneCount');
+const toggleTray = document.getElementById('toggleTray');
+
+let currentBoardId = localStorage.getItem('kanban_board_id') || "";
+boardIdInput.value = currentBoardId;
+
+/* ログ */
+const log = (m)=>{ logEl.textContent += `[${new Date().toLocaleTimeString()}] ${m}\n`; };
+const clearLog = ()=>{ logEl.textContent=''; };
+
+/* util */
+function escapeHtml(s){ return String(s||'').replace(/[&<>\"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;' }[m])); }
+function fmtTime(ts){ if(!ts) return ""; try{ const d = new Date(ts); return d.toLocaleString(); }catch{ return String(ts); } }
+
+/* レイアウト（列） */
+function renderColumns(){
+  boardEl.innerHTML = '';
+  STATUSES.forEach(s=>{
+    const col = document.createElement('div');
+    col.className='col';
+    col.innerHTML = `
+      <div class="col-header">
+        <div>${s.name} <span class="badge">${s.id}</span></div>
+        <div class="col-tools" data-status="${s.id}">
+          <span style="opacity:.75;font-size:12px">並び替え：</span>
+          <button class="ghost sort-btn" data-sort="toggle" title="タイトルで昇順/降順/通常を切替">—</button>
+          <span class="badge sort-label">通常</span>
+        </div>
+      </div>
+      <div class="cards" data-status="${s.id}"></div>`;
+    boardEl.appendChild(col);
+  });
+  // ソートボタン
+  document.querySelectorAll('.col-tools').forEach(tool=>{
+    const st = tool.dataset.status;
+    const btn = tool.querySelector('.sort-btn');
+    const label = tool.querySelector('.sort-label');
+    btn.addEventListener('click', ()=>{
+      SORT_STATE[st] = (SORT_STATE[st]==null) ? 'asc' : (SORT_STATE[st]==='asc' ? 'desc' : null);
+      label.textContent = SORT_STATE[st]==='asc' ? '昇順' : SORT_STATE[st]==='desc' ? '降順' : '通常';
+      paint(_cards);
+    });
+  });
+
+  enableDnD();      // 列用DnD
+  enableTrayDnD();  // 格納庫DnD
+}
+
+/* 描画（列＋完了格納庫） */
+function paint(cards){
+  _cards = Array.isArray(cards) ? cards.slice() : [];
+  // 列側クリア
+  boardEl.querySelectorAll('.cards').forEach(z=> z.innerHTML='');
+  // トレイ側クリア
+  doneBody.innerHTML = '';
+
+  const buckets = Object.fromEntries([...STATUSES.map(s=>[s.id, []]), ['done', []]]);
+  for(const c of _cards) {
+    const key = (c.status==='done') ? 'done' : (STATUSES.some(s=>s.id===c.status) ? c.status : 'plan');
+    buckets[key].push(c);
+  }
+
+  for(const s of STATUSES){
+    const arr = buckets[s.id];
+    const order = SORT_STATE[s.id];
+    arr.sort((a,b)=>{
+      if(order==null){ const pa=a.pos??0, pb=b.pos??0; return pa-pb; }
+      const ta=(a.title||'').toLocaleLowerCase(), tb=(b.title||'').toLocaleLowerCase();
+      if(ta<tb) return order==='asc'? -1:1;
+      if(ta>tb) return order==='asc'? 1:-1;
+      const pa=a.pos??0, pb=b.pos??0; return pa-pb;
+    });
+    const zone = document.querySelector(`.cards[data-status="${s.id}"]`);
+    for(const c of arr){ zone.appendChild(renderCard(c, s.name)); }
+  }
+
+  // 完了格納庫：更新日の新しい順
+  const doneArr = buckets['done'].sort((a,b)=>{
+    const ua = new Date(a.updated_at||a.created_at||0).getTime();
+    const ub = new Date(b.updated_at||b.created_at||0).getTime();
+    return ub - ua;
+  });
+  doneCount.textContent = `${doneArr.length} 件`;
+  for(const c of doneArr){ doneBody.appendChild(renderDoneCard(c)); }
+}
+
+/* カードDOM（列用） */
+function renderCard(c, statusName){
+  const el = document.createElement('div');
+  el.className='card'; el.dataset.id=c.id; el.draggable = true;
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+      <div class="field-title" style="font-weight:700;line-height:1.3">${escapeHtml(c.title||'（無題）')}</div>
+      <div class="actions">
+        <button class="ghost" data-act="edit" title="編集">編集</button>
+        <button class="ghost" data-act="del" title="削除">削除</button>
+      </div>
+    </div>
+    <div class="field-descr" style="margin-top:6px;white-space:pre-wrap">${escapeHtml(c.descr||'')}</div>
+    <small style="display:block;margin-top:6px">👤 <span class="field-owner">${escapeHtml(c.owner||'未割当')}</span></small>
+    <small style="display:block;margin-top:6px;opacity:.7">#${String(c.id).slice(-5)}・${statusName}・最終更新: <span class="field-updated">${fmtTime(c.updated_at)||'-'}</span></small>
+  `;
+  // 削除（即時反映＋DB）
+  el.querySelector('[data-act="del"]').addEventListener('click', async ()=>{
+    if (!confirm('削除しますか？')) return;
+    el.remove();
+    _cards = _cards.filter(x=> x.id !== c.id);
+    const { error } = await sb.from('kanban_cards').delete().eq('id', c.id).eq('board_id', currentBoardId);
+    if(error){ alert('削除に失敗しました: ' + error.message); const rows = await fetchAll(true); paint(rows); }
+  });
+  // 編集（ボタン→タイトル編集）
+  el.querySelector('[data-act="edit"]').addEventListener('click', ()=>{
+    const t = el.querySelector('.field-title'); if(t) t.dispatchEvent(new Event('dblclick'));
+  });
+  // インライン編集
+  makeEditable(el.querySelector('.field-title'), ()=>c.title||'', v=> updateCard(c.id,{ title:v||'（無題）' }), false);
+  makeEditable(el.querySelector('.field-descr'), ()=>c.descr||'', v=> updateCard(c.id,{ descr:v||'' }), true);
+  makeEditable(el.querySelector('.field-owner'), ()=>c.owner||'', v=> updateCard(c.id,{ owner:v||'' }), false);
+  return el;
+}
+
+/* カードDOM（完了格納庫用：コンパクト） */
+function renderDoneCard(c){
+  const el = document.createElement('div');
+  el.className='tray-card'; el.dataset.id=c.id; el.draggable = true;
+  el.innerHTML = `
+    <div class="title" style="font-weight:600">${escapeHtml(c.title||'（無題）')}</div>
+    ${c.descr ? `<div class="descr" style="margin-top:4px;opacity:.9">${escapeHtml(c.descr)}</div>` : ''}
+    <div class="meta"><span class="owner">👤 ${escapeHtml(c.owner||'未割当')}</span>　更新: ${fmtTime(c.updated_at)||'-'}</div>
+  `;
+  return el;
+}
+
+/* 編集UI */
+function makeEditable(el, getter, setter, multiline=false){
+  if(!el) return;
+  el.style.cursor = 'text';
+  el.addEventListener('dblclick', ()=>{
+    const editor = multiline ? document.createElement('textarea') : document.createElement('input');
+    editor.value = getter();
+    editor.style.width = '100%'; editor.style.font='inherit'; editor.style.color='inherit';
+    editor.style.background='rgba(255,255,255,.08)'; editor.style.border='1px solid var(--line)';
+    editor.style.borderRadius='8px'; editor.style.padding='6px 8px';
+    const prev = el.innerHTML;
+    el.innerHTML=''; el.appendChild(editor); editor.focus(); if(!multiline) editor.select();
+    const commit = async ()=>{ const v = multiline?editor.value:editor.value.trim(); await setter(v); };
+    const cancel = ()=>{ el.innerHTML = prev; };
+    editor.addEventListener('keydown', (e)=>{ if(!multiline && e.key==='Enter'){ e.preventDefault(); commit(); } if(e.key==='Escape'){ e.preventDefault(); cancel(); }});
+    editor.addEventListener('blur', ()=>{ commit(); }, { once:true });
+  });
+}
+
+/* 共通：dragstart/dragend を“列とトレイ両方”で捕捉 */
+function attachDragStart(container){
+  container.addEventListener('dragstart', e=>{
+    const card = e.target.closest('.card,.tray-card'); if(!card) return;
+    e.dataTransfer.setData('text/plain', card.dataset.id);
+    setTimeout(()=>{ card.style.opacity = '.55'; }, 0);
+  });
+  container.addEventListener('dragend', e=>{
+    const card = e.target.closest('.card,.tray-card'); if(card) card.style.opacity = '1';
+  });
+}
+
+/* DnD（列→列） */
+function enableDnD(){
+  attachDragStart(boardEl); // ★ 列でのドラッグ開始を捕捉
+
+  boardEl.querySelectorAll('.cards').forEach(zone=>{
+    zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', ()=> zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', async e=>{
+      e.preventDefault(); zone.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      const newStatus = zone.dataset.status;
+      await moveCard(id, newStatus);
+    });
+  });
+}
+
+/* DnD（完了格納庫のドロップ＆“トレイ→列”用のdragstart捕捉） */
+function enableTrayDnD(){
+  attachDragStart(doneTray);  // ★ トレイ内カードのドラッグ開始も捕捉
+  attachDragStart(doneBody);
+
+  [doneTray, doneBody].forEach(el=>{
+    el.addEventListener('dragover', e=>{ e.preventDefault(); doneTray.classList.add('drop-target'); });
+    el.addEventListener('dragleave', ()=> doneTray.classList.remove('drop-target'));
+    el.addEventListener('drop', async e=>{
+      e.preventDefault(); doneTray.classList.remove('drop-target');
+      const id = e.dataTransfer.getData('text/plain');
+      await moveCard(id, 'done'); // 完了へ
+    });
+  });
+
+  // 開閉
+  toggleTray.onclick = ()=>{
+    const collapsed = doneTray.classList.toggle('tray-collapsed');
+    toggleTray.textContent = collapsed ? '開く' : '閉じる';
+  };
+}
+
+/* DB I/O */
+async function fetchAll(silent=false){
+  try{
+    const { data, error } = await sb.from('kanban_cards').select('*').eq('board_id', currentBoardId);
+    if(error){ if(!silent) log(`❌ SELECT失敗: ${error.message}`); statusBadge.textContent='読み込みエラー'; return []; }
+    statusBadge.textContent = `接続中：${currentBoardId}`;
+    _cards = data||[];
+    return _cards;
+  }catch(e){ if(!silent) log(`❌ 例外: ${e.message}`); return []; }
+}
+async function addCardDefault({title, descr, owner}){
+  try{
+    const { data: rows } = await sb.from('kanban_cards').select('pos').eq('board_id', currentBoardId).eq('status','plan');
+    const nextPos = (rows||[]).reduce((m,r)=>Math.max(m, r.pos||0), 0) + 1;
+    const { error } = await sb.from('kanban_cards').insert([{ board_id: currentBoardId, status:'plan', title, descr, owner, pos: nextPos }]);
+    if(error){ log(`❌ 追加失敗: ${error.message}`); alert('追加に失敗（ログ参照）'); }
+    else { log('✅ 追加OK'); }
+  }catch(e){ log(`❌ 例外: ${e.message}`); }
+}
+async function updateCard(id, patch){
+  const { error } = await sb.from('kanban_cards').update({ ...patch }).eq('id', id).eq('board_id', currentBoardId);
+  if(error){ log(`❌ 更新失敗: ${error.message}`); }
+}
+async function moveCard(id, newStatus){
+  // pos 再採番：doneは1固定、列は末尾へ
+  let nextPos = 1;
+  if(newStatus !== 'done'){
+    const { data: rows } = await sb.from('kanban_cards').select('pos').eq('board_id', currentBoardId).eq('status', newStatus);
+    nextPos = (rows||[]).reduce((m,r)=>Math.max(m, r.pos||0), 0) + 1;
+  }
+  await sb.from('kanban_cards').update({ status: newStatus, pos: nextPos }).eq('id', id).eq('board_id', currentBoardId);
+}
+
+/* Realtime */
+async function subscribeBoard(boardId){
+  try{
+    if (window._ch) { await window._ch.unsubscribe(); window._ch=null; }
+    window._ch = sb.channel('kanban-'+boardId)
+      .on('postgres_changes',{ event:'*', schema:'public', table:'kanban_cards', filter:`board_id=eq.${boardId}` },
+        async ()=>{ const rows = await fetchAll(true); paint(rows); })
+      .subscribe(async (status)=>{
+        log(`🔌 Realtime: ${status}`);
+        statusBadge.textContent = (status==='SUBSCRIBED') ? `接続中：${boardId}` : `接続: ${status}`;
+        if(status==='SUBSCRIBED'){ renderColumns(); const rows = await fetchAll(true); paint(rows); }
+      });
+  }catch(e){ log(`❌ Realtime例外: ${e.message}`); }
+}
+
+/* 接続テスト／入室／追加 */
+btnTest.onclick = async ()=>{
+  clearLog(); log('🧪 接続テスト開始');
+  try{
+    const { error } = await sb.from('kanban_cards').select('id').limit(1);
+    if(error){ log(`❌ SELECTエラー: ${error.message}`); alert('接続テスト失敗（ログ参照）'); }
+    else { log('✅ SELECT成功（接続OK）'); alert('接続OK。次に「入室」を押してください。'); }
+  }catch(e){ log(`❌ 例外: ${e.message}`); alert('接続テスト例外（ログ参照）'); }
+};
+btnJoin.onclick = ()=>{
+  const id = (boardIdInput.value||'').trim();
+  if(!id){ alert('ボード名を入力してください'); return; }
+  currentBoardId = id;
+  localStorage.setItem('kanban_board_id', currentBoardId);
+  log(`🚪 入室: ${currentBoardId}`);
+  subscribeBoard(currentBoardId);
+};
+document.getElementById('gAddBtn').onclick = async ()=>{
+  const title = (document.getElementById('gTitle').value||'').trim();
+  let owner = (document.getElementById('gOwner').value||'').trim();
+  const descr = (document.getElementById('gDesc').value||'').trim();
+  if(!title) return alert('タイトルを入力してください');
+  if(title.includes('/') && !owner){ const parts = title.split('/'); owner = parts.pop().trim(); }
+  await addCardDefault({ title, descr, owner });
+};
+
+/* 初期描画（入室は明示操作） */
+renderColumns();
+</script>
+</body></html>

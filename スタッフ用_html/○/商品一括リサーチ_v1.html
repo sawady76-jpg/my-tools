@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>商品一括リサーチ</title>
+<style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #f0f4f8; color: #333; padding: 20px; display: flex; justify-content: center; align-items: center; min-height: 80vh; }
+    .container { width: 100%; max-width: 600px; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); border-top: 6px solid #ff9900; }
+    h2 { text-align: center; color: #444; margin-bottom: 20px; font-size: 1.5rem; }
+    
+    .search-box { position: relative; margin-bottom: 20px; }
+    input[type="text"] { width: 100%; padding: 15px; padding-right: 50px; border: 2px solid #ddd; border-radius: 50px; font-size: 18px; outline: none; transition: border-color 0.3s; box-sizing: border-box; }
+    input[type="text"]:focus { border-color: #ff9900; }
+    
+    .btn-search { width: 100%; background-color: #ff9900; color: white; border: none; padding: 15px; font-size: 20px; font-weight: bold; border-radius: 50px; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .btn-search:hover { background-color: #e68a00; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+    .btn-search:active { transform: translateY(0); }
+
+    .settings { margin-top: 15px; font-size: 0.85em; }
+    .settings label { margin-right: 15px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+
+    .note { color: #d9534f; font-size: 0.85em; margin-top: 15px; text-align: center; background: #fff5f5; padding: 10px; border-radius: 4px; border: 1px dashed #d9534f; }
+    
+    /* ▼ ショートカット案内のスタイル */
+    .shortcut-tip { text-align: center; margin-top: 10px; font-size: 0.9em; color: #666; background-color: #fdfdfd; padding: 5px; border-radius: 4px; }
+    .shortcut-key { background-color: #eee; padding: 2px 6px; border-radius: 4px; border: 1px solid #ccc; font-weight: bold; font-family: monospace; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🚀 商品一括リサーチ</h2>
+    
+    <div class="search-box">
+        <input type="text" id="keyword" placeholder="型番・商品名を入力（例：HYT-4L）" onkeypress="handleEnter(event)">
+    </div>
+
+    <div class="settings">
+        <div style="margin-bottom:5px; font-weight:bold;">検索対象サイト：</div>
+        <div id="checkboxArea"></div>
+    </div>
+    <br>
+
+    <button class="btn-search" onclick="multiSearch()">まとめて検索開始！</button>
+
+    <div class="shortcut-tip">
+        💡 開いたタブは <span class="shortcut-key">Ctrl</span> + <span class="shortcut-key">W</span> で閉じられます
+    </div>
+
+    <div class="note">
+        ⚠️ 初回のみ「ポップアップがブロックされました」と出ます。<br>
+        アドレスバー右端のアイコンから<strong>「常に許可」</strong>を選んでください。
+    </div>
+</div>
+
+<script>
+    const searchTargets = [
+        { id: "google", name: "Google 検索", url: "https://www.google.com/search?q=", checked: true },
+        { id: "image", name: "Google 画像検索", url: "https://www.google.com/search?tbm=isch&q=", checked: true },
+        { id: "trusco", name: "トラスコ (OrangeBook)", url: "https://www.orange-book.com/ja/c/search/result.html?q=", checked: true },
+        { id: "monotaro", name: "MonotaRO", url: "https://www.monotaro.com/s/?q=", checked: true },
+        { id: "amazon", name: "Amazon", url: "https://www.amazon.co.jp/s?k=", checked: false },
+        { id: "rakuten", name: "楽天市場", url: "https://search.rakuten.co.jp/search/mall/", checked: false }
+    ];
+
+    window.onload = function() {
+        const area = document.getElementById('checkboxArea');
+        searchTargets.forEach(site => {
+            const label = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = "checkbox";
+            checkbox.id = "check_" + site.id;
+            checkbox.checked = site.checked;
+            
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(site.name));
+            area.appendChild(label);
+        });
+        document.getElementById('keyword').focus();
+    };
+
+    function multiSearch() {
+        const keyword = document.getElementById('keyword').value.trim();
+
+        if (!keyword) {
+            alert("型番や商品名を入力してください！");
+            return;
+        }
+
+        const encodedKeyword = encodeURIComponent(keyword);
+
+        let openedCount = 0;
+        searchTargets.forEach(site => {
+            const checkbox = document.getElementById("check_" + site.id);
+            if (checkbox && checkbox.checked) {
+                window.open(site.url + encodedKeyword, '_blank');
+                openedCount++;
+            }
+        });
+
+        if (openedCount === 0) {
+            alert("検索対象サイトを1つ以上選んでください。");
+        }
+    }
+
+    function handleEnter(event) {
+        if (event.key === 'Enter') {
+            multiSearch();
+        }
+    }
+</script>
+
+</body>
+</html>

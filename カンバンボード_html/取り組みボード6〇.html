@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>受発注課 取り組み一覧（Supabase・ログ付き・DnD＋編集/削除/更新日）</title>
+<style>
+:root{ --bg:#0a0f1f; --panel:#0e1430; --line:rgba(255,255,255,.08); --text:#e6eeff; --sub:#9bb3ff; --radius:12px; --gap:12px }
+*{box-sizing:border-box;font-family:system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial}
+body{margin:0;background:var(--bg);color:var(--text)}
+header{position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--line);background:#0e1430}
+input,button,textarea{border:1px solid var(--line);border-radius:10px;background:#0e1430;color:var(--text);padding:8px 10px}
+button{cursor:pointer}
+button.ghost{background:transparent;border:1px solid var(--line)}
+.pill{font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid var(--line)}
+main{padding:14px}
+.board{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap);min-height:50vh}
+.col{background:#111636;border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-height:30vh}
+.col-header{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--line)}
+.cards{display:flex;flex-direction:column;gap:10px;padding:10px;flex:1}
+.card{background:#141b44;border:1px solid var(--line);border-radius:12px;padding:10px}
+.card small{color:#a8b6ff}
+.log{white-space:pre-wrap;background:#0a0f1f;border:1px solid var(--line);padding:10px;border-radius:10px;color:#b8c7ff}
+.drag-over{outline:2px dashed #6ef3ff; outline-offset: -6px;}
+.actions{display:flex;gap:6px}
+</style></head>
+<body>
+<header>
+  <div>🧭 受発注課（共同・ログ付き・DnD）</div>
+  <label>ボード名</label><input id="boardId" placeholder="例: kmnext-board" />
+  <button id="btnJoin">入室</button>
+  <span id="statusBadge" class="pill">未接続</span>
+  <button id="btnTest" class="ghost">接続テスト</button>
+  <button id="btnExport" class="ghost">エクスポート</button>
+  <input type="file" id="fileImport" accept="application/json" hidden />
+  <button id="btnImport" class="ghost">インポート</button>
+  <div style="flex-basis:100%"></div>
+  <section id="global-add" style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start">
+    <input id="gTitle" placeholder="タイトル（例：見積テンプレ見直し/山田）" style="flex:2;min-width:220px" />
+    <input id="gOwner" placeholder="担当者（空欄可）" style="flex:1;min-width:140px" />
+    <textarea id="gDesc" rows="2" placeholder="詳細（任意）" style="flex:3;min-width:260px"></textarea>
+    <button id="gAddBtn" class="ghost">＋ 追加（計画列）</button>
+  </section>
+</header>
+<main>
+  <div id="log" class="log"></div>
+  <section id="board" class="board"></section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.46.1/dist/umd/supabase.js"></script>
+<script>
+/*** Supabase 接続設定 ***/
+const { createClient } = window.supabase;
+const SUPABASE_URL = "https://yrkaznkuztyjxhfpiyjl.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inlya2F6bmt1enR5anhoZnBpeWpsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU1Njk3ODksImV4cCI6MjA3MTE0NTc4OX0.47EkcDXeJ7E6iYhrR2tXGuuatEXqZxkiaxbpAkiXe4k";
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const STATUSES = [
+  { id:"plan", name:"計画" }, { id:"do", name:"実行" }, { id:"check", name:"結果チェック" }, { id:"act", name:"振り返り" }
+];
+
+const boardEl = document.getElementById('board');
+const boardIdInput = document.getElementById('boardId');
+const btnJoin = document.getElementById('btnJoin');
+const statusBadge = document.getElementById('statusBadge');
+const btnTest = document.getElementById('btnTest');
+const logEl = document.getElementById('log');
+const btnExport = document.getElementById('btnExport');
+const btnImport = document.getElementById('btnImport');
+const fileImport = document.getElementById('fileImport');
+
+let currentBoardId = localStorage.getItem('kanban_board_id') || "";
+boardIdInput.value = currentBoardId;
+
+const log = (m)=>{ logEl.textContent += `[${new Date().toLocaleTimeString()}] ${m}\n`; };
+const clearLog = ()=>{ logEl.textContent=''; };
+
+function escapeHtml(s){ return String(s||'').replace(/[&<>\"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;' }[m])); }
+function fmtTime(ts){
+  if(!ts) return "";
+  try{ const d = new Date(ts); return d.toLocaleString(); }catch{ return String(ts); }
+}
+
+function renderColumns(){
+  boardEl.innerHTML = '';
+  STATUSES.forEach(s=>{
+    const col = document.createElement('div');
+    col.className='col';
+    col.innerHTML = `<div class="col-header"><div>${s.name}</div><span>${s.id}</span></div><div class="cards" data-status="${s.id}"></div>`;
+    boardEl.appendChild(col);
+  });
+  enableDnD(); // DnD有効化
+}
+
+function paint(cards){
+  boardEl.querySelectorAll('.cards').forEach(z=> z.innerHTML='');
+  const b = Object.fromEntries(STATUSES.map(s=>[s.id,[]]));
+  for(const c of cards) (b[c.status]||b.plan).push(c);
+  for(const k in b) b[k].sort((a,b)=> (a.pos??0)-(b.pos??0));
+  for(const s of STATUSES){
+    const zone = boardEl.querySelector(`.cards[data-status="${s.id}"]`);
+    for(const c of b[s.id]){
+      const el = document.createElement('div');
+      el.className='card'; el.dataset.id=c.id;
+      el.draggable = true;
+      el.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+          <div class="field-title" style="font-weight:700;line-height:1.3">${escapeHtml(c.title||'（無題）')}</div>
+          <div class="actions">
+            <button class="ghost" data-act="edit" title="編集">編集</button>
+            <button class="ghost" data-act="del" title="削除">削除</button>
+          </div>
+        </div>
+        <div class="field-descr" style="margin-top:6px;white-space:pre-wrap">${escapeHtml(c.descr||'')}</div>
+        <small style="display:block;margin-top:6px">👤 <span class="field-owner">${escapeHtml(c.owner||'未割当')}</span></small>
+        <small style="display:block;margin-top:6px;opacity:.7">#${String(c.id).slice(-5)}・${s.name}・最終更新: <span class="field-updated">${fmtTime(c.updated_at)||'-'}</span></small>
+      `;
+      // 削除
+      el.querySelector('[data-act="del"]').addEventListener('click', async ()=>{
+        if (!confirm('削除しますか？')) return;
+        const { error } = await sb.from('kanban_cards').delete().eq('id', c.id);
+        if(error){ log('❌ 削除失敗: '+error.message); alert('削除に失敗しました'); }
+      });
+      // 編集（ボタンはタイトル編集を開始）
+      el.querySelector('[data-act="edit"]').addEventListener('click', ()=>{
+        const t = el.querySelector('.field-title');
+        if(t) t.dispatchEvent(new Event('dblclick'));
+      });
+      // インライン編集（ダブルクリック）
+      makeEditable(el.querySelector('.field-title'), ()=>c.title||'', v=> updateCard(c.id,{ title:v||'（無題）' }), false);
+      makeEditable(el.querySelector('.field-descr'), ()=>c.descr||'', v=> updateCard(c.id,{ descr:v||'' }), true);
+      makeEditable(el.querySelector('.field-owner'), ()=>c.owner||'', v=> updateCard(c.id,{ owner:v||'' }), false);
+      zone.appendChild(el);
+    }
+  }
+}
+
+function makeEditable(el, getter, setter, multiline=false){
+  if(!el) return;
+  el.style.cursor = 'text';
+  el.addEventListener('dblclick', ()=>{
+    const editor = multiline ? document.createElement('textarea') : document.createElement('input');
+    editor.value = getter();
+    editor.style.width = '100%'; editor.style.font='inherit'; editor.style.color='inherit';
+    editor.style.background='rgba(255,255,255,.08)'; editor.style.border='1px solid var(--line)';
+    editor.style.borderRadius='8px'; editor.style.padding='6px 8px';
+    const prev = el.innerHTML;
+    el.innerHTML=''; el.appendChild(editor); editor.focus(); if(!multiline) editor.select();
+    const commit = async ()=>{ const v = multiline?editor.value:editor.value.trim(); await setter(v); };
+    const cancel = ()=>{ el.innerHTML = prev; };
+    editor.addEventListener('keydown', (e)=>{ if(!multiline && e.key==='Enter'){ e.preventDefault(); commit(); } if(e.key==='Escape'){ e.preventDefault(); cancel(); }});
+    editor.addEventListener('blur', ()=>{ commit(); }, { once:true });
+  });
+}
+
+function enableDnD(){
+  let dragCard = null;
+  boardEl.addEventListener('dragstart', e=>{
+    const card = e.target.closest('.card'); if(!card) return;
+    dragCard = card;
+    e.dataTransfer.setData('text/plain', card.dataset.id);
+    setTimeout(()=> card.style.opacity='.55',0);
+  });
+  boardEl.addEventListener('dragend', ()=>{
+    if(dragCard){ dragCard.style.opacity='1'; dragCard=null; }
+  });
+  boardEl.querySelectorAll('.cards').forEach(zone=>{
+    zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', ()=> zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', async e=>{
+      e.preventDefault(); zone.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      const newStatus = zone.dataset.status;
+      await moveCard(id, newStatus);
+    });
+  });
+}
+
+async function fetchAll(){
+  try{
+    const { data, error } = await sb.from('kanban_cards').select('*').eq('board_id', currentBoardId);
+    if(error){ log(`❌ SELECT失敗: ${error.message}`); statusBadge.textContent='読み込みエラー'; return []; }
+    statusBadge.textContent = `接続中：${currentBoardId}`;
+    return data||[];
+  }catch(e){ log(`❌ 例外: ${e.message}`); return []; }
+}
+async function addCardDefault({title, descr, owner}){
+  try{
+    const { data: rows } = await sb.from('kanban_cards').select('pos').eq('board_id', currentBoardId).eq('status','plan');
+    const nextPos = (rows||[]).reduce((m,r)=>Math.max(m, r.pos||0), 0) + 1;
+    const { error } = await sb.from('kanban_cards').insert([{ board_id: currentBoardId, status:'plan', title, descr, owner, pos: nextPos }]);
+    if(error){ log(`❌ 追加失敗: ${error.message}`); alert('追加に失敗（ログ参照）'); }
+    else { log('✅ 追加OK'); }
+  }catch(e){ log(`❌ 例外: ${e.message}`); }
+}
+async function updateCard(id, patch){
+  // DB側トリガで updated_at が自動更新されます
+  const { error } = await sb.from('kanban_cards').update({ ...patch }).eq('id', id).eq('board_id', currentBoardId);
+  if(error){ log(`❌ 更新失敗: ${error.message}`); }
+}
+async function moveCard(id, newStatus){
+  const { data: rows } = await sb.from('kanban_cards').select('pos').eq('board_id', currentBoardId).eq('status', newStatus);
+  const nextPos = (rows||[]).reduce((m,r)=>Math.max(m, r.pos||0), 0) + 1;
+  await sb.from('kanban_cards').update({ status: newStatus, pos: nextPos }).eq('id', id).eq('board_id', currentBoardId);
+}
+async function subscribeBoard(boardId){
+  try{
+    if (window._ch) { await window._ch.unsubscribe(); window._ch=null; }
+    window._ch = sb.channel('kanban-'+boardId)
+      .on('postgres_changes',{ event:'*', schema:'public', table:'kanban_cards', filter:`board_id=eq.${boardId}` },
+        async ()=>{ const rows = await fetchAll(); paint(rows); })
+      .subscribe(async (status)=>{
+        log(`🔌 Realtime: ${status}`);
+        statusBadge.textContent = (status==='SUBSCRIBED') ? `接続中：${boardId}` : `接続: ${status}`;
+        if(status==='SUBSCRIBED'){ renderColumns(); const rows = await fetchAll(); paint(rows); }
+      });
+  }catch(e){ log(`❌ Realtime例外: ${e.message}`); }
+}
+
+// 接続テスト
+btnTest.onclick = async ()=>{
+  clearLog();
+  log('🧪 接続テスト開始');
+  try{
+    const { error } = await sb.from('kanban_cards').select('id').limit(1);
+    if(error){ log(`❌ SELECTエラー: ${error.message}`); alert('接続テスト失敗（ログ参照）'); }
+    else { log('✅ SELECT成功（接続OK）'); alert('接続OK。次に「入室」を押してください。'); }
+  }catch(e){ log(`❌ 例外: ${e.message}`); alert('接続テスト例外（ログ参照）'); }
+};
+
+// 入室
+btnJoin.onclick = ()=>{
+  const id = (boardIdInput.value||'').trim();
+  if(!id){ alert('ボード名を入力してください'); return; }
+  currentBoardId = id;
+  localStorage.setItem('kanban_board_id', currentBoardId);
+  log(`🚪 入室: ${currentBoardId}`);
+  subscribeBoard(currentBoardId);
+};
+
+// 追加
+document.getElementById('gAddBtn').onclick = async ()=>{
+  const title = (document.getElementById('gTitle').value||'').trim();
+  let owner = (document.getElementById('gOwner').value||'').trim();
+  const descr = (document.getElementById('gDesc').value||'').trim();
+  if(!title) return alert('タイトルを入力してください');
+  if(title.includes('/') && !owner){ const parts = title.split('/'); owner = parts.pop().trim(); }
+  await addCardDefault({ title, descr, owner });
+};
+
+renderColumns(); // 初回は入室しない
+</script>
+</body></html>

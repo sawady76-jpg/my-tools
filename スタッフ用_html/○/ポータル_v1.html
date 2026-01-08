@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>受発注課ツール</title>
+<style>
+    /* --- 全体共通スタイル --- */
+    :root {
+        --primary-color: #0056b3;
+        --accent-color: #ff9900;
+        --bg-color: #f4f7f9;
+        --text-color: #333;
+        --border-radius: 8px;
+    }
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 0; }
+    
+    /* ヘッダー・ナビゲーション */
+    header { background-color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+    .nav-tabs { display: flex; justify-content: center; list-style: none; padding: 0; margin: 0; overflow-x: auto; }
+    .nav-item { cursor: pointer; padding: 15px 20px; font-weight: bold; color: #666; transition: 0.3s; white-space: nowrap; border-bottom: 4px solid transparent; }
+    .nav-item:hover { background-color: #f9f9f9; color: var(--primary-color); }
+    .nav-item.active { color: var(--primary-color); border-bottom-color: var(--primary-color); background-color: #fff; }
+    .nav-icon { margin-right: 5px; }
+
+    /* コンテンツエリア */
+    .main-wrapper { max-width: 1000px; margin: 20px auto; padding: 0 15px; }
+    .app-section { display: none; animation: fadeIn 0.3s ease; }
+    .app-section.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* 共通コンテナスタイル */
+    .tool-container { background: #fff; padding: 25px; border-radius: var(--border-radius); box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    h2 { text-align: center; color: #444; margin-bottom: 25px; font-size: 1.4rem; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+    
+    /* 共通入力パーツ */
+    input[type="text"], input[type="number"], input[type="tel"], select, textarea {
+        width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 16px; box-sizing: border-box; transition: 0.3s; outline: none;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary-color); }
+    
+    /* ボタン共通 */
+    .btn-primary { background-color: var(--primary-color); color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; width: 100%; }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    
+    /* --- アプリ1：商品リサーチ用 --- */
+    .search-box { position: relative; margin-bottom: 20px; }
+    .search-settings { font-size: 0.9em; margin-top: 15px; }
+    .search-settings label { margin-right: 15px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+    .search-note { color: #d9534f; font-size: 0.85em; margin-top: 15px; text-align: center; background: #fff5f5; padding: 10px; border-radius: 4px; border: 1px dashed #d9534f; }
+    .shortcut-tip { text-align: center; margin-top: 10px; font-size: 0.9em; color: #666; }
+    .shortcut-key { background-color: #eee; padding: 2px 6px; border-radius: 4px; border: 1px solid #ccc; font-weight: bold; font-family: monospace; }
+
+    /* --- アプリ2：定価計算用 --- */
+    .calc-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 15px; background: #f8fbff; padding: 15px; border-radius: 8px; }
+    .calc-col { flex: 1; min-width: 200px; }
+    .calc-label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9em; }
+    .preset-group { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+    .btn-preset { background: #fff; border: 1px solid #cbd5e0; padding: 4px 10px; border-radius: 20px; font-size: 0.8em; cursor: pointer; }
+    .btn-preset.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+    .calc-area { display: flex; gap: 20px; align-items: stretch; }
+    .calc-box { flex: 1; display: flex; flex-direction: column; }
+    .calc-textarea { height: 400px; font-family: monospace; resize: vertical; }
+    #outputArea { background-color: #f0fff4; border-color: #c3e6cb; color: #155724; font-weight: bold; }
+
+    /* --- アプリ3：単位変換用 --- */
+    .unit-tabs { display: flex; background: #eee; border-radius: 6px 6px 0 0; overflow: hidden; margin-bottom: 20px; }
+    .unit-tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; color: #777; transition: 0.3s; font-weight: bold; }
+    .unit-tab.active { background: #fff; color: #e67e22; border-bottom: 3px solid #e67e22; }
+    .unit-content { display: none; }
+    .unit-content.active { display: block; }
+    .unit-group { position: relative; margin-bottom: 15px; }
+    .unit-label { position: absolute; right: 15px; top: 14px; color: #888; font-weight: bold; pointer-events: none; }
+    .unit-input { padding-right: 50px !important; text-align: right; }
+    .quick-buttons { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+    .q-btn { background: #f0f4f8; border: 1px solid #dce6f1; padding: 6px 12px; border-radius: 20px; font-size: 0.85em; cursor: pointer; color: #2c3e50; }
+    .q-btn:hover { background: #e67e22; color: white; border-color: #e67e22; }
+    .unit-equals { text-align: center; font-size: 20px; color: #e67e22; margin: -5px 0 10px; }
+    .unit-memo { font-size: 0.85em; color: #666; background: #fdfdfd; padding: 10px; border-radius: 4px; margin-top: 15px; border: 1px solid #eee; }
+
+    /* --- アプリ4：電話メモ用 --- */
+    .badge-required { background: #ff4d4d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; vertical-align: middle; margin-left: 5px; }
+    .action-group { display: flex; gap: 10px; flex-wrap: wrap; }
+    .action-group label { flex: 1; min-width: 140px; cursor: pointer; }
+    .action-group input[type="radio"] { display: none; }
+    .action-btn { display: block; text-align: center; padding: 10px; border: 1px solid #ddd; border-radius: 6px; background: #f9f9f9; transition: all 0.2s; font-size: 0.9em; }
+    .action-group input[type="radio"]:checked + .action-btn { background-color: #e7f1ff; border-color: var(--primary-color); color: var(--primary-color); font-weight: bold; }
+    .preview-box { background-color: #333; color: #fff; padding: 15px; border-radius: 6px; margin-top: 20px; }
+    #resultMemo { width: 100%; height: 150px; background: transparent; border: none; color: #fff; font-family: monospace; font-size: 14px; resize: none; overflow: auto; outline: none; }
+    #toast { visibility: hidden; min-width: 250px; margin-left: -125px; background-color: #333; color: #fff; text-align: center; border-radius: 2px; padding: 16px; position: fixed; z-index: 2000; left: 50%; bottom: 30px; }
+    #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+    @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+    @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+    /* --- ガイドタブ用スタイル --- */
+    .guide-box { border-left: 5px solid #ccc; padding-left: 15px; margin-bottom: 30px; }
+    .guide-title { font-size: 1.2em; font-weight: bold; color: #333; display: flex; align-items: center; margin-bottom: 10px; }
+    .guide-icon { font-size: 1.4em; margin-right: 10px; }
+    .guide-desc { font-size: 0.95em; line-height: 1.6; color: #555; margin-bottom: 10px; }
+    .guide-point { background-color: #fff9e6; border-radius: 8px; padding: 12px; font-size: 0.9em; color: #665c3d; border: 1px solid #f0e6c8; }
+    .guide-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; color: #fff; margin-right: 8px; vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<header>
+    <ul class="nav-tabs">
+        <li class="nav-item active" onclick="switchApp('app-search')"><span class="nav-icon">🚀</span>一括リサーチ</li>
+        <li class="nav-item" onclick="switchApp('app-calc')"><span class="nav-icon">🧮</span>定価×掛け率</li>
+        <li class="nav-item" onclick="switchApp('app-unit')"><span class="nav-icon">📏</span>単位変換</li>
+        <li class="nav-item" onclick="switchApp('app-memo')"><span class="nav-icon">📞</span>電話メモ</li>
+        <li class="nav-item" onclick="switchApp('app-guide')"><span class="nav-icon">📖</span>使い方ガイド</li>
+    </ul>
+</header>
+
+<div class="main-wrapper">
+
+    <section id="app-search" class="app-section active">
+        <div class="tool-container" style="border-top: 5px solid #ff9900;">
+            <h2>商品一括リサーチ</h2>
+            <div class="search-box">
+                <input type="text" id="keyword" placeholder="型番・商品名を入力（例：HYT-4L）" onkeypress="handleEnterSearch(event)">
+            </div>
+            
+            <button class="btn-primary" style="background-color: #ff9900;" onclick="multiSearch()">まとめて検索開始！</button>
+
+            <div class="search-settings">
+                <div style="margin-bottom:5px; font-weight:bold;">検索対象サイト：</div>
+                <div id="checkboxArea"></div>
+            </div>
+
+            <div class="shortcut-tip">
+                💡 開いたタブは <span class="shortcut-key">Ctrl</span> + <span class="shortcut-key">W</span> で閉じられます
+            </div>
+            <div class="search-note">
+                ⚠️ 初回のみ「ポップアップがブロックされました」と出ます。<br>
+                アドレスバー右端のアイコンから<strong>「常に許可」</strong>を選んでください。
+            </div>
+        </div>
+    </section>
+
+    <section id="app-calc" class="app-section">
+        <div class="tool-container" style="border-top: 5px solid #0056b3;">
+            <h2>定価×掛け率 計算機</h2>
+            
+            <div class="calc-row">
+                <div class="calc-col">
+                    <span class="calc-label">掛け率（％）</span>
+                    <input type="number" id="multiplier" value="70" step="0.1" oninput="handleInputMultiplier()">
+                    <div class="preset-group">
+                        <button class="btn-preset" onclick="setMultiplier(50)">50%</button>
+                        <button class="btn-preset" onclick="setMultiplier(55)">55%</button>
+                        <button class="btn-preset" onclick="setMultiplier(60)">60%</button>
+                        <button class="btn-preset" onclick="setMultiplier(65)">65%</button>
+                        <button class="btn-preset" onclick="setMultiplier(70)">70%</button>
+                    </div>
+                </div>
+                <div class="calc-col">
+                    <span class="calc-label">端数処理・税</span>
+                    <select id="roundingMode" onchange="calculatePrice()">
+                        <option value="floor" selected>切り捨て (推奨)</option>
+                        <option value="round">四捨五入</option>
+                        <option value="ceil">切り上げ</option>
+                    </select>
+                    <div style="margin-top:10px;">
+                        <label style="cursor:pointer; display:flex; align-items:center; font-size:0.9em; font-weight:bold;">
+                            <input type="checkbox" id="checkTax" onchange="calculatePrice()" style="width:auto; margin-right:8px;">
+                            税込価格にする (×1.10)
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="calc-area">
+                <div class="calc-box">
+                    <span class="calc-label">【入力】定価リスト <span id="countInput" style="font-weight:normal; font-size:0.8em; background:#eee; padding:2px 5px; border-radius:4px;">0行</span></span>
+                    <textarea id="inputArea" class="calc-textarea" placeholder="Excelから貼り付け&#13;10,000&#13;15800" oninput="calculatePrice()"></textarea>
+                </div>
+                <div style="display:flex; align-items:center; color:#ccc; font-size:24px;">➡</div>
+                <div class="calc-box">
+                    <span class="calc-label">【結果】計算後価格 <span id="countOutput" style="font-weight:normal; font-size:0.8em; background:#eee; padding:2px 5px; border-radius:4px;">0行</span></span>
+                    <textarea id="outputArea" class="calc-textarea" readonly></textarea>
+                </div>
+            </div>
+            
+            <button class="btn-primary" style="margin-top:15px; background-color:#28a745;" onclick="copyPriceResult()">📋 結果をコピーする</button>
+        </div>
+    </section>
+
+    <section id="app-unit" class="app-section">
+        <div class="tool-container" style="max-width: 600px; margin: 0 auto; border-top: 5px solid #e67e22;">
+            <h2>建材単位 変換くん</h2>
+
+            <div class="unit-tabs">
+                <div class="unit-tab active" onclick="switchUnitTab('tab-length', this)">長さ (尺・間)</div>
+                <div class="unit-tab" onclick="switchUnitTab('tab-area', this)">広さ (坪・平米)</div>
+            </div>
+
+            <div id="tab-length" class="unit-content active">
+                <div class="quick-buttons">
+                    <button class="q-btn" onclick="setLength(1)">1尺 (サシガネ)</button>
+                    <button class="q-btn" onclick="setLength(6)">1間 (1820)</button>
+                    <button class="q-btn" onclick="setLength(3)">3尺 (910)</button>
+                </div>
+                <div class="unit-group">
+                    <input type="number" id="inputShaku" class="unit-input" placeholder="例: 6" oninput="calcFromShaku()">
+                    <span class="unit-label">尺</span>
+                </div>
+                <div class="unit-equals">⇅</div>
+                <div class="unit-group">
+                    <input type="number" id="inputMm" class="unit-input" placeholder="例: 1818" oninput="calcFromMm()">
+                    <span class="unit-label">mm</span>
+                </div>
+                <div class="unit-memo">
+                    <strong>💡 長さメモ</strong><br>
+                    1尺 ≒ 303mm / 3尺(半間) ≒ 910mm / 6尺(1間) ≒ 1820mm
+                </div>
+            </div>
+
+            <div id="tab-area" class="unit-content">
+                <div class="quick-buttons">
+                    <button class="q-btn" onclick="setArea(1)">1坪 (サブロク2枚)</button>
+                    <button class="q-btn" onclick="setArea(30)">30坪 (戸建)</button>
+                </div>
+                <div class="unit-group">
+                    <input type="number" id="inputTsubo" class="unit-input" placeholder="例: 10" oninput="calcFromTsubo()">
+                    <span class="unit-label">坪</span>
+                </div>
+                <div class="unit-equals">⇅</div>
+                <div class="unit-group">
+                    <input type="number" id="inputM2" class="unit-input" placeholder="例: 33.1" oninput="calcFromM2()">
+                    <span class="unit-label">m²</span>
+                </div>
+                <div class="unit-group">
+                    <input type="number" id="inputTatami" class="unit-input" placeholder="例: 20" oninput="calcFromTatami()">
+                    <span class="unit-label">帖</span>
+                </div>
+                <div class="unit-memo">
+                    <strong>💡 広さメモ</strong><br>
+                    1坪 ≒ 3.3m² (畳2枚分) / 1坪 ＝ サブロク板(3×6) 2枚分
+                </div>
+            </div>
+
+            <button class="btn-primary" style="margin-top:20px; background-color:#95a5a6;" onclick="clearUnitInputs()">クリア</button>
+        </div>
+    </section>
+
+    <section id="app-memo" class="app-section">
+        <div class="tool-container" style="max-width: 600px; margin: 0 auto; border-top: 5px solid #0056b3;">
+            <h2>受電メモ作成</h2>
+            <div style="margin-bottom:15px;">
+                <label class="calc-label">受電日時</label>
+                <input type="text" id="memoTime" oninput="updateMemoPreview()">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label class="calc-label">相手の会社名・氏名 <span class="badge-required">必須</span></label>
+                <input type="text" id="memoClient" placeholder="例：〇〇商事 田中様" oninput="updateMemoPreview()">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label class="calc-label">相手の電話番号</label>
+                <input type="tel" id="memoPhone" placeholder="折り返しが必要な場合に入力" oninput="updateMemoPreview()">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label class="calc-label">用件・伝言内容</label>
+                <textarea id="memoBody" style="height:80px;" placeholder="例：見積書の件で確認したい点があるそうです。" oninput="updateMemoPreview()"></textarea>
+            </div>
+            <div style="margin-bottom:15px;">
+                <label class="calc-label">対応依頼（アクション）</label>
+                <div class="action-group">
+                    <label><input type="radio" name="actionType" value="折り返しお願いします" checked onchange="updateMemoPreview()"><span class="action-btn">📞 折り返し要</span></label>
+                    <label><input type="radio" name="actionType" value="伝言のみ（折り返し不要）" onchange="updateMemoPreview()"><span class="action-btn">✉️ 伝言のみ</span></label>
+                    <label><input type="radio" name="actionType" value="再度電話あります" onchange="updateMemoPreview()"><span class="action-btn">🔄 また掛かってきます</span></label>
+                </div>
+            </div>
+
+            <div class="preview-box">
+                <div style="font-size:0.8em; color:#aaa; margin-bottom:5px;">プレビュー（これをコピーします）</div>
+                <textarea id="resultMemo" readonly></textarea>
+            </div>
+            
+            <button class="btn-primary" onclick="copyMemoResult()">📋 テキストをコピーする</button>
+        </div>
+    </section>
+
+    <section id="app-guide" class="app-section">
+        <div class="tool-container" style="border-top: 5px solid #888;">
+            <h2>📖 使い方ガイド</h2>
+            
+            <p style="text-align:center; margin-bottom:30px;">
+                毎日の業務お疲れ様です！<br>
+                このツールセットは、日々の「ちょっと面倒な作業」を楽にするために作られました。<br>
+                それぞれの便利機能をご紹介します。
+            </p>
+
+            <div class="guide-box" style="border-color: #ff9900;">
+                <div class="guide-title">
+                    <span class="guide-badge" style="background:#ff9900;">リサーチ</span>
+                    商品一括リサーチ
+                </div>
+                <div class="guide-desc">
+                    型番や商品名を入れるだけで、Google・画像検索・トラスコ・MonotaROなどを<strong>一度にまとめて検索</strong>できます。
+                    タブを行ったり来たりして、何度もコピペする必要はありません。
+                </div>
+                <div class="guide-point">
+                    ⚠️ <strong>最初の1回だけ注意！</strong><br>
+                    「ポップアップがブロックされました」と表示されたら、アドレスバーの右端のアイコンから「常に許可」を選んでください。これで次からは一瞬で全部開きます！
+                </div>
+            </div>
+
+            <div class="guide-box" style="border-color: #0056b3;">
+                <div class="guide-title">
+                    <span class="guide-badge" style="background:#0056b3;">計算</span>
+                    定価×掛け率 計算機
+                </div>
+                <div class="guide-desc">
+                    Excelの見積リストなどから「定価」の列をコピーして貼り付けるだけで、一気に仕切り価格を計算します。<br>
+                    電卓で一つずつ計算しなくてOK！「50%」「70%」などのボタンですぐ切り替えられます。
+                </div>
+                <div class="guide-point">
+                    💡 <strong>ここが便利</strong><br>
+                    「税込み計算」や「端数処理（切り捨てなど）」も設定できるので、お客様への提示価格作りにもそのまま使えます。
+                </div>
+            </div>
+
+            <div class="guide-box" style="border-color: #e67e22;">
+                <div class="guide-title">
+                    <span class="guide-badge" style="background:#e67e22;">変換</span>
+                    建材単位 変換くん
+                </div>
+                <div class="guide-desc">
+                    図面や現場の話で出てくる「尺（しゃく）」や「間（けん）」、「坪（つぼ）」。<br>
+                    「これって何ミリ？何平米？」と思ったらここに入力！すぐに見慣れた単位（mmや㎡）に変換します。
+                </div>
+                <div class="guide-point">
+                    💡 <strong>逆算もできます</strong><br>
+                    「3000mmって何尺？」と聞かれた時も、mm欄に入力すれば尺を教えてくれます。
+                </div>
+            </div>
+
+            <div class="guide-box" style="border-color: #333;">
+                <div class="guide-title">
+                    <span class="guide-badge" style="background:#333;">メモ</span>
+                    受電メモ作成
+                </div>
+                <div class="guide-desc">
+                    電話を受けながら入力して、最後に「コピー」ボタンを押すだけ。<br>
+                    チャットツール（TeamsやLINE WORKSなど）に見やすい形で貼り付けられます。<br>
+                    「折り返しお願いします」などの文言もボタン一つで選べます。
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+</div>
+<div id="toast">コピーしました！</div>
+
+<script>
+    // --- 初期化処理 ---
+    window.onload = function() {
+        // 1. 商品リサーチのチェックボックス生成
+        initSearchCheckboxes();
+        document.getElementById('keyword').focus();
+
+        // 2. 定価計算の初期化
+        handleInputMultiplier();
+
+        // 3. 電話メモの日時セット
+        const now = new Date();
+        const str = `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+        document.getElementById('memoTime').value = str;
+        updateMemoPreview();
+    };
+
+    // --- アプリ切り替えロジック ---
+    function switchApp(appId) {
+        // コンテンツの切り替え
+        document.querySelectorAll('.app-section').forEach(sec => sec.classList.remove('active'));
+        document.getElementById(appId).classList.add('active');
+
+        // タブの見た目切り替え
+        const navItems = document.querySelectorAll('.nav-item');
+        navItems.forEach(item => item.classList.remove('active'));
+        
+        // クリックされたタブをアクティブにする（簡易的な判定）
+        event.currentTarget.classList.add('active');
+    }
+
+    // ==========================================
+    // アプリ1：商品リサーチ用 ロジック
+    // ==========================================
+    const searchTargets = [
+        { id: "google", name: "Google 検索", url: "https://www.google.com/search?q=", checked: true },
+        { id: "image", name: "Google 画像", url: "https://www.google.com/search?tbm=isch&q=", checked: true },
+        { id: "trusco", name: "トラスコ (Orange)", url: "https://www.orange-book.com/ja/c/search/result.html?q=", checked: true },
+        { id: "monotaro", name: "MonotaRO", url: "https://www.monotaro.com/s/?q=", checked: true },
+        { id: "amazon", name: "Amazon", url: "https://www.amazon.co.jp/s?k=", checked: false },
+        { id: "rakuten", name: "楽天市場", url: "https://search.rakuten.co.jp/search/mall/", checked: false }
+    ];
+
+    function initSearchCheckboxes() {
+        const area = document.getElementById('checkboxArea');
+        searchTargets.forEach(site => {
+            const label = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = "checkbox";
+            checkbox.id = "check_" + site.id;
+            checkbox.checked = site.checked;
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(site.name));
+            area.appendChild(label);
+        });
+    }
+
+    function multiSearch() {
+        const keyword = document.getElementById('keyword').value.trim();
+        if (!keyword) { alert("キーワードを入力してください"); return; }
+        const encoded = encodeURIComponent(keyword);
+        let count = 0;
+        searchTargets.forEach(site => {
+            const cb = document.getElementById("check_" + site.id);
+            if (cb && cb.checked) {
+                window.open(site.url + encoded, '_blank');
+                count++;
+            }
+        });
+        if (count === 0) alert("検索サイトを選択してください");
+    }
+
+    function handleEnterSearch(e) { if(e.key === 'Enter') multiSearch(); }
+
+
+    // ==========================================
+    // アプリ2：定価計算用 ロジック
+    // ==========================================
+    function setMultiplier(val) {
+        document.getElementById('multiplier').value = val;
+        handleInputMultiplier();
+    }
+    function handleInputMultiplier() {
+        const val = document.getElementById('multiplier').value;
+        document.querySelectorAll('.btn-preset').forEach(btn => {
+            if (btn.textContent.replace('%','') == val) btn.classList.add('active');
+            else btn.classList.remove('active');
+        });
+        calculatePrice();
+    }
+    function calculatePrice() {
+        const input = document.getElementById('inputArea').value;
+        const mult = parseFloat(document.getElementById('multiplier').value) || 0;
+        const mode = document.getElementById('roundingMode').value;
+        const isTax = document.getElementById('checkTax').checked;
+
+        const lines = input.split('\n');
+        document.getElementById('countInput').textContent = lines.length + "行";
+        document.getElementById('countOutput').textContent = lines.length + "行";
+
+        const results = lines.map(line => {
+            let clean = line.replace(/[^\d.]/g, '');
+            if (!clean) return "";
+            let price = parseFloat(clean);
+            if (isNaN(price)) return "";
+            
+            let final = price * (mult / 100);
+            if (isTax) final *= 1.10;
+            
+            if (mode === 'floor') final = Math.floor(final);
+            else if (mode === 'round') final = Math.round(final);
+            else if (mode === 'ceil') final = Math.ceil(final);
+            
+            return final.toLocaleString();
+        });
+        document.getElementById('outputArea').value = results.join('\n');
+    }
+    function copyPriceResult() {
+        copyToClipboard(document.getElementById('outputArea').value);
+    }
+
+
+    // ==========================================
+    // アプリ3：単位変換用 ロジック
+    // ==========================================
+    const SHAKU_MM = 303.0303;
+    const TSUBO_M2 = 3.305785;
+    const TATAMI_M2 = 1.6562;
+
+    function switchUnitTab(targetId, tabEl) {
+        document.querySelectorAll('.unit-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(targetId).classList.add('active');
+        document.querySelectorAll('.unit-tab').forEach(t => t.classList.remove('active'));
+        tabEl.classList.add('active');
+    }
+
+    function calcFromShaku() {
+        const val = parseFloat(document.getElementById('inputShaku').value);
+        if(isNaN(val)) { document.getElementById('inputMm').value = ''; return; }
+        document.getElementById('inputMm').value = (val * SHAKU_MM).toFixed(1);
+    }
+    function calcFromMm() {
+        const val = parseFloat(document.getElementById('inputMm').value);
+        if(isNaN(val)) { document.getElementById('inputShaku').value = ''; return; }
+        document.getElementById('inputShaku').value = (val / SHAKU_MM).toFixed(3);
+    }
+    function setLength(val) {
+        document.getElementById('inputShaku').value = val;
+        calcFromShaku();
+    }
+
+    function calcFromTsubo() {
+        const val = parseFloat(document.getElementById('inputTsubo').value);
+        if(isNaN(val)) { 
+            document.getElementById('inputM2').value = ''; 
+            document.getElementById('inputTatami').value = ''; return; 
+        }
+        document.getElementById('inputM2').value = (val * TSUBO_M2).toFixed(2);
+        document.getElementById('inputTatami').value = (val * 2).toFixed(1);
+    }
+    function calcFromM2() {
+        const val = parseFloat(document.getElementById('inputM2').value);
+        if(isNaN(val)) {
+            document.getElementById('inputTsubo').value = ''; 
+            document.getElementById('inputTatami').value = ''; return;
+        }
+        document.getElementById('inputTsubo').value = (val / TSUBO_M2).toFixed(2);
+        document.getElementById('inputTatami').value = (val / TATAMI_M2).toFixed(1);
+    }
+    function calcFromTatami() {
+        const val = parseFloat(document.getElementById('inputTatami').value);
+        if(isNaN(val)) {
+            document.getElementById('inputTsubo').value = ''; 
+            document.getElementById('inputM2').value = ''; return;
+        }
+        document.getElementById('inputM2').value = (val * TATAMI_M2).toFixed(2);
+        document.getElementById('inputTsubo').value = (val / 2).toFixed(2);
+    }
+    function setArea(val) {
+        document.getElementById('inputTsubo').value = val;
+        calcFromTsubo();
+    }
+    function clearUnitInputs() {
+        const inputs = document.getElementById('app-unit').querySelectorAll('input');
+        inputs.forEach(i => i.value = '');
+    }
+
+    // ==========================================
+    // アプリ4：電話メモ用 ロジック
+    // ==========================================
+    function updateMemoPreview() {
+        const dt = document.getElementById('memoTime').value;
+        const cl = document.getElementById('memoClient').value || '（相手名未入力）';
+        const ph = document.getElementById('memoPhone').value;
+        const bd = document.getElementById('memoBody').value || '特になし';
+        
+        let act = '';
+        const radios = document.getElementsByName('actionType');
+        for(let r of radios) if(r.checked) act = r.value;
+
+        const phLine = ph ? `■連絡先：${ph}\n` : '';
+        const res = `【電話メモ】\n■日時　：${dt}\n■相手　：${cl}\n${phLine}■用件\n${bd}\n\n-------------------------\n★対応：${act}`;
+        document.getElementById('resultMemo').value = res;
+    }
+    function copyMemoResult() {
+        copyToClipboard(document.getElementById('resultMemo').value);
+    }
+
+    // --- 共通ユーティリティ ---
+    function copyToClipboard(text) {
+        if (!text) { alert("内容が空です"); return; }
+        navigator.clipboard.writeText(text).then(() => {
+            const t = document.getElementById("toast");
+            t.className = "show";
+            setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
+        });
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>取り組み一覧F</title>
+
+<style>
+  :root{ --bg:#0f172a; --panel:#111827; --muted:#64748b; --text:#e5e7eb; --accent:#22c55e; --line:#1f2937; --red:#ef4444; --orange:#f97316; --yellow:#eab308; --green:#22c55e; --blue:#3b82f6; --violet:#8b5cf6; --pink:#ec4899; }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; background:var(--bg); color:var(--text)}
+  .toolbar{display:flex;gap:.5rem;align-items:center;padding:10px;position:sticky;top:0;background:linear-gradient(180deg,rgba(15,23,42,.95),rgba(15,23,42,.7));backdrop-filter:blur(6px);z-index:10;border-bottom:1px solid #1f2937}
+  .toolbar h1{margin:0;font-size:16px;opacity:.9;font-weight:600}
+  .spacer{flex:1}
+  .btn{background:#1f2937;border:1px solid #334155;color:var(--text);padding:.45rem .7rem;border-radius:.6rem;cursor:pointer}
+  .btn.ghost{background:transparent}
+  .btn.primary{background:#2563eb;border-color:#1d4ed8}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  input,select,textarea{background:#0b1220;border:1px solid #2b384b;color:var(--text);padding:.45rem .55rem;border-radius:.5rem}
+  .grid{display:grid;grid-template-columns: 360px 1fr; gap:0;border-top:1px solid var(--line)}
+  .left{border-right:1px solid var(--line)}
+  .section{padding:10px}
+  .filter-row{display:flex;flex-wrap:wrap;gap:.5rem;margin:.3rem 0 0}
+  .legend{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;font-size:12px;color:#cbd5e1}
+  .dot{width:.8rem;height:.8rem;border-radius:9999px;display:inline-block}
+  .table{width:100%;border-collapse:collapse}
+  .table th,.table td{padding:.45rem .5rem;border-bottom:1px solid #1f2937;font-size:12.5px}
+  .table th{color:#cbd5e1;text-align:left;position:sticky;top:84px;background:#0f172a;z-index:5}
+  .gantt{position:relative;overflow:auto;white-space:nowrap;height: calc(100vh - 160px);}
+  .gantt-inner{position:relative}
+  .col{display:inline-block; width:40px; border-right:1px solid #1f2937; color:#cbd5e1; text-align:center; font-size:11px; padding:.2rem 0}
+  .col.month{background:#0b1220; font-weight:600; border-right:1px solid #334155}
+  .row{position:relative;height:30px;border-bottom:1px dashed #22314a}
+  .bar{position:absolute;height:18px;border-radius:999px;display:flex;align-items:center;padding:0 8px;gap:6px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar .pct{opacity:.9}
+  .nowline{position:absolute;top:0;bottom:0;width:2px;background:var(--red);opacity:.8}
+  .tag{font-size:11px;padding:2px 6px;border-radius:999px;border:1px solid #314461;color:#cbd5e1}
+  .footer{padding:8px 10px;color:#93a3b8;font-size:12px;border-top:1px solid #1f2937}
+  .modal{position:fixed;inset:0;background:rgba(2,6,23,.6);display:none;align-items:center;justify-content:center;z-index:50}
+  .card{background:#0b1220;border:1px solid #22314a;border-radius:14px; padding:14px; width:min(980px,92vw)}
+  .rowf{display:grid;grid-template-columns:repeat(6,1fr);gap:.6rem;}
+  .rowf + .rowf{margin-top:.6rem}
+  .rowf .span2{grid-column: span 2}
+  .rowf .span3{grid-column: span 3}
+  .rowf .span4{grid-column: span 4}
+  .rowf .span6{grid-column: 1/-1}
+  .comment-wrap{border-top:1px solid #22314a;margin-top:.6rem;padding-top:.6rem}
+  .c-item{padding:.35rem 0;border-bottom:1px dashed #22314a}
+  .c-meta{font-size:11px;color:#aab3c2}
+  .c-body{font-size:13px;white-space:pre-wrap}
+  .c-new{display:flex;gap:.5rem;margin-top:.4rem}
+  .badge{font-size:11px;padding:2px 6px;border:1px solid #2b384b;border-radius:999px;color:#93a3b8}
+</style>
+</head>
+<body>
+  <div class="toolbar">
+    <h1>取り組み一覧F</h1>
+    <span id="backendLabel" class="badge">Firebase</span>
+    <div class="spacer"></div>
+    <button class="btn ghost" id="btnSignIn">サインイン</button>
+    <button class="btn ghost" id="btnSignOut" disabled>サインアウト</button>
+    <button class="btn" id="btnAdd">＋ 施策追加</button>
+    <button class="btn" id="btnSample">サンプル読込</button>
+    <button class="btn" id="btnExport">JSON書き出し</button>
+    <input type="file" id="fileImport" hidden accept="application/json,.json" />
+    <button class="btn" id="btnImport">JSON読み込み</button>
+    <button class="btn ghost" id="btnClear">全消去</button>
+  </div>
+
+  <div class="grid">
+    <div class="left section">
+      <div class="legend" style="margin-bottom:.4rem">
+        <span class="dot" style="background:var(--blue)"></span>進行中
+        <span class="dot" style="background:var(--green)"></span>完了
+        <span class="dot" style="background:var(--orange)"></span>保留
+        <span class="dot" style="background:var(--red)"></span>遅延
+      </div>
+      <div class="filter-row">
+        <input id="q" placeholder="検索：施策/メモ/タグ/スタッフ" style="min-width:200px" />
+        <select id="fStatus">
+          <option value="">全ステータス</option>
+          <option>進行中</option>
+          <option>完了</option>
+          <option>保留</option>
+          <option>遅延</option>
+        </select>
+        <select id="fOwner"></select>
+        <select id="fTag"></select>
+        <select id="fRange">
+          <option value="90">期間：90日</option>
+          <option value="180">期間：180日</option>
+          <option value="365">期間：1年</option>
+          <option value="all">期間：全て</option>
+        </select>
+        <button class="btn" id="btnToday">今日へ</button>
+      </div>
+      <table class="table" id="tbl">
+        <thead>
+          <tr>
+            <th>スタッフ</th>
+            <th>施策</th>
+            <th>開始</th>
+            <th>終了</th>
+            <th>進捗%</th>
+            <th>状態</th>
+            <th>タグ</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="section" style="padding:0">
+      <div id="gantt" class="gantt">
+        <div id="ganttInner" class="gantt-inner"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">データは Firebase Firestore に保存されます。行をクリックで編集、ダブルクリックで詳細。コメントはモーダル下部から追加。</div>
+
+  <div id="modal" class="modal">
+    <div class="card">
+      <h3 style="margin:0 0 .6rem">施策の追加 / 編集</h3>
+      <div class="rowf">
+        <div>
+          <label>スタッフ</label>
+          <input id="mOwner" placeholder="氏名" />
+        </div>
+        <div class="span3">
+          <label>施策名</label>
+          <input id="mTitle" placeholder="例：FAX自動振分けの見直し" />
+        </div>
+        <div>
+          <label>開始</label>
+          <input id="mStart" type="date" />
+        </div>
+        <div>
+          <label>終了</label>
+          <input id="mEnd" type="date" />
+        </div>
+      </div>
+      <div class="rowf">
+        <div>
+          <label>進捗%</label>
+          <input id="mPct" type="number" min="0" max="100" step="1" />
+        </div>
+        <div>
+          <label>状態</label>
+          <select id="mStatus">
+            <option>進行中</option>
+            <option>完了</option>
+            <option>保留</option>
+            <option>遅延</option>
+          </select>
+        </div>
+        <div class="span3">
+          <label>タグ（,区切り）</label>
+          <input id="mTags" placeholder="例：標準化,教育,在庫" />
+        </div>
+      </div>
+      <div class="rowf">
+        <div class="span6">
+          <label>メモ</label>
+          <input id="mNote" placeholder="補足メモ" />
+        </div>
+      </div>
+
+      <div class="comment-wrap" id="cWrap" style="display:none">
+        <div style="display:flex;align-items:center;gap:.6rem;justify-content:space-between">
+          <h4 style="margin:.2rem 0">進捗コメント</h4>
+          <span id="cCount" class="badge">0件</span>
+        </div>
+        <div id="cList"></div>
+        <div class="c-new">
+          <input id="cInput" placeholder="進捗や次アクションなどを記録" />
+          <button class="btn" id="cAdd">追加</button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.8rem">
+        <button class="btn ghost" id="btnCancel">キャンセル</button>
+        <button class="btn primary" id="btnSave">保存</button>
+      </div>
+    </div>
+  </div>
+
+<script type="module">
+/* ====== Firebase SDK ====== */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js";
+import { getFirestore, doc, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.0/firebase-auth.js";
+
+/* ====== あなたの Firebase 設定に差し替え ====== */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.web.app",
+  projectId: "YOUR_PROJECT_ID",
+  // storageBucket/appId等があれば追加
+};
+
+/* ====== ユーティリティ ====== */
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+let tasks = [];
+let editId = null;
+let currentUser = { name: '匿名', email: '' };
+
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function fmt(d){ if(!d) return ''; const dt=new Date(d); return dt.toISOString().slice(0,10); }
+function days(a,b){ const A=new Date(a), B=new Date(b); return Math.round((B-A)/(1000*60*60*24)); }
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+function colorOf(status){ return ({'進行中':'var(--blue)','完了':'var(--green)','保留':'var(--orange)','遅延':'var(--red)'}[status]||'var(--violet)'); }
+function escapeHtml(s){ return (s??'').toString().replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ====== フィルタ & 描画 ====== */
+function applyFilters(list){
+  const q = $('#q').value.trim().toLowerCase();
+  const s = $('#fStatus').value;
+  const o = $('#fOwner').value;
+  const t = $('#fTag').value;
+  return list.filter(r=>{
+    const text = [r.owner,r.title,r.note,(r.tags||[]).join(',')].join(' ').toLowerCase();
+    if(q && !text.includes(q)) return false;
+    if(s && r.status!==s) return false;
+    if(o && r.owner!==o) return false;
+    if(t && !(r.tags||[]).includes(t)) return false;
+    return true;
+  });
+}
+function rebuildFilters(){
+  const owners = [...new Set(tasks.map(t=>t.owner).filter(Boolean))].sort();
+  const tags = [...new Set(tasks.flatMap(t=>t.tags||[]))].sort();
+  $('#fOwner').innerHTML = '<option value="">全スタッフ</option>' + owners.map(v=>`<option>${escapeHtml(v)}</option>`).join('');
+  $('#fTag').innerHTML = '<option value="">全タグ</option>' + tags.map(v=>`<option>${escapeHtml(v)}</option>`).join('');
+}
+function render(){
+  rebuildFilters();
+  const list = applyFilters(tasks).sort((a,b)=> (a.start||'').localeCompare(b.start||''));
+  const tbody = $('#tbl tbody');
+  tbody.innerHTML = list.map(r=>`<tr data-id="${r.id}">
+    <td>${escapeHtml(r.owner||'')}</td>
+    <td>${escapeHtml(r.title||'')}</td>
+    <td>${escapeHtml(fmt(r.start))}</td>
+    <td>${escapeHtml(fmt(r.end))}</td>
+    <td>${r.pct ?? 0}</td>
+    <td>${escapeHtml(r.status||'')}</td>
+    <td>${(r.tags||[]).map(t=>`<span class="tag">${escapeHtml(t)}</span>`).join(' ')}</td>
+    <td>
+      <button class="btn" data-act="edit">編集</button>
+      <button class="btn" data-act="comment">コメント</button>
+      <button class="btn" data-act="del">削除</button>
+    </td>
+  </tr>`).join('');
+
+  // timeline 範囲
+  let min = list.reduce((m,r)=> r.start && (!m || r.start<m)? r.start : m, null);
+  let max = list.reduce((m,r)=> r.end && (!m || r.end>m)? r.end : m, null);
+  if(!min||!max){
+    const today = new Date();
+    min = new Date(today.getFullYear(), today.getMonth(), today.getDate()-15).toISOString().slice(0,10);
+    max = new Date(today.getFullYear(), today.getMonth(), today.getDate()+75).toISOString().slice(0,10);
+  }
+  const rangeSel = $('#fRange').value;
+  if(rangeSel!=='all'){
+    const span = Number(rangeSel);
+    const today = new Date().toISOString().slice(0,10);
+    min = new Date(new Date(today).getTime() - (span/3*24*3600*1000)).toISOString().slice(0,10);
+    max = new Date(new Date(today).getTime() + (span*2/3*24*3600*1000)).toISOString().slice(0,10);
+  }
+  drawGantt(list, min, max);
+}
+function drawGantt(list, minISO, maxISO){
+  const start = new Date(minISO);
+  const end = new Date(maxISO);
+  const totalDays = Math.max(1, days(start, end)+1);
+  const inner = $('#ganttInner'); inner.innerHTML = '';
+
+  const headerMonths = document.createElement('div'); headerMonths.style.position='sticky'; headerMonths.style.top='0'; headerMonths.style.zIndex='4';
+  let cm = new Date(start);
+  while(cm <= end){
+    const monthStart = new Date(cm.getFullYear(), cm.getMonth(), 1);
+    const monthEnd = new Date(cm.getFullYear(), cm.getMonth()+1, 0);
+    const segStart = monthStart<start? start: monthStart;
+    const segEnd = monthEnd>end? end: monthEnd;
+    const segDays = days(segStart, segEnd)+1;
+    const mDiv = document.createElement('div'); mDiv.className='col month'; mDiv.style.width = (segDays*40)+'px';
+    mDiv.textContent = `${segStart.getFullYear()}/${(segStart.getMonth()+1).toString().padStart(2,'0')}`;
+    headerMonths.appendChild(mDiv);
+    cm = new Date(cm.getFullYear(), cm.getMonth()+1, 1);
+  }
+  inner.appendChild(headerMonths);
+
+  const headerDays = document.createElement('div');
+  for(let i=0;i<totalDays;i++){
+    const d = new Date(start.getTime()+i*24*3600*1000);
+    const col = document.createElement('div'); col.className='col';
+    const w = d.getDay(); col.style.background = (w===0||w===6) ? '#0b1220' : 'transparent';
+    col.textContent = d.getDate(); headerDays.appendChild(col);
+  }
+  inner.appendChild(headerDays);
+
+  list.forEach((r)=>{
+    const row = document.createElement('div'); row.className='row'; row.style.width=(totalDays*40)+'px'; row.dataset.id=r.id;
+    if(r.start && r.end){
+      const s = new Date(r.start); const e = new Date(r.end);
+      const left = clamp(days(start, s), 0, totalDays-1) * 40;
+      const right = clamp(days(start, e)+1, 0, totalDays) * 40;
+      const width = Math.max(10, right-left-4);
+      const bar = document.createElement('div'); bar.className='bar'; bar.style.left=(left+2)+'px'; bar.style.width=width+'px';
+      bar.style.top='6px'; bar.style.background=colorOf(r.status);
+      bar.title = `${r.owner}｜${r.title}｜${fmt(r.start)}→${fmt(r.end)}｜${r.pct||0}%`;
+      bar.innerHTML = `<span>${escapeHtml(r.title)}</span><span class='pct'>${r.pct||0}%</span>`;
+      row.appendChild(bar);
+    }
+    inner.appendChild(row);
+  });
+
+  const todayISO = new Date().toISOString().slice(0,10);
+  const t = new Date(todayISO);
+  if(t>=start && t<=end){
+    const x = (days(start, t)+.5)*40;
+    const nl = document.createElement('div'); nl.className='nowline'; nl.style.left=x+'px'; inner.appendChild(nl);
+  }
+}
+
+/* ====== Firebase 実装 ====== */
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+const FireProvider = {
+  async init(){
+    $('#btnSignIn').onclick = ()=> this.signIn();
+    $('#btnSignOut').onclick = ()=> this.signOut();
+    onAuthStateChanged(auth, async (user)=>{
+      if(user){
+        currentUser = { name: user.displayName||'ユーザー', email: user.email||'' };
+        $('#btnSignOut').disabled = false;
+      }else{
+        currentUser = { name:'匿名', email:'' };
+        $('#btnSignOut').disabled = true;
+      }
+      tasks = await this.loadTasks(); render();
+    });
+    return this;
+  },
+  async signIn(){ await signInWithPopup(auth, provider).catch(e=> alert('サインイン失敗: '+e.message)); },
+  async signOut(){ await signOut(auth); },
+
+  async loadTasks(){
+    const snap = await getDocs(collection(db,'tasks'));
+    const list = [];
+    snap.forEach(d=>{
+      const f = d.data()||{};
+      list.push({
+        id: f.id || d.id,
+        owner: f.owner||'',
+        title: f.title||'',
+        start: f.start||null,
+        end: f.end||null,
+        pct: Number(f.pct||0),
+        status: f.status||'進行中',
+        tags: Array.isArray(f.tags)? f.tags : (typeof f.tags==='string'? f.tags.split(',').map(s=>s.trim()).filter(Boolean): []),
+        note: f.note||'',
+      });
+    });
+    return tasks = list;
+  },
+  async createTask(rec){
+    const id = rec.id || uid();
+    await setDoc(doc(db,'tasks', id), { ...rec, id, tags: rec.tags||[] }, { merge:true });
+    tasks.push({ ...rec, id });
+    return rec;
+  },
+  async updateTask(rec){
+    if(!rec.id) rec.id = uid();
+    await setDoc(doc(db,'tasks', rec.id), { ...rec, tags: rec.tags||[] }, { merge:true });
+    tasks = tasks.map(t=> t.id===rec.id ? rec : t);
+    return rec;
+  },
+  async deleteTask(id){
+    await deleteDoc(doc(db,'tasks', id));
+    tasks = tasks.filter(t=> t.id!==id);
+  },
+
+  async getComments(taskId){
+    // where のみ（orderBy はクライアントで実施）→ 追加の複合インデックス不要
+    const qref = query(collection(db,'comments'), where('taskId','==',taskId));
+    const snap = await getDocs(qref);
+    const out = [];
+    snap.forEach(d=>{
+      const f=d.data()||{};
+      const ts = f.createdAt?.seconds ? new Date(f.createdAt.seconds*1000) : (f.createdAt? new Date(f.createdAt): new Date());
+      out.push({ id:d.id, taskId, author:f.author||'', text:f.text||'', createdAt: ts.toISOString() });
+    });
+    out.sort((a,b)=> a.createdAt.localeCompare(b.createdAt));
+    return out;
+  },
+  async addComment(taskId, text){
+    const id = (crypto.randomUUID && crypto.randomUUID()) || uid();
+    await setDoc(doc(db,'comments', id), {
+      taskId, author: currentUser.name, text, createdAt: serverTimestamp()
+    });
+    return await this.getComments(taskId);
+  },
+  getUser(){ return currentUser; }
+};
+
+/* ====== 画面イベント ====== */
+$('#btnAdd').onclick = ()=> openModal();
+$('#btnCancel').onclick = closeModal;
+$('#btnSave').onclick = async ()=>{
+  const rec = collectModal(); if(!rec) return;
+  if(editId){ await FireProvider.updateTask(rec); } else { await FireProvider.createTask(rec); }
+  closeModal(); render();
+};
+$('#tbl').addEventListener('click', async (e)=>{
+  const btn = e.target.closest('button'); if(!btn) return;
+  const tr = e.target.closest('tr'); const id = tr?.dataset.id; if(!id) return;
+  const rec = tasks.find(t=> t.id===id);
+  if(btn.dataset.act==='edit'){ openModal(rec); }
+  if(btn.dataset.act==='comment'){ openModal(rec, true); }
+  if(btn.dataset.act==='del'){ if(confirm('削除しますか？')){ await FireProvider.deleteTask(id); render(); } }
+});
+$('#tbl').addEventListener('dblclick', (e)=>{
+  const tr = e.target.closest('tr'); if(!tr) return;
+  const id = tr.dataset.id; const rec = tasks.find(t=>t.id===id);
+  if(rec) openModal(rec);
+});
+['#q','#fStatus','#fOwner','#fTag','#fRange'].forEach(sel=> $(sel).addEventListener('input', render));
+$('#btnToday').onclick = ()=>{
+  const nl = document.getElementById('ganttInner').querySelector('.nowline');
+  if(nl){ document.getElementById('gantt').scrollLeft = nl.offsetLeft - 200; }
+};
+$('#btnSample').onclick = async ()=>{
+  if(tasks.length && !confirm('現在のデータにサンプルを追加します。よろしいですか？')) return;
+  const today = new Date();
+  const mk = (o,t,off,len,pct,st,tags)=>({
+    id:uid(),owner:o,title:t,
+    start:fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+off)),
+    end:fmt(new Date(today.getFullYear(),today.getMonth(),today.getDate()+off+len)),
+    pct, status:st, tags, note:'', comments:[]
+  });
+  const sample=[
+    mk('坂田','受注テンプレ整備',-10,25,60,'進行中',['標準化']),
+    mk('黒田','在庫問合せコード整理',-5,20,40,'遅延',['在庫','教育']),
+    mk('北出','FAX自動仕分け見直し',0,30,20,'進行中',['RPA','AI-OCR']),
+    mk('矢野','業務マニュアル刷新',-20,15,100,'完了',['教育','標準化']),
+    mk('大渕','応答率改善（一次対応）',10,40,0,'保留',['コールセンター'])
+  ];
+  for(const s of sample){ await FireProvider.createTask(s); }
+  tasks = await FireProvider.loadTasks(); render();
+};
+$('#btnExport').onclick = ()=>{
+  const blob = new Blob([JSON.stringify(tasks, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'gantt_tasks.json'; a.click();
+};
+$('#btnImport').onclick = ()=> $('#fileImport').click();
+$('#fileImport').onchange = async (e)=>{
+  const file = e.target.files[0]; if(!file) return;
+  const fr = new FileReader();
+  fr.onload = async ()=>{
+    try{
+      const arr = JSON.parse(fr.result);
+      if(!Array.isArray(arr)) throw new Error('配列ではありません');
+      arr.forEach(r=>{ r.id = r.id||uid(); r.tags = r.tags||[]; r.pct = Number(r.pct||0); });
+      for(const r of arr){
+        const exists = tasks.some(t=>t.id===r.id);
+        if(exists) await FireProvider.updateTask(r); else await FireProvider.createTask(r);
+      }
+      tasks = await FireProvider.loadTasks(); render();
+    }catch(err){ alert('読み込み失敗：'+err.message); }
+  };
+  fr.readAsText(file);
+};
+
+function openModal(rec, focusComment=false){
+  $('#modal').style.display='flex';
+  editId = rec? rec.id : null;
+  $('#mOwner').value = rec?.owner||'';
+  $('#mTitle').value = rec?.title||'';
+  $('#mStart').value = rec?.start||'';
+  $('#mEnd').value = rec?.end||'';
+  $('#mPct').value = rec?.pct??0;
+  $('#mStatus').value = rec?.status||'進行中';
+  $('#mTags').value = (rec?.tags||[]).join(',');
+  $('#mNote').value = rec?.note||'';
+  $('#cWrap').style.display = rec? 'block':'none';
+  if(rec){ loadComments(rec.id); }
+  if(focusComment){ setTimeout(()=> $('#cInput')?.focus(), 50); }
+}
+function closeModal(){ $('#modal').style.display='none'; }
+function collectModal(){
+  const rec = {
+    id: editId||uid(),
+    owner: $('#mOwner').value.trim(),
+    title: $('#mTitle').value.trim(),
+    start: $('#mStart').value||null,
+    end: $('#mEnd').value||null,
+    pct: Number($('#mPct').value||0),
+    status: $('#mStatus').value,
+    tags: $('#mTags').value.split(',').map(s=>s.trim()).filter(Boolean),
+    note: $('#mNote').value.trim()
+  };
+  if(!rec.owner||!rec.title){ alert('スタッフと施策名は必須です'); return null; }
+  return rec;
+}
+async function loadComments(taskId){
+  const list = await FireProvider.getComments(taskId);
+  const box = $('#cList'); box.innerHTML='';
+  $('#cCount').textContent = `${list.length}件`;
+  list.forEach(c=>{
+    const el = document.createElement('div'); el.className='c-item';
+    el.innerHTML = `<div class="c-body"><div class="c-meta">${escapeHtml(c.author||'')}・${fmt(c.createdAt)}</div>${escapeHtml(c.text||'')}</div>`;
+    box.appendChild(el);
+  });
+}
+(async function init(){
+  $('#backendLabel').textContent = 'Firebase';
+  await FireProvider.init();
+})();
+</script>
+</body>
+</html>

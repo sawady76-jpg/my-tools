@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>品質・コスト見える化（1ヶ月）</title>
+<style>
+  :root{--bg:#0f172a;--panel:#111827;--muted:#cbd5e1;--text:#e5e7eb;--accent:#22c55e;--warn:#f59e0b;--danger:#ef4444;--line:#374151}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic UI","Yu Gothic",Meiryo,sans-serif}
+  header{padding:18px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(15,23,42,.9);backdrop-filter:saturate(180%) blur(6px)}
+  h1{margin:0;font-size:18px}
+  .wrap{max-width:1200px;margin:20px auto;padding:0 16px}
+  .grid{display:grid;gap:16px}
+  .g-2{grid-template-columns:repeat(2,1fr)}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
+  label{display:block;margin:8px 0 4px;color:var(--muted)}
+  input[type="number"],input[type="text"],textarea,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:#0b1220;color:var(--text)}
+  textarea{min-height:120px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{appearance:none;border:1px solid var(--line);background:#0b1220;color:var(--text);padding:10px 14px;border-radius:10px;cursor:pointer}
+  .btn:hover{border-color:#4b5563}
+  .btn.primary{background:var(--accent);border-color:#16a34a;color:#001b09;font-weight:700}
+  .btn.ghost{background:transparent}
+  .hint{font-size:12px;color:var(--muted)}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .card{padding:14px;border-radius:12px;border:1px solid var(--line);background:#0b1220}
+  .card h3{margin:0 0 6px;font-size:12px;color:var(--muted)}
+  .card .big{font-size:22px;font-weight:800}
+  table{width:100%;border-collapse:collapse;font-feature-settings:"tnum" 1}
+  thead th{position:sticky;top:60px;background:#0b1220;border-bottom:1px solid var(--line);padding:8px;text-align:left}
+  tbody td{border-bottom:1px solid var(--line);padding:8px}
+  .right{text-align:right}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+  .green{background:rgba(34,197,94,.15);color:#86efac}
+  .amber{background:rgba(245,158,11,.15);color:#fcd34d}
+  .red{background:rgba(239,68,68,.15);color:#fca5a5}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+  .stack{display:flex;flex-direction:column;gap:8px}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace}
+  .small{font-size:12px;color:var(--muted)}
+  .monthsBox{min-height:140px;border:1px dashed var(--line);border-radius:12px;padding:12px;background:#0b1220}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;margin:4px 6px 0 0;background:#0b1220}
+  .note{opacity:.8}
+</style>
+</head>
+<body>
+<header>
+  <h1>品質・コスト見える化（1ヶ月データ貼り付け）</h1>
+</header>
+<div class="wrap grid g-2">
+  <!-- ① パラメータ -->
+  <section class="panel stack">
+    <h2 style="margin:0">① パラメータ</h2>
+    <div class="grid g-2">
+      <div>
+        <label>月給（平均・円）</label>
+        <input id="salary" type="number" value="300000" min="0" step="1000">
+        <div class="hint">※個別時給をCSVに含める場合は、こちらは初期値として扱います（列名: <span class="mono">時給</span>）。</div>
+      </div>
+      <div>
+        <label>所定労働時間（月・h）</label>
+        <input id="stdHours" type="number" value="160" min="1" step="1">
+      </div>
+      <div>
+        <label>集計モード</label>
+        <select id="mode">
+          <option value="simple">簡易：時間外 +25% のみ</option>
+          <option value="precise">精緻：日中/深夜/休日の割増を分解</option>
+        </select>
+      </div>
+      <div>
+        <label>対象年月（例: Aug-25）</label>
+        <input id="targetYm" type="text" placeholder="例: Aug-25">
+        <div class="hint">※残業CSV・件数CSVの <span class="mono">年月</span> と一致させてください（1ヶ月前提）。</div>
+      </div>
+    </div>
+    <div class="grid g-2">
+      <div>
+        <label>処理件数に含める項目</label>
+        <div class="row small">
+          <label><input type="checkbox" class="cnt-toggle" data-key="電話受信件数" checked> 電話受信件数</label>
+          <label><input type="checkbox" class="cnt-toggle" data-key="受注処理件数" checked> 受注処理件数</label>
+          <label><input type="checkbox" class="cnt-toggle" data-key="受発注処理件数" checked> 受発注処理件数</label>
+          <label><input type="checkbox" class="cnt-toggle" data-key="発注処理件数" checked> 発注処理件数</label>
+          <label><input type="checkbox" class="cnt-toggle" data-key="見積処理件数" checked> 見積処理件数</label>
+        </div>
+        <div class="hint">※件数CSVのヘッダは上記の日本語列名でOK。<br>※<span class="mono">名前</span> 列でも突合できます（<span class="mono">氏名</span>の代替）。<br>※<span class="mono">対象</span> 列がある場合は、下のチェックに応じて <span class="mono">対象=1</span> の行だけ集計します。</div>
+        <div class="row small" style="margin-top:6px">
+          <label><input type="checkbox" id="flagTargetOnly" checked> 対象列があるときは <b>対象=1 のみ</b>集計</label>
+        </div>
+      </div>
+      <div class="stack">
+        <label>並び替え</label>
+        <div class="controls">
+          <select id="sortKey">
+            <option value="unitCost">1件単価（精緻/簡易）</option>
+            <option value="totalCost">総労務コスト</option>
+            <option value="workHours">実働時間</option>
+            <option value="totalCount">総処理件数</option>
+            <option value="otShare">残業由来比率</option>
+          </select>
+          <select id="sortDir">
+            <option value="asc">昇順</option>
+            <option value="desc" selected>降順</option>
+          </select>
+          <button class="btn" id="resort">並び替え</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ② 貼り付けエリア -->
+  <section class="panel">
+    <h2 style="margin:0 0 8px">② データ貼り付け（CSV / 1ヶ月分）</h2>
+    <div class="grid g-2">
+      <div>
+        <label>残業CSV（必要列：<span class="mono">氏名, 年月, 実働時間, 残業時間</span>。精緻版は各種時間列）</label>
+        <textarea id="csvOT" placeholder="ここに残業CSVを貼り付け"></textarea>
+        <div class="row" style="margin-top:6px">
+          <button class="btn" id="saveOT">インポート&保存（この月・残業）</button>
+        </div>
+      </div>
+      <div>
+        <label>件数CSV（例：<span class="mono">氏名/名前, 年月(任意), 電話受信件数, 受注処理件数, 受発注処理件数, 発注処理件数, 見積処理件数, (任意) 対象</span>）</label>
+        <textarea id="csvCNT" placeholder="ここに件数CSVを貼り付け"></textarea>
+        <div class="row" style="margin-top:6px">
+          <button class="btn" id="saveCNT">インポート&保存（この月・件数）</button>
+        </div>
+        <div class="hint">※ <span class="mono">~処理平均</span> の列は自動で無視。<br>※ 保存はブラウザの <b>localStorage</b> に行います（PC変更やキャッシュ削除で消えます）。</div>
+      </div>
+    </div>
+    <div class="grid g-2" style="margin-top:12px">
+      <div>
+        <label>電話CSV（任意・原票のままOK／<span class="mono">受発注</span> 列に「受発注」を含む行のみ対象。<span class="mono">内外線計</span> または日付列を合計）</label>
+        <textarea id="csvTEL" placeholder="ここに電話CSV（原票）を貼り付け"></textarea>
+        <div class="row" style="margin-top:6px">
+          <button class="btn" id="saveTEL">インポート&保存（この月・電話）</button>
+        </div>
+        <div class="hint">※ 貼らなくてもOK。貼った場合は <b>電話受信件数</b> を自動で月合計に変換して件数CSVへマージします。</div>
+      </div>
+      <div class="small note">
+        <b>入力ヒント</b><br>
+        ・残業CSVのヘッダ例: 氏名, 年月, 実働時間, 残業時間, 法定時間外労働時間_日中_, 法定時間外労働時間_深夜_, 法定外休日労働時間_日中_, 法定外休日労働時間_深夜_, 法定休日労働時間_日中_, 法定休日労働時間_深夜_<br>
+        ・電話CSVの <span class="mono">名前</span> は「【拠点】氏名」でもOK（拠点名は自動で無視して氏名を突合）。
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" id="run">計算する</button>
+      <button class="btn ghost" id="dlCsv">結果をCSVでダウンロード</button>
+      <button class="btn ghost" id="loadSaved">保存済みを読み込み</button>
+      <button class="btn" id="clearMonth">この月の保存をクリア</button>
+      <span class="hint">※貼り付け→インポート&保存→計算する。保存済みがあれば「計算する」で自動読込（同月は丸ごと差し替え）。</span>
+    </div>
+  </section>
+
+  <!-- ③ サマリー -->
+  <section class="panel">
+    <h2 style="margin:0 0 8px">③ サマリー</h2>
+    <div class="kpi" id="kpi">
+      <div class="card"><h3>全社平均 1件単価</h3><div class="big" id="k_avgUnit">-</div></div>
+      <div class="card"><h3>総労務コスト（月）</h3><div class="big" id="k_totalCost">-</div></div>
+      <div class="card"><h3>残業由来コスト比率</h3><div class="big" id="k_otShare">-</div></div>
+      <div class="card"><h3>総処理件数（月）</h3><div class="big" id="k_totalCnt">-</div></div>
+    </div>
+  </section>
+
+  <!-- ④ 個人別一覧 -->
+  <section class="panel">
+    <h2 style="margin:0 0 8px">④ 個人別一覧（クリックで列ソート）</h2>
+    <div class="small" style="margin-bottom:8px">※ <span class="badge green">低単価</span> 良／ <span class="badge amber">注意</span> 中／ <span class="badge red">高単価</span> 要改善（全社平均±15%基準）</div>
+    <div style="overflow:auto; max-height:52vh">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th data-key="name">氏名</th>
+            <th data-key="ym">年月</th>
+            <th class="right" data-key="totalCount">総処理件数</th>
+            <th class="right" data-key="workHours">実働h</th>
+            <th class="right" data-key="otHours">残業h</th>
+            <th class="right" data-key="totalCost">総コスト</th>
+            <th class="right" data-key="unitCost">1件単価</th>
+            <th class="right" data-key="otShare">残業比率</th>
+            <th class="right" data-key="benchDelta">ベンチ差額</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ⑤ 保存済みの月一覧 -->
+  <section class="panel" id="saved">
+    <h2 style="margin:0 0 8px">⑤ 保存済みの月一覧</h2>
+    <div class="monthsBox" id="monthsBox">保存はまだありません</div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="refreshMonths">更新</button>
+      <span class="hint">一番新しい月は起動時に<b>自動プリセット</b>されます。</span>
+    </div>
+  </section>
+
+  <!-- ⑥ 内蔵テスト（任意） -->
+  <section class="panel">
+    <h2 style="margin:0 0 8px">⑥ 内蔵テスト（任意）</h2>
+    <div class="row">
+      <button class="btn" id="btnDemo">デモデータを挿入してテスト</button>
+      <span class="hint">※ ボタンでテスト用CSVが貼られ、計算＆簡易検証を実行します。</span>
+    </div>
+    <pre id="testOut" class="small" style="white-space:pre-wrap;margin-top:8px"></pre>
+  </section>
+</div>
+
+<script>
+// ---------- 汎用ユーティリティ ----------
+function stripBOM(text){ return text.replace(/^\uFEFF/, ''); }
+function parseCSV(text){
+  text = stripBOM(text||'');
+  const rows=[]; let i=0, field='', row=[], inQuotes=false;
+  while(i<text.length){
+    const c=text[i];
+    if(inQuotes){
+      if(c==='"'){
+        if(text[i+1]==='"'){ field+='"'; i++; } else { inQuotes=false; }
+      } else { field+=c; }
+    } else {
+      if(c==='"'){ inQuotes=true; }
+      else if(c===','){ row.push(field); field=''; }
+      else if(c==='\n'){ row.push(field); rows.push(row); row=[]; field=''; }
+      else if(c==='\r'){ /* ignore */ }
+      else { field+=c; }
+    }
+    i++;
+  }
+  if(field!==''||row.length){ row.push(field); rows.push(row); }
+  return rows;
+}
+function rowsToObjects(rows){
+  if(!rows.length) return [];
+  const header=rows[0].map(h=>String(h||'').trim());
+  return rows.slice(1)
+    .filter(r=>r.some(x=>String(x).trim()!==''))
+    .map(r=>{ const o={}; header.forEach((h,idx)=>o[h]=r[idx]!==undefined?String(r[idx]).trim():'' ); return o; });
+}
+function num(v){ if(v===undefined||v===null||v==='') return 0; const n=Number(String(v).replace(/,/g,'')); return isFinite(n)?n:0 }
+function yen(n){ return n.toLocaleString('ja-JP',{style:'currency',currency:'JPY',maximumFractionDigits:0}); }
+function pct(n){ return (n*100).toFixed(1)+'%'; }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+function fmt0(n){ return (n??0).toLocaleString('ja-JP',{maximumFractionDigits:0}); }
+function fmt1(n){ return (n??0).toLocaleString('ja-JP',{maximumFractionDigits:1}); }
+function normalizeName(s){ return String(s||'').replace(/^\s*[\u3010\[(（(【][^\u3011\])）)】]*[\u3011\])）)】]\s*/, '').replace(/\s+/g,'').trim(); }
+
+// ---------- 列名定義 ----------
+const CNT_KEYS=["電話受信件数","受注処理件数","受発注処理件数","発注処理件数","見積処理件数"];
+const AVG_SUFFIX=/処理平均$/;
+
+// ---------- ストレージ（localStorage） ----------
+const LS_KEY='costdash:v3';
+function loadStore(){ try{ return JSON.parse(localStorage.getItem(LS_KEY)||'{"months":{}}'); }catch(e){ return {months:{}} } }
+function saveStore(store){ localStorage.setItem(LS_KEY, JSON.stringify(store)); }
+function saveMonthPart(ym, part, csv){
+  if(!ym){ alert('対象年月を入力してください'); return }
+  const st=loadStore(); if(!st.months[ym]) st.months[ym]={cntCsv:'', otCsv:'', telCsv:'', ts:''};
+  st.months[ym][part]=csv; st.months[ym].ts=new Date().toISOString(); saveStore(st);
+  const label = part==='cntCsv'? '件数' : (part==='otCsv'? '残業' : '電話');
+  alert(`保存しました：${ym}（${label}）\n同月の既存データは丸ごと差し替えています。`);
+  renderMonths();
+}
+function loadMonthToTextareas(ym){
+  const st=loadStore(); const m=st.months[ym]; if(!m){ alert('保存が見つかりません'); return }
+  if(m.otCsv) document.getElementById('csvOT').value=m.otCsv;
+  if(m.cntCsv) document.getElementById('csvCNT').value=m.cntCsv;
+  if(m.telCsv) document.getElementById('csvTEL').value=m.telCsv;
+}
+function clearMonth(ym){ const st=loadStore(); if(!st.months[ym]){ alert('保存が見つかりません'); return } delete st.months[ym]; saveStore(st); alert(`クリアしました：${ym}`); renderMonths(); }
+function getLatestYm(){
+  const st=loadStore(); const entries=Object.entries(st.months);
+  if(!entries.length) return '';
+  entries.sort((a,b)=>{
+    const tb=new Date(b[1].ts||'1970-01-01')-new Date(a[1].ts||'1970-01-01');
+    if(tb!==0) return tb; return b[0].localeCompare(a[0]);
+  });
+  return entries[0][0];
+}
+function renderMonths(){
+  const box=document.getElementById('monthsBox'); const st=loadStore(); const months=Object.keys(st.months);
+  if(!months.length){ box.textContent='保存はまだありません'; return }
+  months.sort((a,b)=>b.localeCompare(a));
+  box.innerHTML='';
+  months.forEach(ym=>{
+    const m=st.months[ym];
+    const pill=document.createElement('div'); pill.className='pill';
+    pill.innerHTML=`<strong>${escapeHtml(ym)}</strong>`+
+      (m.cntCsv?'<span class="badge green">件数</span>':'<span class="badge amber">件数なし</span>')+
+      (m.otCsv?'<span class="badge green">残業</span>':'<span class="badge amber">残業なし</span>')+
+      (m.telCsv?'<span class="badge green">電話</span>':'<span class="badge amber">電話なし</span>')+
+      ` <button class="btn" style="padding:4px 8px" data-load="${ym}">読込</button>`+
+      ` <button class="btn ghost" style="padding:4px 8px" data-del="${ym}">削除</button>`;
+    box.appendChild(pill);
+  });
+  box.onclick=(e)=>{ const ym=e.target.getAttribute('data-load'); const del=e.target.getAttribute('data-del'); if(ym){ document.getElementById('targetYm').value=ym; loadMonthToTextareas(ym); } if(del && confirm(`${del} を削除しますか？`)){ clearMonth(del); } };
+}
+
+// ---------- 電話CSV → 人別 月合計（受発注のみ） ----------
+function buildTelCountMap(telCsv){
+  if(!telCsv) return new Map();
+  const rows=rowsToObjects(parseCSV(telCsv));
+  const map=new Map();
+  for(const r of rows){
+    const tag=(r['受発注']||'').trim(); if(!tag || tag.indexOf('受発注')===-1) continue;
+    const rawName=r['名前']||r['氏名']||''; const name=normalizeName(rawName);
+    let v=0;
+    if(r['内外線計']!==undefined && r['内外線計']!==''){ v=num(r['内外線計']); }
+    else { // 日付列などを合計
+      for(const [k,val] of Object.entries(r)){
+        if(/\d{4}\/(?:0?[1-9]|1[0-2])\/(?:0?[1-9]|[12]\d|3[01])/.test(k)) v+=num(val);
+      }
+    }
+    map.set(name, (map.get(name)||0)+v);
+  }
+  return map;
+}
+
+// ---------- 計算メイン ----------
+function calc(){
+  const salary=num(document.getElementById('salary').value||300000);
+  const stdHours=num(document.getElementById('stdHours').value||160);
+  const mode=document.getElementById('mode').value;
+  const targetYm=(document.getElementById('targetYm').value||'').trim();
+  const useKeys=[...document.querySelectorAll('.cnt-toggle')].filter(x=>x.checked).map(x=>x.dataset.key);
+  const targetOnly=!!document.getElementById('flagTargetOnly')?.checked;
+
+  // 未貼付なら保存から補完
+  let otText=document.getElementById('csvOT').value.trim();
+  let cntText=document.getElementById('csvCNT').value.trim();
+  let telText=document.getElementById('csvTEL').value.trim();
+  if((!otText||!cntText||!telText) && targetYm){ const st=loadStore(); const m=st.months[targetYm]; if(m){ if(!otText && m.otCsv) otText=m.otCsv; if(!cntText && m.cntCsv) cntText=m.cntCsv; if(!telText && m.telCsv) telText=m.telCsv; } }
+  if(!otText||!cntText){ alert('残業CSVと件数CSV（または保存済み）を用意してください'); return }
+
+  const telMap=buildTelCountMap(telText);
+  const ot=rowsToObjects(parseCSV(otText));
+  const cnt=rowsToObjects(parseCSV(cntText));
+
+  // 件数マップ index: normalizedName|ym
+  const idxCnt=new Map();
+  for(const r of cnt){
+    if(targetYm && String(r['年月']||'').trim() && String(r['年月']).trim()!==targetYm) continue;
+    if(targetOnly && '対象' in r && String(r['対象']).trim()!=='1') continue;
+    const raw=(r['氏名']||r['名前']||'').trim(); if(!raw) continue;
+    const keyName=normalizeName(raw);
+    const ym=(r['年月']&&String(r['年月']).trim())? String(r['年月']).trim(): targetYm; // 年月が無ければUI値
+    idxCnt.set(keyName+"|"+ym, r);
+  }
+
+  const rows=[];
+  for(const r of ot){
+    if(targetYm && String(r['年月']).trim()!==targetYm) continue;
+    const raw=(r['氏名']||r['名前']||'').trim(); const nameNorm=normalizeName(raw);
+    const ym=(r['年月']&&String(r['年月']).trim())? String(r['年月']).trim(): targetYm;
+    const cr=idxCnt.get(nameNorm+"|"+ym); if(!cr) continue; // 件数なしはスキップ
+
+    // 時給：個別があれば優先、無ければ平均から算出
+    const hourly=cr['時給']? num(cr['時給']) : (salary/stdHours);
+
+    const workHours=num(r['実働時間']);
+    const otHours=num(r['残業時間']);
+
+    // 総処理件数（~処理平均の列は無視）
+    let totalCount=0;
+    for(const k of CNT_KEYS){ if(!AVG_SUFFIX.test(k) && useKeys.includes(k)){
+      if(k==='電話受信件数'){
+        const explicit=num(cr[k]);
+        const merged = explicit || telMap.get(nameNorm) || 0;
+        totalCount += merged;
+      } else {
+        totalCount += num(cr[k]);
+      }
+    }}
+
+    // 残業追加コスト
+    let otAdd=0; if(mode==='simple'){ otAdd=hourly*0.25*otHours } else {
+      const otd=num(r['法定時間外労働時間_日中_']);
+      const otn=num(r['法定時間外労働時間_深夜_']);
+      const hd_d=num(r['法定外休日労働時間_日中_'])+num(r['法定休日労働時間_日中_']);
+      const hd_n=num(r['法定外休日労働時間_深夜_'])+num(r['法定休日労働時間_深夜_']);
+      otAdd=hourly*(0.25*otd + 0.50*otn + 0.35*hd_d + 0.60*hd_n);
+    }
+
+    const baseCost=hourly*workHours; const totalCost=baseCost+otAdd; const unitCost= totalCount? totalCost/totalCount:0;
+    rows.push({name:raw, ym, totalCount, workHours, otHours, totalCost, unitCost, otShare: totalCost? (otAdd/totalCost):0});
+  }
+
+  if(rows.length===0){ alert('対象年月の突合結果が0件でした。年月またはCSVのヘッダをご確認ください。'); return }
+
+  // サマリー
+  const totalCostSum=rows.reduce((s,r)=>s+r.totalCost,0);
+  const totalCntSum=rows.reduce((s,r)=>s+r.totalCount,0);
+  const avgUnit= totalCntSum>0? totalCostSum/totalCntSum: 0;
+  const otShareAvg= rows.reduce((s,r)=>s+r.otShare,0)/rows.length;
+  document.getElementById('k_avgUnit').textContent=yen(avgUnit);
+  document.getElementById('k_totalCost').textContent=yen(totalCostSum);
+  document.getElementById('k_otShare').textContent=pct(otShareAvg);
+  document.getElementById('k_totalCnt').textContent=totalCntSum.toLocaleString('ja-JP');
+  for(const r of rows){ r.benchDelta=(r.unitCost-avgUnit)*r.totalCount }
+  renderTable(rows, avgUnit);
+  window.__rows=rows; window.__avgUnit=avgUnit;
+}
+
+function renderTable(rows, avgUnit){
+  const sortKey=document.getElementById('sortKey').value;
+  const dir=document.getElementById('sortDir').value==='desc'? -1: 1;
+  const sorted=[...rows].sort((a,b)=>{ const ka=a[sortKey]??0; const kb=b[sortKey]??0; if(ka<kb) return -1*dir; if(ka>kb) return 1*dir; return 0; });
+  const tb=document.getElementById('tbody'); tb.innerHTML='';
+  for(const r of sorted){
+    const badgeClass = r.unitCost<=avgUnit*0.85? 'green' : (r.unitCost>=avgUnit*1.15? 'red' : 'amber');
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${escapeHtml(r.name)}</td>
+      <td>${escapeHtml(r.ym)}</td>
+      <td class="right">${fmt0(r.totalCount)}</td>
+      <td class="right">${fmt1(r.workHours)}</td>
+      <td class="right">${fmt1(r.otHours)}</td>
+      <td class="right">${yen(r.totalCost)}</td>
+      <td class="right"><span class="badge ${badgeClass}">${yen(r.unitCost)}</span></td>
+      <td class="right">${pct(r.otShare)}</td>
+      <td class="right">${yen(r.benchDelta)}</td>`;
+    tb.appendChild(tr);
+  }
+}
+
+// ---------- ダウンロード & UIイベント ----------
+function downloadCsv(){
+  const rows=window.__rows||[]; if(!rows.length){alert('先に計算してください'); return}
+  const header=['氏名','年月','総処理件数','実働h','残業h','総コスト','1件単価','残業由来比率','ベンチ差額'];
+  const lines=[header.join(',')];
+  for(const r of rows){ lines.push([r.name,r.ym,r.totalCount,r.workHours,r.otHours,Math.round(r.totalCost),Math.round(r.unitCost),r.otShare.toFixed(4),Math.round(r.benchDelta)].join(',')); }
+  const blob=new Blob(["\ufeff"+lines.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='cost_dashboard_'+(new Date().toISOString().slice(0,10))+'.csv'; document.body.appendChild(a); a.click(); a.remove();
+}
+
+// ヘッダクリックでソート
+(function(){ const ths=document.querySelectorAll('#tbl thead th[data-key]'); ths.forEach(th=>{ th.addEventListener('click',()=>{ document.getElementById('sortKey').value=th.dataset.key; document.getElementById('resort').click(); }) }); })();
+
+// ボタン
+ document.getElementById('run').addEventListener('click',calc);
+ document.getElementById('resort').addEventListener('click',()=>{ if(!window.__rows){alert('先に計算してください');return} renderTable(window.__rows, window.__avgUnit) });
+ document.getElementById('dlCsv').addEventListener('click',downloadCsv);
+ document.getElementById('saveOT').addEventListener('click',()=>{ const ym=(document.getElementById('targetYm').value||'').trim(); const csv=document.getElementById('csvOT').value.trim(); if(!csv){ alert('残業CSVが空です'); return } saveMonthPart(ym,'otCsv',csv); });
+ document.getElementById('saveCNT').addEventListener('click',()=>{ const ym=(document.getElementById('targetYm').value||'').trim(); const csv=document.getElementById('csvCNT').value.trim(); if(!csv){ alert('件数CSVが空です'); return } saveMonthPart(ym,'cntCsv',csv); });
+ document.getElementById('saveTEL').addEventListener('click',()=>{ const ym=(document.getElementById('targetYm').value||'').trim(); const csv=document.getElementById('csvTEL').value.trim(); if(!csv){ alert('電話CSVが空です'); return } saveMonthPart(ym,'telCsv',csv); });
+ document.getElementById('loadSaved').addEventListener('click',()=>{ const ym=(document.getElementById('targetYm').value||'').trim(); if(!ym){ alert('対象年月を入力してください'); return } loadMonthToTextareas(ym); });
+ document.getElementById('clearMonth').addEventListener('click',()=>{ const ym=(document.getElementById('targetYm').value||'').trim(); if(!ym){ alert('対象年月を入力してください'); return } if(confirm(`${ym} の保存を削除します。よろしいですか？`)) clearMonth(ym); });
+ document.getElementById('refreshMonths').addEventListener('click',renderMonths);
+
+ // ⑥ デモデータ（簡易テスト）
+ document.getElementById('btnDemo').addEventListener('click',()=>{
+   const ym='Aug-25';
+   const otCSV = [
+     '氏名,年月,実働時間,残業時間,法定時間外労働時間_日中_,法定時間外労働時間_深夜_,法定外休日労働時間_日中_,法定外休日労働時間_深夜_',
+     '山田太郎,Aug-25,160,10,10,0,0,0',
+     '鈴木花子,Aug-25,150,20,15,5,0,0'
+   ].join('\n');
+   const cntCSV = [
+     '氏名,年月,電話受信件数,受注処理件数,受発注処理件数,発注処理件数,見積処理件数,対象',
+     '山田太郎,Aug-25,,50,10,5,5,1',
+     '鈴木花子,Aug-25,,60,0,10,10,1'
+   ].join('\n');
+   const telCSV = [
+     '名前,受発注,内外線計',
+     '【東京】山田太郎,受発注,40',
+     '【東京】鈴木花子,受発注,30'
+   ].join('\n');
+   document.getElementById('targetYm').value=ym;
+   document.getElementById('csvOT').value=otCSV;
+   document.getElementById('csvCNT').value=cntCSV;
+   document.getElementById('csvTEL').value=telCSV;
+   calc();
+   // 簡易アサーション
+   const out=document.getElementById('testOut');
+   const rows=window.__rows||[];
+   const ok1 = rows.length===2;
+   const y = rows.find(r=>r.name==='山田太郎');
+   const z = rows.find(r=>r.name==='鈴木花子');
+   const yCnt = y? y.totalCount: 0; // 50+10+5+5 + TEL40 = 110
+   const zCnt = z? z.totalCount: 0; // 60+0+10+10 + TEL30 = 110
+   const passCounts = (yCnt===110 && zCnt===110);
+   out.textContent = `テスト結果\n行数=2: ${ok1?'OK':'NG'}\n件数合計(各110): ${passCounts?'OK':'NG (山田:'+yCnt+', 鈴木:'+zCnt+')'}`;
+ });
+
+// ---------- 起動時処理：保存済み一覧の描画と最新月プリセット ----------
+(function init(){
+  renderMonths();
+  const input=document.getElementById('targetYm');
+  if(!input.value.trim()){ const latest=getLatestYm(); if(latest){ input.value=latest; loadMonthToTextareas(latest); } }
+})();
+</script>
+</body>
+</html>

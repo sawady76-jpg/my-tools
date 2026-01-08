@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>かんたん在庫管理 V2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        #reader { width: 100%; border-radius: 10px; overflow: hidden; }
+        #reader video { object-fit: cover; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 flex flex-col items-center font-sans">
+
+    <div class="w-full max-w-md bg-white rounded-xl shadow-sm p-4 mb-4 flex justify-between items-center border-b-4 border-blue-500">
+        <h1 class="text-xl font-bold text-gray-700 flex items-center gap-2">
+            📦 在庫管理くん <span class="text-xs font-normal text-gray-400">for Excel</span>
+        </h1>
+    </div>
+
+    <div id="camera-container" class="w-full max-w-md bg-white rounded-xl shadow-md p-4 mb-4">
+        <p class="text-sm text-gray-500 mb-2 font-bold text-center">ロケーションQRをスキャン</p>
+        <div id="reader" class="bg-gray-200 min-h-[250px]"></div>
+        <p class="text-xs text-center text-gray-400 mt-2">カメラへのアクセスを許可してください</p>
+    </div>
+
+    <div id="form-area" class="w-full max-w-md bg-white rounded-xl shadow-md p-6 hidden">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <p class="text-xs text-gray-400">読み取ったID</p>
+                <p id="qr-result" class="text-2xl font-bold text-gray-800 tracking-wider">---</p>
+            </div>
+            <button onclick="resetScan()" class="text-xs bg-gray-200 text-gray-600 px-3 py-1 rounded-full hover:bg-gray-300">
+                × 取消
+            </button>
+        </div>
+
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">区分</label>
+                <div class="flex gap-2 bg-gray-100 p-1 rounded-lg">
+                    <label class="flex-1 text-center cursor-pointer">
+                        <input type="radio" name="type" value="入庫" class="peer hidden" checked>
+                        <span class="block py-2 rounded-md text-gray-500 peer-checked:bg-blue-500 peer-checked:text-white peer-checked:shadow-md transition">
+                            📥 入庫
+                        </span>
+                    </label>
+                    <label class="flex-1 text-center cursor-pointer">
+                        <input type="radio" name="type" value="出庫" class="peer hidden">
+                        <span class="block py-2 rounded-md text-gray-500 peer-checked:bg-red-500 peer-checked:text-white peer-checked:shadow-md transition">
+                            📤 出庫
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-bold text-gray-600 mb-1">数量</label>
+                <select id="quantity" class="w-full bg-gray-50 border border-gray-300 text-gray-900 text-lg rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-3">
+                    <option value="1" selected>1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                    <option value="10">10</option>
+                    <option value="set">ケース(入数設定要)</option>
+                </select>
+            </div>
+
+            <button onclick="sendData()" id="send-btn" class="w-full bg-gray-800 text-white font-bold py-4 rounded-xl shadow-lg hover:bg-black transform active:scale-95 transition flex justify-center items-center gap-2 mt-4">
+                <span>送信してExcelへ記録</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const html5QrCode = new Html5Qrcode("reader");
+        const cameraContainer = document.getElementById('camera-container');
+        const formArea = document.getElementById('form-area');
+        const qrResult = document.getElementById('qr-result');
+
+        // ★ここに後でMicrosoftのURLを入れます
+        const WEBHOOK_URL = ""; 
+
+        // スキャン成功時
+        function onScanSuccess(decodedText) {
+            html5QrCode.stop().then(() => {
+                cameraContainer.classList.add('hidden');
+                formArea.classList.remove('hidden');
+                qrResult.textContent = decodedText;
+            });
+        }
+
+        // スキャン開始
+        function startScan() {
+            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: { width: 250, height: 250 } }, onScanSuccess);
+        }
+        startScan();
+
+        // リセット（再スキャン）
+        function resetScan() {
+            formArea.classList.add('hidden');
+            cameraContainer.classList.remove('hidden');
+            startScan();
+        }
+
+        // 送信処理（今はアラートのみ）
+        function sendData() {
+            const id = qrResult.textContent;
+            const type = document.querySelector('input[name="type"]:checked').value;
+            const qty = document.getElementById('quantity').value;
+            const btn = document.getElementById('send-btn');
+
+            // 送信中の演出
+            btn.innerHTML = "送信中...";
+            btn.classList.add("opacity-50");
+
+            // ※ここにExcelへ送る処理が入ります（今は疑似的に1秒待つだけ）
+            setTimeout(() => {
+                alert(`【送信完了】\nID: ${id}\n区分: ${type}\n数量: ${qty}\n\nExcelへの保存機能はこれから設定します！`);
+                
+                // 元に戻す
+                btn.innerHTML = `<span>送信してExcelへ記録</span><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>`;
+                btn.classList.remove("opacity-50");
+                resetScan();
+            }, 800);
+        }
+    </script>
+</body>
+</html>

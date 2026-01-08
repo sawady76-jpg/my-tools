@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CSV 正規化 & マージ v2（区切り自動認識）</title>
+<style>
+  :root{--bg:#0b1220;--panel:#111827;--line:#374151;--txt:#e5e7eb}
+  html,body{background:var(--bg);color:var(--txt);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic UI","Yu Gothic",sans-serif;margin:0}
+  .wrap{max-width:1200px;margin:24px auto;padding:0 16px}
+  h1{font-size:20px;margin:0 0 12px}
+  .grid{display:grid;gap:12px}
+  .g-2{grid-template-columns:1fr 1fr}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  textarea{width:100%;min-height:180px;background:#0b1220;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,"Cascadia Mono",Consolas,monospace}
+  input,button,select{background:#0b1220;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .small{opacity:.8;font-size:12px}
+  .pill{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:4px 10px;background:#0b1220}
+  .out{white-space:pre;overflow:auto;background:#0b1220;border:1px solid var(--line);border-radius:8px;padding:8px}
+</style>
+</head>
+<body>
+<div class="wrap grid g-2">
+  <section class="panel">
+    <h1>① 入力</h1>
+    <div class="row">
+      <label>対象年月（例: Aug-25） <input id="ym" placeholder="Aug-25" style="width:120px"></label>
+      <label class="small pill"><input type="checkbox" id="preferTelWhenZero"> 件数CSVの電話が 0/空 のときは電話CSVで補完</label>
+    </div>
+    <div class="grid g-2" style="margin-top:8px">
+      <div>
+        <b>残業CSV（そのまま貼付：カンマ/タブ/スペース区切りOK）</b>
+        <div class="small">必要列: <code>氏名, 年月, 実働時間, 残業時間</code></div>
+        <textarea id="ot"></textarea>
+      </div>
+      <div>
+        <b>DSmart件数CSV（そのまま貼付：カンマ/タブ/スペース区切りOK）</b>
+        <div class="small">ヘッダ例: <code>氏名/名前, 年月(任意), 電話受信件数, 受注処理件数, 受発注処理件数, 発注処理件数, 見積処理件数, (任意) 対象</code></div>
+        <textarea id="cnt"></textarea>
+      </div>
+    </div>
+    <div style="margin-top:8px">
+      <b>電話受信件数CSV（原票のまま：カンマ/タブ/スペース区切りOK）</b>
+      <div class="small">条件: <code>受発注</code> 列が「受発注」を含む行のみ。<code>内外線計</code>が無ければ日付列(YYYY/M/D)を合計。</div>
+      <textarea id="tel"></textarea>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="run">正規化して出力</button>
+      <button id="clear">クリア</button>
+      <span class="small" id="msg"></span>
+    </div>
+  </section>
+  <section class="panel">
+    <h1>② 出力（コピペ or ダウンロード）</h1>
+    <div><b>残業（最小4列）</b>
+      <div class="row small"><a id="dlOt" class="pill" href="#">CSVをダウンロード</a></div>
+      <pre id="otOut" class="out"></pre>
+    </div>
+    <div style="margin-top:8px"><b>件数（電話マージ済み・対象=1のみ）</b>
+      <div class="row small"><a id="dlCnt" class="pill" href="#">CSVをダウンロード</a></div>
+      <pre id="cntOut" class="out"></pre>
+    </div>
+    <div style="margin-top:8px"><b>電話（月合計：3列のみ）</b>
+      <div class="row small"><a id="dlTel" class="pill" href="#">CSVをダウンロード</a></div>
+      <pre id="telOut" class="out"></pre>
+    </div>
+  </section>
+</div>
+
+<script>
+function normalizeName(raw) {
+  if (!raw) return "";
+  let s = String(raw).normalize("NFKC");
+  s = s.replace(/^[【\[][^】\]]+[】\]]/, "");
+  s = s.replace(/[（(].*?[)）]/g, "");
+  s = s.replace(/[\u0020\u00A0\u3000\t]/g, "");
+  const map = new Map([
+    ["﨑","崎"],["𠮷","吉"],["髙","高"],["濵","浜"],["邊","辺"],["邉","辺"],
+    ["閙","閑"],["栁","柳"],["德","徳"],["圡","土"],["嶋","島"],["齋","斎"],
+    ["遙","遥"],["峯","峰"],["內","内"],["實","実"],["廣","広"],["樂","楽"]
+  ]);
+  s = Array.from(s).map(ch=>map.get(ch)??ch).join("");
+  s = s.replace(/[・･‐-‒–—―·．\.]/g, "");
+  return s;
+}
+
+// Detect delimiter per line: comma, tab, or multiple spaces
+function smartSplit(line){
+  if(line.includes(",")) return splitCSVLine(line);
+  if(line.includes("\t")) return line.split("\t").map(x=>x.trim());
+  // collapse multiple spaces; but keep sequences within dates (no impact)
+  return line.trim().split(/\s{2,}|\s/g).filter(x=>x.length>0);
+}
+
+// Simple CSV split for a single line (supports quotes)
+function splitCSVLine(line){
+  const out=[]; let cur=""; let inQ=false;
+  for(let i=0;i<line.length;i++){
+    const c=line[i];
+    if(inQ){
+      if(c==='"'){ if(line[i+1]==='"'){cur+='"'; i++;} else {inQ=false;} }
+      else cur+=c;
+    }else{
+      if(c===','){ out.push(cur); cur=""; }
+      else if(c==='"'){ inQ=true; }
+      else cur+=c;
+    }
+  }
+  out.push(cur);
+  return out.map(x=>x.trim());
+}
+
+// Parse mixed-delimiter text into rows
+function parseTable(text){
+  const lines = text.replace(/\r\n/g,"\n").split("\n").filter(l=>l.trim()!=="");
+  const rows = lines.map(smartSplit);
+  // unify column count by padding
+  const maxc = rows.reduce((m,r)=>Math.max(m,r.length),0);
+  return rows.map(r=>{ while(r.length<maxc) r.push(""); return r; });
+}
+
+function toCSV(rows){
+  return rows.map(r=>r.map(x=>{
+    const s = String(x??"");
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g,'""')}"` : s;
+  }).join(",")).join("\n");
+}
+
+function indexOfHeader(head, candidates){
+  for(const key of candidates){
+    const idx = head.findIndex(h=>h.replace(/\s/g,"")===key);
+    if(idx!==-1) return idx;
+  }
+  return -1;
+}
+
+function sumNums(arr){ return arr.reduce((a,b)=>a+(isFinite(+b)?+b:0),0); }
+
+function buildTelMap(telText){
+  if(!telText.trim()) return new Map();
+  const rows=parseTable(telText.trim());
+  const head=rows.shift().map(h=>h.replace(/\s/g,""));
+  const nameCol = indexOfHeader(head, ["名前","氏名"]);
+  const ukeCol  = indexOfHeader(head, ["受発注"]);
+  const totalCol= indexOfHeader(head, ["内外線計"]);
+  const dateCols = head.map((h,i)=>(/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(h)?i:null)).filter(i=>i!=null);
+
+  const map = new Map();
+  for(const r of rows){
+    if(ukeCol!==-1){
+      const val = String(r[ukeCol]||"");
+      if(!val.includes("受発注")) continue;
+    }
+    const nm = normalizeName(r[nameCol]||"");
+    if(!nm) continue;
+    let tot = 0;
+    if(totalCol!==-1 && r[totalCol]!==undefined && String(r[totalCol]).trim()!==""){
+      tot = Number(r[totalCol].toString().replace(/[,，]/g,""))||0;
+    }else if(dateCols.length){
+      tot = sumNums(dateCols.map(i=> (r[i]||"").toString().replace(/[,，]/g,"")));
+    }
+    map.set(nm,(map.get(nm)||0)+tot);
+  }
+  return map;
+}
+
+function normalizeOT(otText){
+  const rows=parseTable(otText.trim());
+  const head=rows.shift().map(h=>h.replace(/\s/g,""));
+  const colName = indexOfHeader(head, ["氏名","名前"]);
+  const colYm   = indexOfHeader(head, ["年月"]);
+  const colWork = indexOfHeader(head, ["実働時間"]);
+  const colOT   = indexOfHeader(head, ["残業時間","法定時間外労働時間","時間外労働時間"]);
+  const out=[["氏名","年月","実働時間","残業時間"]];
+  for(const r of rows){
+    const name = normalizeName(r[colName]||"");
+    if(!name) continue;
+    const ym = (r[colYm]||"").trim();
+    const work = Number((r[colWork]||"").toString().replace(/[,，]/g,""))||0;
+    const ot = Number((r[colOT]||"").toString().replace(/[,，]/g,""))||0;
+    out.push([name, ym, work, ot]);
+  }
+  return out;
+}
+
+function normalizeCNT(cntText, ym, telMap, preferTelWhenZero){
+  const rows=parseTable(cntText.trim());
+  const head=rows.shift().map(h=>h.replace(/\s/g,""));
+  const nameCol = indexOfHeader(head, ["氏名","名前"]);
+  const ymCol   = indexOfHeader(head, ["年月"]);
+  const tgtCol  = indexOfHeader(head, ["対象"]);
+  const cols = {
+    tel: indexOfHeader(head, ["電話受信件数"]),
+    j:   indexOfHeader(head, ["受注処理件数"]),
+    oj:  indexOfHeader(head, ["受発注処理件数"]),
+    h:   indexOfHeader(head, ["発注処理件数"]),
+    q:   indexOfHeader(head, ["見積処理件数"]),
+  };
+  const out=[["氏名","年月","電話受信件数","受注処理件数","受発注処理件数","発注処理件数","見積処理件数","対象"]];
+  for(const r of rows){
+    const name = normalizeName(r[nameCol]||"");
+    if(!name) continue;
+    const flag = (tgtCol!==-1 ? String(r[tgtCol]||"").trim() : "1");
+    if(flag && flag!=="1") continue;
+    const rowYm = (ymCol!==-1 && String(r[ymCol]||"").trim()) ? String(r[ymCol]).trim() : ym;
+
+    const explicitTel = cols.tel!==-1 ? Number((r[cols.tel]||"").toString().replace(/[,，]/g,""))||0 : 0;
+    const tel = (preferTelWhenZero ? (explicitTel ? explicitTel : (telMap.get(name)||0)) : (explicitTel>0 ? explicitTel : (telMap.get(name)||0)));
+    const j  = cols.j!==-1 ? Number((r[cols.j]||"").toString().replace(/[,，]/g,""))||0 : 0;
+    const oj = cols.oj!==-1 ? Number((r[cols.oj]||"").toString().replace(/[,，]/g,""))||0 : 0;
+    const h  = cols.h!==-1 ? Number((r[cols.h]||"").toString().replace(/[,，]/g,""))||0 : 0;
+    const q  = cols.q!==-1 ? Number((r[cols.q]||"").toString().replace(/[,，]/g,""))||0 : 0;
+    out.push([name,rowYm,tel,j,oj,h,q,"1"]);
+  }
+  return out;
+}
+
+function telCSVFromMap(telMap, ym){
+  const out=[["氏名","年月","電話受信件数"]];
+  for(const [name,tot] of telMap.entries()){
+    out.push([name, ym, tot]);
+  }
+  return out;
+}
+
+function downloadCSV(filename, text){
+  const blob=new Blob([text],{type:"text/csv;charset=utf-8;"});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url; a.download=filename; a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+document.getElementById('run').addEventListener('click', ()=>{
+  const ym=document.getElementById('ym').value.trim();
+  if(!ym){ alert("対象年月を入力してください（例: Aug-25）"); return; }
+  const ot=document.getElementById('ot').value;
+  const cnt=document.getElementById('cnt').value;
+  const tel=document.getElementById('tel').value;
+  try{
+    const telMap=buildTelMap(tel);
+    const otNorm=normalizeOT(ot);
+    const cntNorm=normalizeCNT(cnt, ym, telMap, document.getElementById('preferTelWhenZero').checked);
+    const telRows=telCSVFromMap(telMap, ym);
+
+    const otCSV=toCSV(otNorm);
+    const cntCSV=toCSV(cntNorm);
+    const telCSV=toCSV(telRows);
+
+    document.getElementById('otOut').textContent=otCSV;
+    document.getElementById('cntOut').textContent=cntCSV;
+    document.getElementById('telOut').textContent=telCSV;
+
+    document.getElementById('dlOt').onclick=(e)=>{e.preventDefault(); downloadCSV(`OT_${ym}.csv`, otCSV);};
+    document.getElementById('dlCnt').onclick=(e)=>{e.preventDefault(); downloadCSV(`CNT_${ym}.csv`, cntCSV);};
+    document.getElementById('dlTel').onclick=(e)=>{e.preventDefault(); downloadCSV(`TEL_${ym}.csv`, telCSV);};
+    document.getElementById('msg').textContent="正規化OK。右のCSVをそのままツールに貼り付けてください。";
+  }catch(e){
+    document.getElementById('msg').textContent="エラー: "+ (e.message||String(e));
+  }
+});
+
+document.getElementById('clear').addEventListener('click', ()=>{
+  ['ot','cnt','tel'].forEach(id=>document.getElementById(id).value="");
+  ['otOut','cntOut','telOut'].forEach(id=>document.getElementById(id).textContent="");
+  document.getElementById('msg').textContent="";
+});
+</script>
+</body>
+</html>

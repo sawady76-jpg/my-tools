@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>社内FAQ 爆速検索くん</title>
+<style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f9; color: #333; padding: 20px; }
+    .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); border-top: 5px solid #009688; }
+    h2 { text-align: center; color: #009688; margin-bottom: 20px; }
+
+    /* 検索エリア */
+    .search-area { position: sticky; top: 0; background: #fff; padding: 10px 0 20px 0; z-index: 10; border-bottom: 1px solid #eee; }
+    input[type="text"] { width: 100%; padding: 15px; border: 2px solid #ddd; border-radius: 50px; font-size: 20px; outline: none; box-sizing: border-box; transition: border-color 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+    input[type="text"]:focus { border-color: #009688; }
+    .hit-count { text-align: right; font-size: 0.9em; color: #888; margin-top: 5px; }
+
+    /* 結果リスト */
+    #resultList { list-style: none; padding: 0; margin-top: 20px; }
+    .faq-item { background: #fff; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 15px; padding: 20px; transition: 0.2s; border-left: 5px solid #ddd; }
+    .faq-item:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.08); border-left-color: #009688; }
+    
+    .faq-q { font-weight: bold; font-size: 1.1em; color: #333; margin-bottom: 10px; display: flex; align-items: flex-start; gap: 10px; }
+    .faq-q::before { content: "Q."; color: #009688; font-weight: bold; }
+    
+    .faq-a { font-size: 1em; color: #555; line-height: 1.6; white-space: pre-wrap; display: flex; align-items: flex-start; gap: 10px; }
+    .faq-a::before { content: "A."; color: #e91e63; font-weight: bold; }
+
+    /* 設定エリア（アコーディオン） */
+    .settings-toggle { margin-top: 40px; text-align: center; }
+    .btn-toggle { background: none; border: none; color: #999; cursor: pointer; text-decoration: underline; font-size: 0.9em; }
+    .settings-area { display: none; background: #f0f0f0; padding: 20px; border-radius: 8px; margin-top: 10px; }
+    .settings-area.open { display: block; }
+    
+    textarea { width: 100%; height: 200px; padding: 10px; border: 1px solid #ccc; font-size: 14px; font-family: monospace; resize: vertical; }
+    .btn-save { background-color: #009688; color: white; border: none; padding: 10px 20px; border-radius: 4px; font-size: 16px; cursor: pointer; margin-top: 10px; font-weight: bold; }
+    .btn-save:hover { background-color: #00796b; }
+
+    /* ハイライト */
+    .highlight { background-color: #fff176; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🔎 社内FAQ 爆速検索くん</h2>
+    
+    <div class="search-area">
+        <input type="text" id="searchInput" placeholder="キーワードを入力（例：返品 送料）" oninput="searchFAQ()" autofocus>
+        <div class="hit-count" id="hitCount">全データ表示中</div>
+    </div>
+
+    <ul id="resultList">
+        </ul>
+
+    <div class="settings-toggle">
+        <button class="btn-toggle" onclick="toggleSettings()">⚙️ データの登録・編集はこちら</button>
+    </div>
+
+    <div class="settings-area" id="settingsArea">
+        <h3>データの登録</h3>
+        <p style="font-size:0.9em; color:#666;">
+            Excelの「質問」「回答」の2列をコピーして、ここに貼り付けて「保存」してください。<br>
+            ※タブ区切り（TSV）形式に対応しています。
+        </p>
+        <textarea id="dataInput" placeholder="質問    回答&#13;返品はできますか？    未開封であれば到着後7日以内なら可能です。&#13;送料はいくら？    全国一律800円です。"></textarea>
+        <button class="btn-save" onclick="saveData()">💾 データを保存して更新</button>
+        <button style="float:right; margin-top:10px; border:none; background:none; color:red; cursor:pointer;" onclick="clearData()">🗑️ データを消去</button>
+    </div>
+</div>
+
+<script>
+    // 初期データ（サンプル）
+    const defaultData = [
+        { q: "返品はできますか？", a: "原則として、未開封かつ商品到着後8日以内であれば可能です。\nお客様都合の場合は送料をご負担いただきます。" },
+        { q: "送料はいくらかかりますか？", a: "全国一律880円（税込）です。\nただし、沖縄・離島は別途見積もりが必要です。\n合計3万円以上で送料無料になります。" },
+        { q: "領収書の発行は可能ですか？", a: "はい、可能です。\n注文時の備考欄に「領収書希望」と宛名をご記入ください。\nPDF形式でメールにて送付いたします。" },
+        { q: "土日の出荷はしていますか？", a: "土日祝日は出荷業務はお休みをいただいております。\n金曜日の15時以降のご注文は、翌営業日（月曜日など）の出荷となります。" },
+        { q: "パスワードを忘れました", a: "ログイン画面の「パスワードをお忘れの方」リンクから再発行手続きをお願いします。\n登録メールアドレスが必要です。" }
+    ];
+
+    let faqData = [];
+
+    // 起動時の処理
+    window.onload = function() {
+        loadData();
+        searchFAQ(); // 全件表示
+    };
+
+    // データの読み込み
+    function loadData() {
+        const savedData = localStorage.getItem('myFaqData');
+        if (savedData) {
+            faqData = JSON.parse(savedData);
+            // テキストエリアにも反映（編集用）
+            document.getElementById('dataInput').value = convertToText(faqData);
+        } else {
+            faqData = defaultData;
+            document.getElementById('dataInput').value = convertToText(defaultData);
+        }
+    }
+
+    // データの保存
+    function saveData() {
+        const rawText = document.getElementById('dataInput').value;
+        const lines = rawText.split('\n');
+        const newData = [];
+
+        lines.forEach(line => {
+            const parts = line.split('\t'); // タブ区切り
+            if (parts.length >= 2) {
+                const q = parts[0].trim();
+                const a = parts.slice(1).join('\n').trim(); // 2列目以降はすべて回答とみなす
+                if (q && a) {
+                    newData.push({ q: q, a: a });
+                }
+            }
+        });
+
+        faqData = newData;
+        localStorage.setItem('myFaqData', JSON.stringify(faqData));
+        toggleSettings(); // 閉じる
+        searchFAQ(); // 再検索
+        alert('保存しました！次回からもこのデータで検索できます。');
+    }
+
+    // データを消去
+    function clearData() {
+        if(confirm('登録データを全て消去して初期状態に戻しますか？')) {
+            localStorage.removeItem('myFaqData');
+            location.reload();
+        }
+    }
+
+    // 検索処理
+    function searchFAQ() {
+        const input = document.getElementById('searchInput').value;
+        const keywords = input.trim().toLowerCase().split(/\s+/); // 空白で区切ってAND検索
+        const list = document.getElementById('resultList');
+        const countDisplay = document.getElementById('hitCount');
+        
+        list.innerHTML = '';
+
+        let hitCount = 0;
+
+        faqData.forEach(item => {
+            const qText = item.q.toLowerCase();
+            const aText = item.a.toLowerCase();
+            
+            // 全てのキーワードが含まれているかチェック (AND検索)
+            const isMatch = keywords.every(kw => qText.includes(kw) || aText.includes(kw));
+
+            if (isMatch) {
+                hitCount++;
+                const li = document.createElement('li');
+                li.className = 'faq-item';
+                
+                // ハイライト処理
+                let displayQ = escapeHtml(item.q);
+                let displayA = escapeHtml(item.a);
+
+                if (input.trim() !== '') {
+                    keywords.forEach(kw => {
+                        if (kw === '') return;
+                        const regex = new RegExp(`(${escapeRegExp(kw)})`, 'gi');
+                        displayQ = displayQ.replace(regex, '<span class="highlight">$1</span>');
+                        displayA = displayA.replace(regex, '<span class="highlight">$1</span>');
+                    });
+                }
+
+                li.innerHTML = `
+                    <div class="faq-q">${displayQ}</div>
+                    <div class="faq-a">${displayA}</div>
+                `;
+                list.appendChild(li);
+            }
+        });
+
+        countDisplay.textContent = input.trim() === '' ? `全 ${faqData.length} 件` : `${hitCount} 件ヒット`;
+    }
+
+    // 設定エリアの開閉
+    function toggleSettings() {
+        const area = document.getElementById('settingsArea');
+        area.classList.toggle('open');
+    }
+
+    // ヘルパー関数：オブジェクト配列をテキスト（TSV）に変換
+    function convertToText(data) {
+        return data.map(item => `${item.q}\t${item.a}`).join('\n');
+    }
+
+    function escapeHtml(str) {
+        return str.replace(/[&<>"']/g, function(m) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m];
+        });
+    }
+
+    function escapeRegExp(string) {
+        return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+</script>
+
+</body>
+</html>

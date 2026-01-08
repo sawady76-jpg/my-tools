@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>建材専用：尺貫法変換電卓</title>
+<style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #3e4a59; color: #333; padding: 20px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 500px; background: #fff; border-radius: 15px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.3); }
+    
+    /* ヘッダー */
+    .header { background-color: #2c3e50; color: #fff; padding: 15px; text-align: center; font-size: 1.2rem; font-weight: bold; }
+    
+    /* タブ切り替え */
+    .tabs { display: flex; background: #eee; }
+    .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; font-weight: bold; color: #777; border-bottom: 3px solid transparent; transition: 0.3s; }
+    .tab.active { background: #fff; color: #2c3e50; border-bottom: 3px solid #e67e22; }
+    
+    /* コンテンツエリア */
+    .content { padding: 20px; display: none; }
+    .content.active { display: block; }
+    
+    /* 入力グループ */
+    .input-group { margin-bottom: 20px; position: relative; }
+    label { display: block; font-size: 0.85em; color: #666; margin-bottom: 5px; font-weight: bold; }
+    
+    input[type="number"] { width: 100%; padding: 12px; padding-right: 50px; font-size: 20px; border: 2px solid #ddd; border-radius: 8px; box-sizing: border-box; outline: none; transition: border-color 0.3s; text-align: right; }
+    input[type="number"]:focus { border-color: #e67e22; }
+    
+    .unit { position: absolute; right: 15px; top: 38px; color: #888; font-weight: bold; }
+
+    /* 等号アイコン */
+    .equals { text-align: center; font-size: 24px; color: #e67e22; margin: -10px 0 10px; font-weight: bold; }
+
+    /* クイックボタン */
+    .quick-buttons { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .q-btn { background: #f0f4f8; border: 1px solid #dce6f1; padding: 8px 12px; border-radius: 20px; font-size: 0.85em; cursor: pointer; color: #2c3e50; transition: 0.2s; }
+    .q-btn:hover { background: #e67e22; color: white; border-color: #e67e22; }
+
+    /* メモ書き */
+    .memo { font-size: 0.8em; color: #888; background: #f9f9f9; padding: 10px; border-radius: 5px; margin-top: 20px; line-height: 1.6; }
+
+    /* クリアボタン */
+    .btn-clear { width: 100%; padding: 10px; background: #95a5a6; color: white; border: none; border-radius: 6px; cursor: pointer; margin-top: 10px; font-weight: bold; }
+    .btn-clear:hover { background: #7f8c8d; }
+
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">📏 建材単位 変換くん</div>
+    
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('length')">長さ (尺・間)</div>
+        <div class="tab" onclick="switchTab('area')">広さ (坪・平米)</div>
+    </div>
+
+    <div id="length" class="content active">
+        <div class="quick-buttons">
+            <button class="q-btn" onclick="setLength(1, 'shaku')">1尺 (サシガネ)</button>
+            <button class="q-btn" onclick="setLength(6, 'shaku')">1間 (1820)</button>
+            <button class="q-btn" onclick="setLength(3, 'shaku')">3尺 (910)</button>
+        </div>
+
+        <div class="input-group">
+            <label>尺相当 (尺・寸・分)</label>
+            <input type="number" id="inputShaku" placeholder="例: 6" oninput="calcFromShaku()">
+            <span class="unit">尺</span>
+        </div>
+
+        <div class="equals">⇅</div>
+
+        <div class="input-group">
+            <label>ミリメートル (mm)</label>
+            <input type="number" id="inputMm" placeholder="例: 1818" oninput="calcFromMm()">
+            <span class="unit">mm</span>
+        </div>
+        
+        <div class="memo">
+            <strong>💡 早見メモ</strong><br>
+            ・1尺 ≒ 303mm<br>
+            ・3尺 (半間) ≒ 910mm<br>
+            ・6尺 (1間) ≒ 1820mm (サブロクの長手)<br>
+            ・4尺 (シハチ) ≒ 1212mm
+        </div>
+        <button class="btn-clear" onclick="clearAll()">クリア</button>
+    </div>
+
+    <div id="area" class="content">
+        <div class="quick-buttons">
+            <button class="q-btn" onclick="setArea(1, 'tsubo')">1坪 (サブロク2枚)</button>
+            <button class="q-btn" onclick="setArea(30, 'tsubo')">30坪 (一般的戸建)</button>
+        </div>
+
+        <div class="input-group">
+            <label>坪数 (つぼ)</label>
+            <input type="number" id="inputTsubo" placeholder="例: 10" oninput="calcFromTsubo()">
+            <span class="unit">坪</span>
+        </div>
+
+        <div class="equals">⇅</div>
+
+        <div class="input-group">
+            <label>平米数 (m²)</label>
+            <input type="number" id="inputM2" placeholder="例: 33.1" oninput="calcFromM2()">
+            <span class="unit">m²</span>
+        </div>
+
+        <div class="input-group">
+            <label>畳数 (帖) ※中京間換算</label>
+            <input type="number" id="inputTatami" placeholder="例: 20" oninput="calcFromTatami()">
+            <span class="unit">帖</span>
+        </div>
+
+        <div class="memo">
+            <strong>💡 早見メモ</strong><br>
+            ・1坪 ≒ 3.3m² (畳2枚分)<br>
+            ・1坪 ＝ サブロク板(3×6) 2枚分<br>
+            ・平米単価 × 3.3 ＝ 坪単価
+        </div>
+        <button class="btn-clear" onclick="clearAll()">クリア</button>
+    </div>
+</div>
+
+<script>
+    // 定数定義
+    const SHAKU_MM = 303.0303; // 1尺 = 10/33 m
+    const TSUBO_M2 = 3.305785; // 1坪 = 400/121 m2
+    const TATAMI_M2 = 1.6562;  // 中京間基準 (1.65m2)
+
+    // タブ切り替え
+    function switchTab(tabName) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+        
+        event.target.classList.add('active');
+        document.getElementById(tabName).classList.add('active');
+    }
+
+    // --- 長さ計算ロジック ---
+    function calcFromShaku() {
+        const val = parseFloat(document.getElementById('inputShaku').value);
+        if (isNaN(val)) { document.getElementById('inputMm').value = ''; return; }
+        // 尺 -> mm (建材慣習で四捨五入して整数にすることが多いが、一旦小数1位まで)
+        document.getElementById('inputMm').value = (val * SHAKU_MM).toFixed(1);
+    }
+
+    function calcFromMm() {
+        const val = parseFloat(document.getElementById('inputMm').value);
+        if (isNaN(val)) { document.getElementById('inputShaku').value = ''; return; }
+        // mm -> 尺
+        document.getElementById('inputShaku').value = (val / SHAKU_MM).toFixed(3);
+    }
+
+    // クイックボタン用（長さ）
+    function setLength(val, unit) {
+        if (unit === 'shaku') {
+            document.getElementById('inputShaku').value = val;
+            calcFromShaku();
+        }
+    }
+
+    // --- 広さ計算ロジック ---
+    function calcFromTsubo() {
+        const val = parseFloat(document.getElementById('inputTsubo').value);
+        if (isNaN(val)) { 
+            document.getElementById('inputM2').value = ''; 
+            document.getElementById('inputTatami').value = '';
+            return; 
+        }
+        document.getElementById('inputM2').value = (val * TSUBO_M2).toFixed(2);
+        document.getElementById('inputTatami').value = (val * 2).toFixed(1); // 1坪=2畳で概算
+    }
+
+    function calcFromM2() {
+        const val = parseFloat(document.getElementById('inputM2').value);
+        if (isNaN(val)) { 
+            document.getElementById('inputTsubo').value = ''; 
+            document.getElementById('inputTatami').value = '';
+            return; 
+        }
+        document.getElementById('inputTsubo').value = (val / TSUBO_M2).toFixed(2);
+        document.getElementById('inputTatami').value = (val / TATAMI_M2).toFixed(1);
+    }
+    
+    function calcFromTatami() {
+        const val = parseFloat(document.getElementById('inputTatami').value);
+        if (isNaN(val)) { 
+            document.getElementById('inputTsubo').value = ''; 
+            document.getElementById('inputM2').value = '';
+            return; 
+        }
+        document.getElementById('inputM2').value = (val * TATAMI_M2).toFixed(2);
+        document.getElementById('inputTsubo').value = (val / 2).toFixed(2); // 2畳=1坪で概算
+    }
+
+    // クイックボタン用（広さ）
+    function setArea(val, unit) {
+        if (unit === 'tsubo') {
+            document.getElementById('inputTsubo').value = val;
+            calcFromTsubo();
+        }
+    }
+
+    function clearAll() {
+        document.querySelectorAll('input').forEach(i => i.value = '');
+    }
+</script>
+
+</body>
+</html>

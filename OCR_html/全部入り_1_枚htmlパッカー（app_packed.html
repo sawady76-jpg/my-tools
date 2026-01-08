@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OCRアプリ 全部入り1枚HTMLパッカー</title>
+<style>
+  body{margin:0;background:#0b1020;color:#e8eefa;font-family:system-ui,-apple-system,Segoe UI,Roboto,'Hiragino Kaku Gothic ProN',Meiryo,sans-serif}
+  header{padding:16px 18px;border-bottom:1px solid #223;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  h1{font-size:18px;margin:0 8px 0 0}
+  .wrap{max-width:1000px;margin:18px auto;padding:0 14px}
+  .panel{background:#121a2f;border:1px solid #1f2740;border-radius:14px;padding:14px;margin-bottom:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .drop{border:2px dashed #2a3a78;border-radius:12px;padding:20px;text-align:center;color:#93a1bd;cursor:pointer}
+  .ok{color:#7fe29a}.ng{color:#ff8b8b}.warn{color:#ffd27f}
+  textarea{width:100%;min-height:120px;background:#0f162a;color:#e8eefa;border:1px solid #283253;border-radius:12px;padding:10px}
+  button{background:#4f8cff;border:1px solid #3a6ee8;color:#fff;border-radius:10px;padding:10px 14px;cursor:pointer}
+  code{background:#0f162a;border:1px solid #283253;border-radius:6px;padding:2px 6px}
+  small{color:#93a1bd}
+</style>
+</head>
+<body>
+<header><h1>OCRアプリ 1枚HTMLパッカー</h1><small>PDF/PNG/JPG→CSV（完全オフラインにも対応）</small></header>
+<div class="wrap">
+  <section class="panel">
+    <p>下の枠に <code>pdf.min.js</code> / <code>pdf.worker.min.js</code> / <code>tesseract.min.js</code> / <code>worker.min.js</code> / <code>tesseract-core.wasm.js</code> をドラッグ＆ドロップ <b>またはクリックして選択</b>。</p>
+    <div id="drop" class="drop">ここに 5 ファイルをドロップ<br>（クリックでファイル選択も可）</div>
+    <input id="pickLibs" type="file" multiple style="display:none" accept=".js,.wasm,.wasm.js">
+    <div id="status"></div>
+  </section>
+
+  <section class="panel">
+    <h3>完全オフライン化（任意）</h3>
+    <p><code>eng.traineddata.gz</code> と <code>jpn.traineddata.gz</code> を下の枠へドロップ/クリックで選択すると、<b>言語データも内蔵</b>して完全オフラインにできます。</p>
+    <div id="dropLang" class="drop">ここに eng.traineddata.gz / jpn.traineddata.gz をドロップ<br>（クリックで選択も可）</div>
+    <input id="pickLang" type="file" multiple style="display:none" accept=".gz">
+  </section>
+
+  <section class="panel">
+    <div class="row">
+      <button id="pack" disabled>パックしてダウンロード（app-packed.html）</button>
+    </div>
+    <p class="warn">※ 言語データを入れない場合はサイズが軽くなりますが、初回のみネット取得（ファイル内容は外部送信されません／ブラウザ内処理）</p>
+  </section>
+</div>
+
+<script>
+/* ===== Helper ===== */
+function escapeForTag(s){ return String(s).replace(/<\/(script)/gi,'<\\/$1'); }
+function readAsText(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsText(file);});}
+function readAsArrayBuffer(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsArrayBuffer(file);});}
+function b64(buf){return btoa(String.fromCharCode(...new Uint8Array(buf)));}
+
+/* ===== 必要ファイル保持 ===== */
+const need = {
+  'pdf.min.js': null,
+  'pdf.worker.min.js': null,
+  'tesseract.min.js': null,
+  'worker.min.js': null, // Tesseract worker
+  'tesseract-core.wasm.js': null,
+};
+const optionalLang = {
+  'eng.traineddata.gz': null,
+  'jpn.traineddata.gz': null,
+};
+
+/* ===== DOM ===== */
+const drop = document.getElementById('drop');
+const dropLang = document.getElementById('dropLang');
+const statusEl = document.getElementById('status');
+const packBtn = document.getElementById('pack');
+const pickLibs = document.getElementById('pickLibs');
+const pickLang = document.getElementById('pickLang');
+
+/* ===== クリックで選択 ===== */
+drop.addEventListener('click', ()=> pickLibs.click());
+dropLang.addEventListener('click', ()=> pickLang.click());
+
+pickLibs.addEventListener('change', async e=>{
+  await handleLibFiles([...e.target.files]); renderStatus(); pickLibs.value='';
+});
+pickLang.addEventListener('change', async e=>{
+  await handleLangFiles([...e.target.files]); renderStatus(); pickLang.value='';
+});
+
+/* ===== D&D（URLドロップは拒否） ===== */
+['dragover','drop'].forEach(ev => document.addEventListener(ev, e=>e.preventDefault()));
+bindDrop(drop, handleLibFiles);
+bindDrop(dropLang, handleLangFiles);
+
+function bindDrop(zone, handler){
+  zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.style.borderColor='#7fe29a'; });
+  zone.addEventListener('dragleave', ()=>{ zone.style.borderColor='#2a3a78'; });
+  zone.addEventListener('drop', async e=>{
+    e.preventDefault(); zone.style.borderColor='#2a3a78';
+    const items = [...(e.dataTransfer.items||[])];
+    if (items.length && items.every(it => it.kind !== 'file')) {
+      alert('ブラウザのリンクではなく、エクスプローラから保存した「ファイル本体」をドロップしてください。');
+      return;
+    }
+    await handler([...e.dataTransfer.files]); renderStatus();
+  });
+}
+
+/* ===== 取り込み処理 ===== */
+async function handleLibFiles(files){
+  for(const f of files){
+    if(need.hasOwnProperty(f.name)){
+      need[f.name] = await readAsText(f);
+    }
+  }
+}
+async function handleLangFiles(files){
+  for(const f of files){
+    if(optionalLang.hasOwnProperty(f.name)){
+      optionalLang[f.name] = await readAsArrayBuffer(f);
+    }
+  }
+}
+
+/* ===== ステータス ===== */
+function renderStatus(){
+  const have = Object.entries(need).map(([k,v])=>`${v? '✅':'❌'} ${k}`).join('<br>');
+  const langs = Object.entries(optionalLang).filter(([,v])=>v).map(([k])=>k);
+  statusEl.innerHTML = `<div>${have}</div>` + (langs.length? `<div style="margin-top:8px">🔒 オフライン言語データ: ${langs.join(', ')}</div>`:'');
+  packBtn.disabled = !Object.values(need).every(Boolean);
+}
+renderStatus();
+
+/* ===== パック ===== */
+packBtn.addEventListener('click', ()=>{
+  const html = buildPackedHTML(need, optionalLang);
+  const blob = new Blob([html], {type:'text/html;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'app-packed.html';
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+/* ===== app-packed.html を生成 ===== */
+function buildPackedHTML(need, optionalLang){
+  const pdfjs = need['pdf.min.js'];
+  const pdfworker = need['pdf.worker.min.js'];
+  const tess = need['tesseract.min.js'];
+  const tessWorker = need['worker.min.js'];
+  const tessCore = need['tesseract-core.wasm.js'];
+
+  const langMap = {};
+  if (optionalLang['eng.traineddata.gz']) langMap['eng.traineddata.gz'] = 'data:application/gzip;base64,'+b64(optionalLang['eng.traineddata.gz']);
+  if (optionalLang['jpn.traineddata.gz']) langMap['jpn.traineddata.gz'] = 'data:application/gzip;base64,'+b64(optionalLang['jpn.traineddata.gz']);
+
+  return `<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF/画像 → CSV（全部入り1枚HTML）</title>
+<style>
+  body{margin:0;background:#0b1020;color:#e8eefa;font-family:system-ui,-apple-system,Segoe UI,Roboto,'Hiragino Kaku Gothic ProN',Meiryo,sans-serif}
+  header{padding:16px 18px;border-bottom:1px solid #223;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  h1{font-size:18px;margin:0 8px 0 0}
+  .wrap{max-width:1060px;margin:18px auto;padding:0 14px}
+  .panel{background:#121a2f;border:1px solid #1f2740;border-radius:14px;padding:14px;margin-bottom:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  button{background:#4f8cff;border:1px solid #3a6ee8;color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer}
+  button.ghost{background:transparent;border-color:#2a355a}
+  input[type=file],label,small{color:#93a1bd}
+  .textarea{width:100%;min-height:300px;background:#0f162a;color:#e8eefa;border:1px solid #283253;border-radius:12px;padding:10px;white-space:pre-wrap}
+  progress{width:240px;height:12px}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+</style>
+</head>
+<body>
+<header><h1>PDF/PNG/JPG → CSV</h1><small>この1ファイルだけ配布すればOK（完全オフライン可）</small></header>
+<div class="wrap">
+  <section class="panel">
+    <div class="row">
+      <input id="files" type="file" accept="application/pdf,image/png,image/jpeg" multiple />
+      <button id="run">一括変換</button>
+      <label><input id="forceOcr" type="checkbox"> 常にOCR（PDF埋込テキスト無視）</label>
+      <progress id="prog" value="0" max="1"></progress>
+      <span id="status" class="mono"></span>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="row" style="justify-content:space-between">
+      <div>結果（CSV：file,page,text）</div>
+      <div class="row">
+        <button id="copyCsv" class="ghost">CSVコピー</button>
+        <button id="saveCsv" class="ghost">CSV保存</button>
+      </div>
+    </div>
+    <textarea id="out" class="textarea" placeholder="file,page,text&#10;example.pdf,1,ここに結果が出ます"></textarea>
+  </section>
+</div>
+
+<!-- ライブラリ埋め込み -->
+<script>${escapeForTag(pdfjs)}</script>
+<script>
+  const pdfWorkerBlob = new Blob([${JSON.stringify(pdfworker)}],{type:'text/javascript'});
+  const pdfWorkerUrl = URL.createObjectURL(pdfWorkerBlob);
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+</script>
+<script>${escapeForTag(tess)}</script>
+<script>
+  const tessWorkerBlob = new Blob([${JSON.stringify(tessWorker)}],{type:'text/javascript'});
+  const tessWorkerUrl = URL.createObjectURL(tessWorkerBlob);
+</script>
+<script>${escapeForTag(tessCore)}</script>
+
+<script>
+  const el = {
+    files: document.getElementById('files'),
+    run: document.getElementById('run'),
+    forceOcr: document.getElementById('forceOcr'),
+    prog: document.getElementById('prog'),
+    status: document.getElementById('status'),
+    out: document.getElementById('out'),
+    copyCsv: document.getElementById('copyCsv'),
+    saveCsv: document.getElementById('saveCsv'),
+  };
+
+  const langMap = ${JSON.stringify(langMap)};
+  function resolveLangUrl(lang){
+    const key = lang + '.traineddata.gz';
+    return langMap[key] || ('https://tessdata.projectnaptha.com/5.0.0_fast/' + key);
+  }
+
+  el.copyCsv.addEventListener('click', async ()=>{ try{ await navigator.clipboard.writeText(el.out.value); el.status.textContent='CSVをコピーしました'; } catch{ el.out.select(); document.execCommand('copy'); el.status.textContent='CSVをコピーしました（旧方式）'; } });
+  el.saveCsv.addEventListener('click', ()=>{ const blob=new Blob([el.out.value],{type:'text/csv;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ocr_result.csv'; a.click(); URL.revokeObjectURL(a.href); });
+
+  window.addEventListener('error', e=>{ el.status.textContent = 'エラー: ' + e.message; });
+  window.addEventListener('unhandledrejection', e=>{ const r=e.reason; el.status.textContent = 'エラー: ' + (r && r.message ? r.message : r); });
+
+  el.run.addEventListener('click', async ()=>{
+    const list = el.files.files;
+    if(!list || !list.length){ el.status.textContent='ファイルを選択してください'; return; }
+
+    const worker = await Tesseract.createWorker({
+      workerPath: tessWorkerUrl,
+      corePath:   undefined,
+      langPath:   { load: (l)=>resolveLangUrl(l) },
+      logger: m => { if (m.status==='recognizing text') el.status.textContent = \`文字認識中… \${Math.round(m.progress*100)}%\`; }
+    });
+
+    try { await worker.loadLanguage('jpn+eng'); await worker.initialize('jpn+eng'); }
+    catch { await worker.loadLanguage('eng'); await worker.initialize('eng'); }
+
+    const rows = [['file','page','text']];
+
+    for (let fi=0; fi<list.length; fi++){
+      const f = list[fi];
+      el.status.textContent = \`\${fi+1}/\${list.length} 処理中… (\${f.name})\`;
+      if ((f.type||'').includes('pdf') || f.name.toLowerCase().endsWith('.pdf')) {
+        const buf = await f.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+        el.prog.value = 0; el.prog.max = pdf.numPages;
+        for (let i=1;i<=pdf.numPages;i++){
+          const page = await pdf.getPage(i);
+          let text = '';
+          if (!el.forceOcr.checked) {
+            try { const tc = await page.getTextContent(); text = (tc.items||[]).map(it=>it.str).join('\\n'); } catch {}
+          }
+          if (el.forceOcr.checked || !isMeaningful(text)){
+            const viewport = page.getViewport({ scale: 2.0 });
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = viewport.width; canvas.height = viewport.height;
+            await page.render({ canvasContext: ctx, viewport }).promise;
+            const dataUrl = canvas.toDataURL('image/png');
+            const { data: { text: t } } = await worker.recognize(dataUrl);
+            text = t || '';
+          }
+          rows.push([f.name, String(i), text.replace(/\\r?\\n/g,' ').trim()]);
+          el.prog.value = i;
+        }
+      } else if ((f.type||'').startsWith('image/') || /\\.(png|jpe?g)$/i.test(f.name)) {
+        const dataUrl = URL.createObjectURL(f);
+        const { data: { text } } = await worker.recognize(dataUrl);
+        rows.push([f.name, '1', (text||'').replace(/\\r?\\n/g,' ').trim()]);
+        URL.revokeObjectURL(dataUrl);
+      }
+    }
+
+    await worker.terminate();
+    el.out.value = rows.map(r=>r.map(csvEsc).join(',')).join('\\r\\n');
+    el.status.textContent = '完了しました';
+  });
+
+  function isMeaningful(s){ if(!s) return false; const t=s.replace(/\\s+/g,''); if(t.length<30) return false; const nonAscii=(t.match(/[^\\x00-\\x7F]/g)||[]).length/t.length; return t.length>80 || nonAscii>0.05; }
+  function csvEsc(v){ if(v==null) return ''; const s=String(v); return /[\",\\n]/.test(s)? '\"'+s.replace(/\"/g,'\"\"')+'\"' : s; }
+</script>
+</body>
+</html>`;
+}
+</script>
+</body>
+</html>

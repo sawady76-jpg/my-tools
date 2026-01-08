@@ -1,0 +1,1520 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>スタッフ評価管理・検索システム</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    *{box-sizing:border-box;}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue","Yu Gothic","Meiryo",sans-serif;
+      background:#f5f5f5;
+      color:#333;
+    }
+    header{
+      background:#1f7a5c;
+      color:#fff;
+      padding:16px 24px;
+      font-size:20px;
+      font-weight:600;
+    }
+    .container{
+      max-width:1200px;
+      margin:16px auto 40px;
+      padding:0 16px;
+    }
+    .tab-buttons{
+      display:flex;
+      margin-bottom:16px;
+      border-radius:6px;
+      overflow:hidden;
+      background:#e0e0e0;
+    }
+    .tab-buttons button{
+      flex:1;
+      padding:10px;
+      border:none;
+      cursor:pointer;
+      background:#e0e0e0;
+      color:#555;
+      font-weight:600;
+      transition: background 0.2s;
+    }
+    .tab-buttons button.active{
+      background:#1f7a5c;
+      color:#fff;
+    }
+    section{
+      background:#fff;
+      border-radius:8px;
+      box-shadow:0 2px 4px rgba(0,0,0,.1);
+      padding:16px 20px 24px;
+      margin-bottom:24px;
+    }
+    section.hidden{display:none;}
+
+    .summary{
+      font-size:14px;
+      margin-bottom:12px;
+      color:#555;
+    }
+    .db-actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin-bottom:12px;
+    }
+    .db-actions button{
+      border:none;
+      border-radius:4px;
+      padding:6px 10px;
+      font-size:13px;
+      cursor:pointer;
+      color:#fff;
+    }
+    .add-btn{background:#1f7a5c;}
+    .import-btn{background:#1976d2;}
+    .export-btn{background:#ff9800;}
+    .backup-btn{background:#607d8b;}
+    .restore-btn{background:#455a64;}
+    .clear-btn{background:#b71c1c;}
+
+    /* テーブル関連 */
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:13px;
+    }
+    thead{
+      background:#f0f0f0;
+    }
+    th,td{
+      padding:6px 8px;
+      border-bottom:1px solid #e0e0e0;
+      text-align:left;
+      vertical-align:middle;
+    }
+    th{
+      font-weight:600;
+      font-size:12px;
+      color:#555;
+    }
+    
+    /* ソート機能用スタイル */
+    th.sortable {
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+    }
+    th.sortable:hover {
+      background-color: #e0e0e0;
+    }
+    th.sortable::after {
+      content: '';
+      display: inline-block;
+      margin-left: 5px;
+      width: 10px;
+      color: #1f7a5c;
+      font-size: 10px;
+    }
+    th.sortable.asc::after {
+      content: '▲';
+    }
+    th.sortable.desc::after {
+      content: '▼';
+    }
+
+    tbody tr:nth-child(even){
+      background:#fafafa;
+    }
+    /* インライン編集用のスタイル */
+    td.editable:hover {
+      background-color: #e8f5e9;
+      cursor: pointer;
+      position: relative;
+    }
+    td.editable:hover::after {
+      content: "✎";
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #1f7a5c;
+      font-size: 10px;
+      opacity: 0.7;
+    }
+    .inline-input {
+      width: 100%;
+      padding: 4px;
+      font-size: 13px;
+      border: 2px solid #1f7a5c;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+
+    .tag-score{
+      padding:2px 6px;
+      border-radius:12px;
+      font-size:11px;
+      display:inline-block;
+      min-width:32px;
+      text-align:center;
+      background:#e0f2f1;
+      color:#00695c;
+      font-weight:bold;
+    }
+    .btn-sm{
+      padding:4px 8px;
+      font-size:12px;
+      border:none;
+      border-radius:4px;
+      cursor:pointer;
+      color:#fff;
+      margin-right:4px;
+    }
+    .btn-edit{background:#1e88e5;}
+    .btn-del{background:#e53935;}
+    .btn-detail{background:#43a047;}
+
+    /* 検索エリア */
+    .search-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .search-row label{
+      font-size:12px;
+      display:block;
+      margin-bottom:3px;
+      color:#555;
+    }
+    .search-row .field{
+      min-width:140px;
+    }
+    input[type="text"],
+    input[type="number"],
+    select,
+    textarea{
+      width:100%;
+      padding:6px 8px;
+      border-radius:4px;
+      border:1px solid #ccc;
+      font-size:13px;
+    }
+    textarea{
+      resize:vertical;
+      min-height:80px;
+    }
+    .search-actions{
+      display:flex;
+      align-items:flex-end;
+      gap:8px;
+      margin-top:4px;
+    }
+    .btn-primary{
+      background:#1f7a5c;
+      color:#fff;
+      border:none;
+      border-radius:4px;
+      padding:6px 12px;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .btn-secondary{
+      background:#9e9e9e;
+      color:#fff;
+      border:none;
+      border-radius:4px;
+      padding:6px 12px;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .results-summary{
+      font-size:12px;
+      color:#555;
+      margin-bottom:8px;
+    }
+
+    /* Modal */
+    .modal{
+      display:none;
+      position:fixed;
+      z-index:9999;
+      left:0;
+      top:0;
+      width:100%;
+      height:100%;
+      background:rgba(0,0,0,.35);
+    }
+    .modal-content{
+      background:#fff;
+      margin:3% auto;
+      padding:20px 24px 24px;
+      border-radius:8px;
+      box-shadow:0 4px 10px rgba(0,0,0,.25);
+      width:90%;
+      max-width:1100px;
+      max-height:90vh;
+      overflow-y:auto;
+      position:relative;
+    }
+    .close{
+      position:absolute;
+      right:12px;
+      top:10px;
+      font-size:24px;
+      cursor:pointer;
+      color:#777;
+    }
+    .modal h2{
+      margin-top:0;
+      margin-bottom:12px;
+      font-size:18px;
+      color: #1f7a5c;
+      border-bottom: 2px solid #f0f0f0;
+      padding-bottom: 8px;
+    }
+    .form-row{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      margin-bottom:12px;
+    }
+    .form-group{
+      flex:1;
+      min-width:160px;
+    }
+    .form-group label{
+      font-size:12px;
+      margin-bottom:3px;
+      display:block;
+      color:#555;
+      font-weight: bold;
+    }
+    .required::after{
+      content:" *";
+      color:#d32f2f;
+      font-weight:bold;
+    }
+    .modal-footer{
+      display:flex;
+      justify-content:flex-end;
+      gap:8px;
+      margin-top:20px;
+      border-top: 1px solid #f0f0f0;
+      padding-top: 16px;
+    }
+
+    /* 評価履歴チップ */
+    .evaluation-history-section {
+      margin: 16px 0;
+      padding: 12px;
+      background: #f9f9f9;
+      border-radius: 6px;
+      border: 1px solid #eee;
+    }
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .history-header h3 {
+      font-size: 14px;
+      margin: 0;
+      color: #333;
+    }
+    .btn-new-eval {
+      background: #2c7873;
+      color: white;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .btn-new-eval:hover {
+      background: #23615c;
+    }
+    .chip-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .history-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      background: #fff;
+      border: 1px solid #ddd;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #555;
+    }
+    .history-chip:hover {
+      background: #f0f0f0;
+      border-color: #ccc;
+    }
+    .history-chip.active {
+      background: #1f7a5c;
+      color: #fff;
+      border-color: #1f7a5c;
+      font-weight: bold;
+    }
+    .history-chip .chip-score {
+      background: rgba(0,0,0,0.1);
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-weight: bold;
+    }
+
+    .evaluation-history h3{
+      font-size:15px;
+      margin:4px 0 6px;
+    }
+    .history-table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:12px;
+    }
+    .history-table th,
+    .history-table td{
+      padding:4px 6px;
+      border-bottom:1px solid #eee;
+    }
+
+    @media(max-width:768px){
+      .modal-content{
+        margin:4% auto;
+        width:96%;
+        max-width:none;
+      }
+      .form-row{flex-direction:column;}
+    }
+  </style>
+</head>
+<body>
+<header>スタッフ評価管理・検索システム</header>
+<div class="container">
+  <div class="tab-buttons">
+    <button id="tab-db" class="active">データベース管理</button>
+    <button id="tab-search">評価検索</button>
+  </div>
+
+  <section id="db-section">
+    <div class="summary" id="db-summary">
+      登録スタッフ数: 0名｜評価データ数: 0件
+    </div>
+    <div class="db-actions">
+      <button class="add-btn" id="add-staff-btn">スタッフ追加</button>
+      <button class="import-btn" id="import-btn">CSVインポート</button>
+      <button class="export-btn" id="export-btn">CSVエクスポート</button>
+      <button class="backup-btn" id="backup-json-btn">バックアップ(JSON)</button>
+      <button class="restore-btn" id="restore-json-btn">復元(JSON)</button>
+      <button class="clear-btn" id="cleanup-invalid-btn">不正データ削除</button>
+      <button class="clear-btn" id="clear-db-btn">データクリア</button>
+    </div>
+    <div style="font-size:12px; color:#666; margin-bottom:8px;">
+      ※ 項目名をクリックすると並び替えができます。セルをダブルクリックすると直接編集できます。
+    </div>
+    <table id="db-table">
+      <thead>
+        <tr>
+          <th class="sortable" data-key="id" width="8%">ID</th>
+          <th class="sortable" data-key="name" width="15%">名前</th>
+          <th class="sortable" data-key="department" width="15%">所属</th>
+          <th class="sortable" data-key="position" width="10%">職位</th>
+          <th class="sortable" data-key="period" width="12%">評価期間</th>
+          <th class="sortable" data-key="evaluator" width="10%">評価者</th>
+          <th class="sortable" data-key="totalScore" width="10%">総合評価</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section id="search-section" class="hidden">
+    <div class="search-row">
+      <div class="field">
+        <label>名前</label>
+        <input type="text" id="search-name" placeholder="部分一致">
+      </div>
+      <div class="field">
+        <label>所属</label>
+        <input type="text" id="search-dept" placeholder="例：横浜支店">
+      </div>
+      <div class="field">
+        <label>評価者</label>
+        <select id="search-evaluator">
+          <option value="">指定なし</option>
+          <option value="上長">上長</option>
+          <option value="本人">本人</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>総合評価（最小）</label>
+        <input type="number" id="search-min-score" min="0" max="5" step="0.05" placeholder="例：1.5">
+      </div>
+      <div class="search-actions">
+        <button class="btn-primary" id="btn-search">検索</button>
+        <button class="btn-secondary" id="btn-reset-search">リセット</button>
+        <button class="export-btn" id="btn-export-search">検索結果CSV</button>
+      </div>
+    </div>
+    <div class="results-summary" id="search-summary">検索結果: 0件</div>
+    <table id="search-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>名前</th>
+          <th>所属</th>
+          <th>職位</th>
+          <th>評価期間</th>
+          <th>評価者</th>
+          <th>総合評価</th>
+          <th>操作</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </section>
+</div>
+
+<div id="staff-modal" class="modal">
+  <div class="modal-content">
+    <span class="close" id="staff-modal-close">&times;</span>
+    <h2 id="staff-modal-title">スタッフ編集</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="required">社員番号</label>
+        <input type="text" id="staff-id">
+      </div>
+      <div class="form-group">
+        <label class="required">名前</label>
+        <input type="text" id="staff-name">
+      </div>
+      <div class="form-group">
+        <label class="required">所属</label>
+        <input type="text" id="staff-dept">
+      </div>
+      <div class="form-group">
+        <label class="required">職位</label>
+        <input type="text" id="staff-pos">
+      </div>
+    </div>
+
+    <div class="evaluation-history-section">
+      <div class="history-header">
+        <h3>評価履歴</h3>
+        <button type="button" class="btn-new-eval" id="btn-new-eval">＋ 新規評価を追加</button>
+      </div>
+      <div class="chip-container" id="history-chips-container">
+        </div>
+    </div>
+
+    <h3>評価データ（編集中）</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="required">評価期間</label>
+        <input type="text" id="eval-period" placeholder="例：25年6月">
+      </div>
+      <div class="form-group">
+        <label class="required">評価者</label>
+        <select id="eval-evaluator">
+          <option value="上長">上長</option>
+          <option value="本人">本人</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="required">総合評価</label>
+        <input type="number" id="eval-total" min="0" max="5" step="0.05" placeholder="例：1.8">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>電話・FAX対応</label>
+        <input type="number" id="eval-phone" min="0" max="5" step="0.05">
+      </div>
+      <div class="form-group">
+        <label>商品知識</label>
+        <input type="number" id="eval-knowledge" min="0" max="5" step="0.05">
+      </div>
+      <div class="form-group">
+        <label>入力作業</label>
+        <input type="number" id="eval-input" min="0" max="5" step="0.05">
+      </div>
+      <div class="form-group">
+        <label>チーム協力</label>
+        <input type="number" id="eval-team" min="0" max="5" step="0.05">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>コメント</label>
+      <textarea id="eval-comment" placeholder="評価コメントを入力してください"></textarea>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-del" id="btn-delete-current-eval" style="margin-right:auto; display:none;">この評価を削除</button>
+      <button class="btn-secondary" id="staff-modal-cancel">キャンセル</button>
+      <button class="btn-primary" id="staff-modal-save">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="detail-modal" class="modal">
+  <div class="modal-content">
+    <span class="close" id="detail-modal-close">&times;</span>
+    <h2>スタッフ詳細情報</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label>ID</label>
+        <div id="detail-id"></div>
+      </div>
+      <div class="form-group">
+        <label>名前</label>
+        <div id="detail-name"></div>
+      </div>
+      <div class="form-group">
+        <label>所属</label>
+        <div id="detail-dept"></div>
+      </div>
+      <div class="form-group">
+        <label>職位</label>
+        <div id="detail-pos"></div>
+      </div>
+    </div>
+
+    <div class="evaluation-history">
+      <h3>評価履歴</h3>
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>評価期間</th>
+            <th>評価者</th>
+            <th>総合評価</th>
+            <th>電話・FAX</th>
+            <th>商品知識</th>
+            <th>入力作業</th>
+            <th>チーム協力</th>
+          </tr>
+        </thead>
+        <tbody id="detail-history-body"></tbody>
+      </table>
+    </div>
+
+    <div class="evaluation-history">
+      <h3>評価推移グラフ（総合評価）</h3>
+      <canvas id="score-chart" width="800" height="380" style="max-width:100%;border:1px solid #eee;border-radius:4px;background:#fafafa;"></canvas>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="csv-file" accept=".csv" style="display:none">
+<input type="file" id="json-file" accept=".json" style="display:none">
+
+<script>
+(function(){
+  const NEW_STORAGE_KEY = 'staffEvalDB_v3';
+  const OLD_STORAGE_KEY = 'staffEvaluationData';
+  
+  // ソートの状態管理
+  let currentSort = { key: null, order: 'asc' }; // order: 'asc' or 'desc'
+
+  function $(id){return document.getElementById(id);}
+
+  // DB読み込み（マイグレーション機能付き）
+  function loadDB(){
+    try{
+      const rawNew = localStorage.getItem(NEW_STORAGE_KEY);
+      if(rawNew) {
+        const data = JSON.parse(rawNew);
+        if(Array.isArray(data)) {
+          data.forEach(s => { if(!Array.isArray(s.evaluations)) s.evaluations=[]; });
+          return data;
+        }
+      }
+      const rawOld = localStorage.getItem(OLD_STORAGE_KEY);
+      if(rawOld) {
+        const oldData = JSON.parse(rawOld);
+        if(Array.isArray(oldData)){
+          const converted = oldData.map(s => {
+             return {
+               id: String(s.id),
+               name: s.name,
+               department: s.department,
+               position: s.position,
+               evaluations: (s.evaluations || []).map(e => ({
+                 period: e.period,
+                 evaluator: e.type,
+                 totalScore: e.totalScore,
+                 phoneFax: e.scores ? e.scores[0] : null,
+                 knowledge: e.scores ? e.scores[1] : null,
+                 inputWork: e.scores ? e.scores[2] : null,
+                 teamWork: e.scores ? e.scores[3] : null,
+                 comment: e.comment || ''
+               }))
+             };
+          });
+          localStorage.setItem(NEW_STORAGE_KEY, JSON.stringify(converted));
+          return converted;
+        }
+      }
+      return [];
+    }catch(e){
+      console.error(e);
+      return [];
+    }
+  }
+
+  function saveDB(){
+    localStorage.setItem(NEW_STORAGE_KEY, JSON.stringify(db));
+  }
+
+  let db = loadDB();
+
+  function toNumPeriod(p){
+    const m = (p||'').match(/(\d+)年(\d+)月/);
+    return m ? parseInt(m[1],10)*100 + parseInt(m[2],10) : 0;
+  }
+
+  function getStaffById(id){
+    return db.find(s => String(s.id) === String(id));
+  }
+
+  function ensureStaff(id,name,dept,pos){
+    let s = getStaffById(id);
+    if(!s){
+      s = {id:String(id),name:name||'',department:dept||'',position:pos||'',evaluations:[]};
+      db.push(s);
+    }else{
+      if(name) s.name = name;
+      if(dept) s.department = dept;
+      if(pos) s.position = pos;
+    }
+    return s;
+  }
+
+  function flatten(){
+    const rows=[];
+    db.forEach(s=>{
+      if(!s.evaluations.length){
+        rows.push({
+          id:s.id, name:s.name, department:s.department, position:s.position,
+          period:'', evaluator:'', totalScore:null,
+          phoneFax:null, knowledge:null, inputWork:null, teamWork:null, comment:''
+        });
+      }else{
+        s.evaluations
+          .slice()
+          .sort((a,b)=>toNumPeriod(b.period)-toNumPeriod(a.period))
+          .forEach(ev=>{
+            rows.push({
+              id:s.id, name:s.name, department:s.department, position:s.position,
+              period:ev.period||'', evaluator:ev.evaluator||'', totalScore:ev.totalScore,
+              phoneFax:ev.phoneFax, knowledge:ev.knowledge, inputWork:ev.inputWork, teamWork:ev.teamWork, comment:ev.comment||''
+            });
+          });
+      }
+    });
+    return rows;
+  }
+
+  /* ---------- DB table ---------- */
+  function refreshDBSummary(){
+    const staffCount = db.length;
+    let evalCount = 0;
+    db.forEach(s => evalCount += (s.evaluations||[]).length);
+    $('db-summary').textContent = '登録スタッフ数: ' + staffCount + '名｜評価データ数: ' + evalCount + '件';
+  }
+
+  function renderDBTable(){
+    const tbody = $('db-table').querySelector('tbody');
+    tbody.innerHTML='';
+    let rows = flatten();
+
+    // ソート処理
+    if(currentSort.key) {
+      rows.sort((a, b) => {
+        let valA = a[currentSort.key];
+        let valB = b[currentSort.key];
+
+        // 特殊なソートロジック
+        if(currentSort.key === 'id') {
+          // IDは数値として比較
+          valA = parseInt(valA, 10) || 0;
+          valB = parseInt(valB, 10) || 0;
+        } else if(currentSort.key === 'period') {
+          // 期間は数値化して比較
+          valA = toNumPeriod(valA);
+          valB = toNumPeriod(valB);
+        } else if(currentSort.key === 'totalScore') {
+          // 数値。nullは最小扱いにする
+          valA = (valA === null || valA === undefined) ? -1 : valA;
+          valB = (valB === null || valB === undefined) ? -1 : valB;
+        } else {
+          // 文字列比較
+          valA = String(valA || '').toLowerCase();
+          valB = String(valB || '').toLowerCase();
+        }
+
+        let comparison = 0;
+        if (valA > valB) comparison = 1;
+        else if (valA < valB) comparison = -1;
+
+        return (currentSort.order === 'desc') ? (comparison * -1) : comparison;
+      });
+    }
+
+    // ヘッダーのクラス更新
+    const headers = document.querySelectorAll('#db-table th.sortable');
+    headers.forEach(th => {
+      th.classList.remove('asc', 'desc');
+      if(th.dataset.key === currentSort.key) {
+        th.classList.add(currentSort.order);
+      }
+    });
+
+    rows.forEach(row=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>'+escapeHtml(row.id)+'</td>'+
+        '<td class="editable" data-id="'+escapeAttr(row.id)+'" data-field="name">'+escapeHtml(row.name)+'</td>'+
+        '<td class="editable" data-id="'+escapeAttr(row.id)+'" data-field="department">'+escapeHtml(row.department)+'</td>'+
+        '<td class="editable" data-id="'+escapeAttr(row.id)+'" data-field="position">'+escapeHtml(row.position)+'</td>'+
+        '<td class="editable" data-id="'+escapeAttr(row.id)+'" data-field="period" data-eval="'+escapeAttr(row.evaluator)+'">'+escapeHtml(row.period)+'</td>'+
+        '<td class="editable" data-id="'+escapeAttr(row.id)+'" data-field="evaluator" data-period="'+escapeAttr(row.period)+'">'+escapeHtml(row.evaluator)+'</td>'+
+        '<td class="editable" data-id="'+escapeAttr(row.id)+'" data-field="totalScore" data-period="'+escapeAttr(row.period)+'" data-eval="'+escapeAttr(row.evaluator)+'">'+
+          (row.totalScore!=null?'<span class="tag-score">'+row.totalScore.toFixed(2)+'</span>':'-')+'</td>'+
+        '<td>'+
+          '<button class="btn-sm btn-edit" data-id="'+escapeAttr(row.id)+'">編集</button>'+
+          '<button class="btn-sm btn-del" data-id="'+escapeAttr(row.id)+'" data-period="'+escapeAttr(row.period)+'" data-eval="'+escapeAttr(row.evaluator)+'">削除</button>'+
+        '</td>';
+      tbody.appendChild(tr);
+    });
+  }
+
+  /* ---------- ダブルクリック編集 (インライン編集) ---------- */
+  function setupInlineEdit(){
+    $('db-table').querySelector('tbody').addEventListener('dblclick', function(e){
+      const td = e.target.closest('td.editable');
+      if(!td) return;
+      if(td.querySelector('input') || td.querySelector('select')) return; // 既に編集モード
+
+      const field = td.getAttribute('data-field');
+      const id = td.getAttribute('data-id');
+      const originalValue = td.textContent.trim();
+      const staff = getStaffById(id);
+      if(!staff) return;
+
+      // input要素の作成
+      let input;
+      if(field === 'evaluator') {
+        input = document.createElement('select');
+        input.className = 'inline-input';
+        ['上長','本人'].forEach(opt => {
+          const o = document.createElement('option');
+          o.value = opt;
+          o.text = opt;
+          if(opt === originalValue) o.selected = true;
+          input.appendChild(o);
+        });
+      } else {
+        input = document.createElement('input');
+        input.className = 'inline-input';
+        input.value = (field === 'totalScore' && originalValue === '-') ? '' : originalValue;
+        if(field === 'totalScore') {
+          input.type = 'number';
+          input.step = '0.05';
+        } else {
+          input.type = 'text';
+        }
+      }
+
+      td.innerHTML = '';
+      td.appendChild(input);
+      input.focus();
+
+      function finishEdit(save){
+        if(!save) {
+          refreshDBSummary();
+          renderDBTable();
+          doSearch();
+          return;
+        }
+
+        const newValue = input.value.trim();
+        if(newValue === originalValue) {
+          finishEdit(false);
+          return;
+        }
+
+        if(['name', 'department', 'position'].includes(field)) {
+          staff[field] = newValue;
+        }
+        else {
+          const period = td.getAttribute('data-period');
+          const evaluator = td.getAttribute('data-eval'); 
+          const targetPeriod = (field === 'period') ? originalValue : period;
+          
+          let ev = staff.evaluations.find(e => e.period === targetPeriod && e.evaluator === (field==='evaluator'?originalValue:evaluator));
+          
+          if(ev) {
+            if(field === 'totalScore') {
+              const num = parseFloat(newValue);
+              if(!isNaN(num)) ev.totalScore = num;
+            } else if (field === 'period') {
+              ev.period = newValue;
+            } else if (field === 'evaluator') {
+              ev.evaluator = newValue;
+            }
+          }
+        }
+        saveDB();
+        refreshDBSummary();
+        renderDBTable();
+        doSearch();
+      }
+
+      input.addEventListener('blur', () => finishEdit(true));
+      input.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter') {
+          e.preventDefault(); 
+          input.blur();
+        } else if(e.key === 'Escape') {
+          finishEdit(false);
+        }
+      });
+    });
+  }
+
+  function escapeHtml(str){
+    return String(str==null?'':str)
+      .replace(/&/g,"&amp;")
+      .replace(/</g,"&lt;")
+      .replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;")
+      .replace(/'/g,"&#39;");
+  }
+  function escapeAttr(str){return escapeHtml(str).replace(/"/g,'&quot;');}
+
+  /* ---------- Search ---------- */
+  function doSearch(){
+    const name = $('search-name').value.trim();
+    const dept = $('search-dept').value.trim();
+    const ev = $('search-evaluator').value;
+    const min = parseFloat($('search-min-score').value);
+    const rows = flatten().filter(r=>{
+      if(name && !String(r.name).includes(name)) return false;
+      if(dept && !String(r.department).includes(dept)) return false;
+      if(ev && r.evaluator !== ev) return false;
+      if(!isNaN(min) && (r.totalScore==null || r.totalScore < min)) return false;
+      return true;
+    });
+    const tbody = $('search-table').querySelector('tbody');
+    tbody.innerHTML='';
+    rows.forEach(row=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML =
+        '<td>'+escapeHtml(row.id)+'</td>'+
+        '<td>'+escapeHtml(row.name)+'</td>'+
+        '<td>'+escapeHtml(row.department)+'</td>'+
+        '<td>'+escapeHtml(row.position)+'</td>'+
+        '<td>'+escapeHtml(row.period)+'</td>'+
+        '<td>'+escapeHtml(row.evaluator)+'</td>'+
+        '<td>'+(row.totalScore!=null?'<span class="tag-score">'+row.totalScore.toFixed(2)+'</span>':'-')+'</td>'+
+        '<td>'+
+          '<button class="btn-sm btn-detail" data-id="'+escapeAttr(row.id)+'">詳細</button>'+
+        '</td>';
+      tbody.appendChild(tr);
+    });
+    $('search-summary').textContent = '検索結果: ' + rows.length + '件';
+  }
+
+  /* ---------- Staff edit modal ---------- */
+  let editingStaffId = null;
+
+  function openStaffModal(staff){
+    editingStaffId = staff ? staff.id : null;
+    $('staff-modal-title').textContent = staff ? 'スタッフ編集' : 'スタッフ追加';
+
+    $('staff-id').value = staff ? staff.id : '';
+    $('staff-name').value = staff ? (staff.name||'') : '';
+    $('staff-dept').value = staff ? (staff.department||'') : '';
+    $('staff-pos').value = staff ? (staff.position||'') : '';
+
+    renderHistoryChips(staff); // チップを描画
+
+    clearEvalForm(); 
+
+    if(staff && staff.evaluations.length > 0) {
+      const latest = staff.evaluations.slice().sort((a,b)=>toNumPeriod(b.period)-toNumPeriod(a.period))[0];
+      fillEvalForm(latest);
+      highlightChip(latest.period, latest.evaluator);
+    }
+
+    $('staff-modal').style.display='block';
+  }
+
+  function closeStaffModal(){
+    $('staff-modal').style.display='none';
+  }
+
+  function renderHistoryChips(staff){
+    const container = $('history-chips-container');
+    container.innerHTML = '';
+    
+    if(!staff || !staff.evaluations.length){
+      container.innerHTML = '<span style="font-size:12px; color:#999;">履歴なし</span>';
+      return;
+    }
+
+    const evals = staff.evaluations.slice().sort((a,b)=>toNumPeriod(b.period)-toNumPeriod(a.period));
+    
+    evals.forEach(ev => {
+      const chip = document.createElement('div');
+      chip.className = 'history-chip';
+      chip.dataset.period = ev.period;
+      chip.dataset.eval = ev.evaluator;
+      
+      const scoreDisp = (ev.totalScore != null) ? ev.totalScore.toFixed(2) : '-';
+      chip.innerHTML = `
+        <span>${escapeHtml(ev.period)}</span>
+        <span>${escapeHtml(ev.evaluator)}</span>
+        <span class="chip-score">${scoreDisp}</span>
+      `;
+      
+      chip.addEventListener('click', () => {
+        fillEvalForm(ev);
+        highlightChip(ev.period, ev.evaluator);
+      });
+
+      container.appendChild(chip);
+    });
+  }
+
+  function highlightChip(period, evaluator) {
+    const chips = document.querySelectorAll('.history-chip');
+    chips.forEach(c => {
+      if(c.dataset.period === period && c.dataset.eval === evaluator) {
+        c.classList.add('active');
+      } else {
+        c.classList.remove('active');
+      }
+    });
+    $('btn-delete-current-eval').style.display = 'block';
+  }
+
+  function clearChipHighlight() {
+    const chips = document.querySelectorAll('.history-chip');
+    chips.forEach(c => c.classList.remove('active'));
+    $('btn-delete-current-eval').style.display = 'none';
+  }
+
+  function fillEvalForm(ev) {
+    $('eval-period').value = ev.period || '';
+    $('eval-evaluator').value = ev.evaluator || '上長';
+    $('eval-total').value = (ev.totalScore != null) ? ev.totalScore : '';
+    $('eval-phone').value = (ev.phoneFax != null) ? ev.phoneFax : '';
+    $('eval-knowledge').value = (ev.knowledge != null) ? ev.knowledge : '';
+    $('eval-input').value = (ev.inputWork != null) ? ev.inputWork : '';
+    $('eval-team').value = (ev.teamWork != null) ? ev.teamWork : '';
+    $('eval-comment').value = ev.comment || '';
+  }
+
+  function clearEvalForm() {
+    $('eval-period').value = ''; 
+    $('eval-evaluator').value = '上長';
+    $('eval-total').value = '';
+    $('eval-phone').value = '';
+    $('eval-knowledge').value = '';
+    $('eval-input').value = '';
+    $('eval-team').value = '';
+    $('eval-comment').value = '';
+    
+    clearChipHighlight();
+  }
+
+  function saveStaffFromModal(){
+    const id = $('staff-id').value.trim();
+    const name = $('staff-name').value.trim();
+    const dept = $('staff-dept').value.trim();
+    const pos = $('staff-pos').value.trim();
+    if(!id || !name || !dept || !pos){
+      alert('社員番号・名前・所属・職位は必須です。');
+      return;
+    }
+    const staff = ensureStaff(id,name,dept,pos);
+
+    const period = $('eval-period').value.trim();
+    const evaluator = $('eval-evaluator').value;
+    const total = $('eval-total').value.trim();
+    
+    if(period && evaluator){
+      const t = parseFloat(total);
+      if(isNaN(t)){
+        alert('総合評価は数値で入力してください。');
+        return;
+      }
+      const phone = parseOrNull($('eval-phone').value);
+      const know  = parseOrNull($('eval-knowledge').value);
+      const input = parseOrNull($('eval-input').value);
+      const team  = parseOrNull($('eval-team').value);
+      const comment = $('eval-comment').value.trim();
+
+      let ev = staff.evaluations.find(e=>e.period===period && e.evaluator===evaluator);
+      if(!ev){
+        ev = {period,evaluator};
+        staff.evaluations.push(ev);
+      }
+      ev.totalScore = t;
+      ev.phoneFax   = phone;
+      ev.knowledge  = know;
+      ev.inputWork  = input;
+      ev.teamWork   = team;
+      ev.comment    = comment;
+    }
+
+    saveDB();
+    refreshDBSummary();
+    renderDBTable();
+    doSearch();
+    closeStaffModal();
+  }
+
+  function parseOrNull(v){
+    v = String(v||'').trim();
+    if(!v) return null;
+    const n = parseFloat(v);
+    return isNaN(n)?null:n;
+  }
+
+  /* ---------- Detail modal ---------- */
+  function openDetailModal(staff){
+    if(!staff) return;
+    $('detail-id').textContent   = staff.id;
+    $('detail-name').textContent = staff.name||'';
+    $('detail-dept').textContent = staff.department||'';
+    $('detail-pos').textContent  = staff.position||'';
+
+    const tbody = $('detail-history-body');
+    tbody.innerHTML='';
+    const evals = (staff.evaluations||[]).slice().sort((a,b)=>toNumPeriod(b.period)-toNumPeriod(a.period));
+    evals.forEach(ev=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML =
+        '<td>'+escapeHtml(ev.period)+'</td>'+
+        '<td>'+escapeHtml(ev.evaluator)+'</td>'+
+        '<td>'+(ev.totalScore!=null?ev.totalScore.toFixed(2):'-')+'</td>'+
+        '<td>'+(ev.phoneFax!=null?ev.phoneFax.toFixed(2):'-')+'</td>'+
+        '<td>'+(ev.knowledge!=null?ev.knowledge.toFixed(2):'-')+'</td>'+
+        '<td>'+(ev.inputWork!=null?ev.inputWork.toFixed(2):'-')+'</td>'+
+        '<td>'+(ev.teamWork!=null?ev.teamWork.toFixed(2):'-')+'</td>';
+      tbody.appendChild(tr);
+    });
+
+    renderScoreChart(evals);
+
+    $('detail-modal').style.display='block';
+  }
+
+  function closeDetailModal(){
+    $('detail-modal').style.display='none';
+  }
+
+  function renderScoreChart(evals){
+    const canvas = $('score-chart');
+    if(!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(!evals || !evals.length){
+      ctx.fillStyle='#999';
+      ctx.font='14px sans-serif';
+      ctx.fillText('評価データがないため、グラフを表示できません。',20,canvas.height/2);
+      return;
+    }
+    const sorted = evals.slice().sort((a,b)=>toNumPeriod(a.period)-toNumPeriod(b.period));
+    const labels = sorted.map(e=> (e.period||'')+'（'+(e.evaluator||'')+'）');
+    const data   = sorted.map(e=> typeof e.totalScore==='number'?e.totalScore:0);
+
+    const padding = {left:70,right:30,top:40,bottom:130};
+    const w = canvas.width - padding.left - padding.right;
+    const h = canvas.height - padding.top - padding.bottom;
+    const maxVal = Math.max(5, Math.max.apply(null,data));
+    const minVal = 0;
+
+    ctx.strokeStyle='#ccc';
+    ctx.lineWidth=1;
+    ctx.beginPath();
+    ctx.moveTo(padding.left, padding.top);
+    ctx.lineTo(padding.left, padding.top+h);
+    ctx.lineTo(padding.left+w, padding.top+h);
+    ctx.stroke();
+
+    ctx.fillStyle='#666';
+    ctx.font='12px sans-serif';
+    const step = 0.5;
+    for(let v=minVal; v<=maxVal; v+=step){
+      const y = padding.top + h - ((v-minVal)/(maxVal-minVal))*h;
+      ctx.strokeStyle = (v===Math.round(v))?'#e0e0e0':'#f5f5f5';
+      ctx.beginPath();
+      ctx.moveTo(padding.left,y);
+      ctx.lineTo(padding.left+w,y);
+      ctx.stroke();
+      if(v===Math.round(v)){
+        ctx.fillStyle='#666';
+        ctx.fillText(v.toFixed(0), padding.left-25, y+4);
+      }
+    }
+
+    const n=data.length;
+    const dx=n>1?w/(n-1):0;
+
+    ctx.strokeStyle='#2c7873';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    data.forEach((v,i)=>{
+      const x = padding.left + dx*i;
+      const y = padding.top + h - ((v-minVal)/(maxVal-minVal))*h;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+
+    ctx.fillStyle='#ff9800';
+    data.forEach((v,i)=>{
+      const x = padding.left + dx*i;
+      const y = padding.top + h - ((v-minVal)/(maxVal-minVal))*h;
+      ctx.beginPath();
+      ctx.arc(x,y,4,0,Math.PI*2);
+      ctx.fill();
+    });
+
+    ctx.save();
+    ctx.fillStyle='#333';
+    ctx.font='11px sans-serif';
+    ctx.textAlign='right';
+    labels.forEach((label,i)=>{
+      const x = padding.left + dx*i;
+      const y = padding.top + h + 45;
+      ctx.save();
+      ctx.translate(x,y);
+      ctx.rotate(-Math.PI/4);
+      ctx.fillText(label,0,0);
+      ctx.restore();
+    });
+    ctx.restore();
+
+    ctx.fillStyle='#333';
+    ctx.font='13px sans-serif';
+    ctx.fillText('総合評価の推移', padding.left, padding.top-12);
+  }
+
+  /* ---------- CSV / JSON ---------- */
+  function csvEscape(str){
+    const s = String(str==null?'':str);
+    if(/[",\n]/.test(s)){
+      return '"' + s.replace(/"/g,'""') + '"';
+    }
+    return s;
+  }
+
+  function exportCSV(rows){
+    const header = [
+      '社員番号','名前','所属','職位',
+      '評価期間','評価者',
+      '総合評価','電話・FAX対応','商品知識','入力作業','チーム協力','コメント'
+    ];
+    const lines=[header.join(',')];
+    rows.forEach(r=>{
+      lines.push([
+        csvEscape(r.id),
+        csvEscape(r.name),
+        csvEscape(r.department),
+        csvEscape(r.position),
+        csvEscape(r.period),
+        csvEscape(r.evaluator),
+        r.totalScore!=null?csvEscape(r.totalScore.toFixed(2)):'',
+        r.phoneFax!=null?csvEscape(r.phoneFax.toFixed(2)):'',
+        r.knowledge!=null?csvEscape(r.knowledge.toFixed(2)):'',
+        r.inputWork!=null?csvEscape(r.inputWork.toFixed(2)):'',
+        r.teamWork!=null?csvEscape(r.teamWork.toFixed(2)):'',
+        csvEscape(r.comment||'')
+      ].join(','));
+    });
+    const csv = lines.join('\r\n');
+    const blob = new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url;
+    a.download='staff-evaluation.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importCSV(text){
+    const lines = text.replace(/\r\n/g,'\n').split('\n').filter(l=>l.trim());
+    if(!lines.length) return;
+    lines.shift(); 
+    const reSplit = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
+
+    lines.forEach(line=>{
+      const cells = line.split(reSplit).map(c=>{
+        c = c.trim();
+        if(c.startsWith('"') && c.endsWith('"')){
+          c = c.slice(1,-1).replace(/""/g,'"');
+        }
+        return c;
+      });
+      if(!cells.length) return;
+      const [id,name,dept,pos,period,evaluator,total,phone,know,input,team,comment] = cells;
+      if(!id) return;
+
+      const staff = ensureStaff(id,name,dept,pos);
+      if(period && evaluator){
+        let ev = staff.evaluations.find(e=>e.period===period && e.evaluator===evaluator);
+        if(!ev){
+          ev = {period,evaluator};
+          staff.evaluations.push(ev);
+        }
+        ev.totalScore = parseOrNull(total);
+        ev.phoneFax   = parseOrNull(phone);
+        ev.knowledge  = parseOrNull(know);
+        ev.inputWork  = parseOrNull(input);
+        ev.teamWork   = parseOrNull(team);
+        ev.comment    = comment || '';
+      }
+    });
+
+    saveDB();
+    refreshDBSummary();
+    renderDBTable();
+    doSearch();
+    alert('CSVインポートが完了しました。');
+  }
+
+  function exportJSON(){
+    const blob = new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download='staff-eval-backup.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importJSON(text){
+    try{
+      const data = JSON.parse(text);
+      if(!Array.isArray(data)){
+        alert('JSON形式が不正です。');
+        return;
+      }
+      data.forEach(s=>{ if(!Array.isArray(s.evaluations)) s.evaluations=[]; });
+      db = data;
+      saveDB();
+      refreshDBSummary();
+      renderDBTable();
+      doSearch();
+      alert('JSON復元が完了しました。');
+    }catch(e){
+      console.error(e);
+      alert('JSONの読み込みに失敗しました。');
+    }
+  }
+
+  function cleanupInvalid(){
+    const before = db.length;
+    const cleaned = db.filter(s=>{
+      if(!s) return false;
+      const id = s.id;
+      if(id===null || id===undefined) return false;
+      const n = parseInt(id,10);
+      if(!Number.isFinite(n) || n<=0) return false;
+      return true;
+    });
+    const removed = before - cleaned.length;
+    if(removed<=0){
+      alert('IDがnullまたは不正なデータは見つかりませんでした。');
+      return;
+    }
+    db = cleaned;
+    saveDB();
+    refreshDBSummary();
+    renderDBTable();
+    doSearch();
+    alert('IDがnullまたは不正なデータを'+removed+'件削除しました。');
+  }
+
+  function clearDB(){
+    if(!confirm('全データを削除します。よろしいですか？')) return;
+    db = [];
+    saveDB();
+    refreshDBSummary();
+    renderDBTable();
+    doSearch();
+  }
+
+  /* ---------- イベント初期化 ---------- */
+  function init(){
+    refreshDBSummary();
+    renderDBTable();
+    doSearch();
+    setupInlineEdit(); // インライン編集有効化
+
+    // ヘッダーのソートイベント
+    document.querySelectorAll('#db-table th.sortable').forEach(th => {
+      th.addEventListener('click', () => {
+        const key = th.dataset.key;
+        if(currentSort.key === key) {
+          // 同じキーなら昇順・降順を切り替え
+          currentSort.order = (currentSort.order === 'asc') ? 'desc' : 'asc';
+        } else {
+          // 新しいキーなら昇順スタート
+          currentSort.key = key;
+          currentSort.order = 'asc';
+        }
+        renderDBTable();
+      });
+    });
+
+    $('tab-db').addEventListener('click',()=>{
+      $('tab-db').classList.add('active');
+      $('tab-search').classList.remove('active');
+      $('db-section').classList.remove('hidden');
+      $('search-section').classList.add('hidden');
+    });
+    $('tab-search').addEventListener('click',()=>{
+      $('tab-search').classList.add('active');
+      $('tab-db').classList.remove('active');
+      $('search-section').classList.remove('hidden');
+      $('db-section').classList.add('hidden');
+    });
+
+    $('add-staff-btn').addEventListener('click',()=>openStaffModal(null));
+    $('staff-modal-close').addEventListener('click',closeStaffModal);
+    $('staff-modal-cancel').addEventListener('click',closeStaffModal);
+    $('staff-modal-save').addEventListener('click',saveStaffFromModal);
+
+    $('detail-modal-close').addEventListener('click',closeDetailModal);
+
+    $('db-table').addEventListener('click',e=>{
+      const t = e.target;
+      if(t.classList.contains('btn-edit')){
+        const id = t.getAttribute('data-id');
+        const staff = getStaffById(id);
+        openStaffModal(staff || {id,name:'',department:'',position:'',evaluations:[]});
+      }else if(t.classList.contains('btn-del')){
+        const id = t.getAttribute('data-id');
+        const period = t.getAttribute('data-period') || '';
+        const evaluator = t.getAttribute('data-eval') || '';
+        const staff = getStaffById(id);
+        if(!staff) return;
+        if(!period){
+          if(!confirm('このスタッフを全削除しますか？')) return;
+          db = db.filter(s=>String(s.id)!==String(id));
+        }else{
+          if(!confirm('この評価データを削除しますか？')) return;
+          staff.evaluations = staff.evaluations.filter(e=>!(e.period===period && e.evaluator===evaluator));
+        }
+        saveDB();
+        refreshDBSummary();
+        renderDBTable();
+        doSearch();
+      }
+    });
+
+    $('btn-new-eval').addEventListener('click', () => {
+      clearEvalForm();
+    });
+
+    $('btn-delete-current-eval').addEventListener('click', () => {
+      const staffId = $('staff-id').value;
+      const staff = getStaffById(staffId);
+      const period = $('eval-period').value;
+      const evaluator = $('eval-evaluator').value;
+      
+      if(!staff) return;
+      if(!confirm(`評価データ（${period} / ${evaluator}）を削除しますか？`)) return;
+
+      staff.evaluations = staff.evaluations.filter(e => !(e.period === period && e.evaluator === evaluator));
+      saveDB();
+      
+      renderHistoryChips(staff);
+      clearEvalForm();
+      refreshDBSummary();
+      renderDBTable();
+      doSearch();
+    });
+
+    $('search-table').addEventListener('click',e=>{
+      const t=e.target;
+      if(!t.classList.contains('btn-detail')) return;
+      const id = t.getAttribute('data-id');
+      const staff = getStaffById(id);
+      openDetailModal(staff);
+    });
+
+    $('btn-search').addEventListener('click',doSearch);
+    $('btn-reset-search').addEventListener('click',()=>{
+      $('search-name').value='';
+      $('search-dept').value='';
+      $('search-evaluator').value='';
+      $('search-min-score').value='';
+      doSearch();
+    });
+
+    $('import-btn').addEventListener('click',()=>{$('csv-file').click();});
+    $('csv-file').addEventListener('change',e=>{
+      const file=e.target.files[0];
+      if(!file) return;
+      const reader=new FileReader();
+      reader.onload = ev=>{ importCSV(ev.target.result); };
+      reader.readAsText(file,'utf-8');
+      e.target.value='';
+    });
+
+    $('export-btn').addEventListener('click',()=>exportCSV(flatten()));
+    $('btn-export-search').addEventListener('click',()=>{
+      const name = $('search-name').value.trim();
+      const dept = $('search-dept').value.trim();
+      const ev = $('search-evaluator').value;
+      const min = parseFloat($('search-min-score').value);
+      const rows = flatten().filter(r=>{
+        if(name && !String(r.name).includes(name)) return false;
+        if(dept && !String(r.department).includes(dept)) return false;
+        if(ev && r.evaluator!==ev) return false;
+        if(!isNaN(min) && (r.totalScore==null || r.totalScore < min)) return false;
+        return true;
+      });
+      exportCSV(rows);
+    });
+
+    $('backup-json-btn').addEventListener('click',exportJSON);
+    $('restore-json-btn').addEventListener('click',()=>{$('json-file').click();});
+    $('json-file').addEventListener('change',e=>{
+      const file=e.target.files[0];
+      if(!file) return;
+      const reader=new FileReader();
+      reader.onload = ev=>{ importJSON(ev.target.result); };
+      reader.readAsText(file,'utf-8');
+      e.target.value='';
+    });
+
+    $('cleanup-invalid-btn').addEventListener('click',cleanupInvalid);
+    $('clear-db-btn').addEventListener('click',clearDB);
+  }
+
+  document.addEventListener('DOMContentLoaded',init);
+})();
+</script>
+</body>
+</html>

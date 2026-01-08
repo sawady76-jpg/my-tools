@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="営業事務・受発注課向け顧客管理CRMシステム">
+    <title>顧客管理CRM | 営業事務・受発注課</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- サイドバー -->
+        <aside class="sidebar">
+            <div class="logo">
+                <div class="logo-icon">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                </div>
+                <span class="logo-text">顧客管理CRM</span>
+            </div>
+
+            <nav class="nav-menu">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="9"></rect>
+                        <rect x="14" y="3" width="7" height="5"></rect>
+                        <rect x="14" y="12" width="7" height="9"></rect>
+                        <rect x="3" y="16" width="7" height="5"></rect>
+                    </svg>
+                    <span>ダッシュボード</span>
+                </a>
+                <a href="#" class="nav-item" data-view="customers">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <span>顧客一覧</span>
+                </a>
+                <a href="#" class="nav-item" data-view="history">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    <span>対応履歴</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="stats-card">
+                    <div class="stats-label">本日の対応件数</div>
+                    <div class="stats-value" id="todayCount">0</div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <!-- ヘッダー -->
+            <header class="header">
+                <div class="search-container">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <path d="M21 21l-4.35-4.35"></path>
+                    </svg>
+                    <input type="text" id="globalSearch" class="search-input" placeholder="顧客名、会社名、電話番号で検索...">
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="addCustomerBtn">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        新規顧客登録
+                    </button>
+                </div>
+            </header>
+
+            <!-- ダッシュボードビュー -->
+            <section id="dashboardView" class="view active">
+                <div class="view-header">
+                    <h1>📊 ダッシュボード</h1>
+                    <p class="view-subtitle">顧客管理の概要 — リアルタイム統計</p>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon blue">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">総顧客数</span>
+                            <span class="stat-number" id="totalCustomers">0</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon green">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">アクティブ顧客</span>
+                            <span class="stat-number" id="activeCustomers">0</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon purple">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            </svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">総対応履歴</span>
+                            <span class="stat-number" id="totalHistory">0</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-icon orange">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-label">今月の対応</span>
+                            <span class="stat-number" id="monthlyHistory">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dashboard-sections">
+                    <div class="section-card">
+                        <h2 class="section-title">最近登録された顧客</h2>
+                        <div class="recent-list" id="recentCustomers">
+                            <div class="empty-state">
+                                <p>顧客データがありません</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h2 class="section-title">最近の対応履歴</h2>
+                        <div class="recent-list" id="recentHistory">
+                            <div class="empty-state">
+                                <p>対応履歴がありません</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 顧客一覧ビュー -->
+            <section id="customersView" class="view">
+                <div class="view-header">
+                    <h1>👥 顧客一覧</h1>
+                    <p class="view-subtitle">登録されている全ての顧客情報</p>
+                </div>
+
+                <div class="filter-bar">
+                    <div class="filter-group">
+                        <label>ステータス</label>
+                        <select id="statusFilter" class="filter-select">
+                            <option value="">すべて</option>
+                            <option value="active">アクティブ</option>
+                            <option value="pending">保留中</option>
+                            <option value="inactive">非アクティブ</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>ランク</label>
+                        <select id="rankFilter" class="filter-select">
+                            <option value="">すべて</option>
+                            <option value="A">Aランク</option>
+                            <option value="B">Bランク</option>
+                            <option value="C">Cランク</option>
+                            <option value="D">Dランク</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>並び替え</label>
+                        <select id="sortFilter" class="filter-select">
+                            <option value="newest">新しい順</option>
+                            <option value="oldest">古い順</option>
+                            <option value="name">名前順</option>
+                            <option value="company">会社名順</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="customers-table-container">
+                    <table class="customers-table">
+                        <thead>
+                            <tr>
+                                <th>顧客名</th>
+                                <th>会社名</th>
+                                <th>電話番号</th>
+                                <th>メール</th>
+                                <th>ステータス</th>
+                                <th>ランク</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="customersTableBody">
+                            <!-- 動的に追加 -->
+                        </tbody>
+                    </table>
+                    <div class="empty-state" id="customersEmptyState">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.5">
+                            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                        </svg>
+                        <p>顧客データがありません</p>
+                        <button class="btn btn-primary" id="addFirstCustomer">最初の顧客を登録する</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 対応履歴ビュー -->
+            <section id="historyView" class="view">
+                <div class="view-header">
+                    <h1>📋 対応履歴</h1>
+                    <p class="view-subtitle">全ての顧客対応の記録</p>
+                </div>
+
+                <div class="filter-bar">
+                    <div class="filter-group">
+                        <label>対応種類</label>
+                        <select id="historyTypeFilter" class="filter-select">
+                            <option value="">すべて</option>
+                            <option value="phone">電話</option>
+                            <option value="email">メール</option>
+                            <option value="visit">訪問</option>
+                            <option value="meeting">打ち合わせ</option>
+                            <option value="other">その他</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>期間</label>
+                        <select id="historyPeriodFilter" class="filter-select">
+                            <option value="">すべて</option>
+                            <option value="today">今日</option>
+                            <option value="week">今週</option>
+                            <option value="month">今月</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="history-list" id="historyList">
+                    <div class="empty-state" id="historyEmptyState">
+                        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="1.5">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <polyline points="12 6 12 12 16 14"></polyline>
+                        </svg>
+                        <p>対応履歴がありません</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- 顧客登録/編集モーダル -->
+    <div class="modal" id="customerModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="customerModalTitle">新規顧客登録</h2>
+                <button class="modal-close" id="closeCustomerModal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <form id="customerForm">
+                <input type="hidden" id="customerId">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="customerName">顧客名 <span class="required">*</span></label>
+                        <input type="text" id="customerName" required placeholder="例: 山田 太郎">
+                    </div>
+                    <div class="form-group">
+                        <label for="customerNameKana">フリガナ</label>
+                        <input type="text" id="customerNameKana" placeholder="例: ヤマダ タロウ">
+                    </div>
+                    <div class="form-group">
+                        <label for="companyName">会社名</label>
+                        <input type="text" id="companyName" placeholder="例: 株式会社サンプル">
+                    </div>
+                    <div class="form-group">
+                        <label for="department">部署</label>
+                        <input type="text" id="department" placeholder="例: 営業部">
+                    </div>
+                    <div class="form-group">
+                        <label for="position">役職</label>
+                        <input type="text" id="position" placeholder="例: 部長">
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">電話番号</label>
+                        <input type="tel" id="phone" placeholder="例: 03-1234-5678">
+                    </div>
+                    <div class="form-group">
+                        <label for="mobile">携帯電話</label>
+                        <input type="tel" id="mobile" placeholder="例: 090-1234-5678">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">メールアドレス</label>
+                        <input type="email" id="email" placeholder="例: yamada@example.com">
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="address">住所</label>
+                        <input type="text" id="address" placeholder="例: 東京都渋谷区...">
+                    </div>
+                    <div class="form-group">
+                        <label for="status">ステータス</label>
+                        <select id="status">
+                            <option value="active">アクティブ</option>
+                            <option value="pending">保留中</option>
+                            <option value="inactive">非アクティブ</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="rank">顧客ランク</label>
+                        <select id="rank">
+                            <option value="B">Bランク</option>
+                            <option value="A">Aランク</option>
+                            <option value="C">Cランク</option>
+                            <option value="D">Dランク</option>
+                        </select>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="notes">備考</label>
+                        <textarea id="notes" rows="3" placeholder="メモや特記事項..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelCustomer">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 顧客詳細モーダル -->
+    <div class="modal" id="customerDetailModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h2 id="customerDetailName">顧客詳細</h2>
+                <button class="modal-close" id="closeDetailModal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <div class="customer-detail-content">
+                <div class="detail-tabs">
+                    <button class="tab-btn active" data-tab="info">基本情報</button>
+                    <button class="tab-btn" data-tab="customerHistory">対応履歴</button>
+                </div>
+
+                <div class="tab-content active" id="infoTab">
+                    <div class="detail-grid" id="customerDetailInfo">
+                        <!-- 動的に追加 -->
+                    </div>
+                    <div class="detail-actions">
+                        <button class="btn btn-secondary" id="editCustomerBtn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            編集
+                        </button>
+                        <button class="btn btn-danger" id="deleteCustomerBtn">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path
+                                    d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2">
+                                </path>
+                            </svg>
+                            削除
+                        </button>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="customerHistoryTab">
+                    <button class="btn btn-primary mb-3" id="addHistoryBtn">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        対応履歴を追加
+                    </button>
+                    <div class="customer-history-list" id="customerHistoryList">
+                        <!-- 動的に追加 -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 対応履歴登録モーダル -->
+    <div class="modal" id="historyModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="historyModalTitle">対応履歴を追加</h2>
+                <button class="modal-close" id="closeHistoryModal">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            <form id="historyForm">
+                <input type="hidden" id="historyId">
+                <input type="hidden" id="historyCustomerId">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="historyDate">対応日時 <span class="required">*</span></label>
+                        <input type="datetime-local" id="historyDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="historyType">対応種類 <span class="required">*</span></label>
+                        <select id="historyType" required>
+                            <option value="phone">電話</option>
+                            <option value="email">メール</option>
+                            <option value="visit">訪問</option>
+                            <option value="meeting">打ち合わせ</option>
+                            <option value="other">その他</option>
+                        </select>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="historySubject">件名 <span class="required">*</span></label>
+                        <input type="text" id="historySubject" required placeholder="例: 見積もり依頼について">
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="historyContent">内容 <span class="required">*</span></label>
+                        <textarea id="historyContent" rows="5" required placeholder="対応内容の詳細..."></textarea>
+                    </div>
+                    <div class="form-group full-width">
+                        <label for="historyResult">結果・次回アクション</label>
+                        <textarea id="historyResult" rows="2" placeholder="対応結果や次回のアクション..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelHistory">キャンセル</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 確認ダイアログ -->
+    <div class="modal" id="confirmModal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="confirmTitle">確認</h2>
+            </div>
+            <div class="confirm-body">
+                <p id="confirmMessage">この操作を実行してもよろしいですか？</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="confirmCancel">キャンセル</button>
+                <button class="btn btn-danger" id="confirmOk">削除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast通知 -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>

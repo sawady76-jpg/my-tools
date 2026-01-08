@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>受発注課取り組み一覧（ローカル保存／サイバー版）</title>
+<style>
+  :root{
+    --bg:#0a0f1f; --panel:#0e1430; --line:rgba(255,255,255,.08); --muted:rgba(255,255,255,.05);
+    --text:#e6eeff; --sub:#9bb3ff; --accent:#6ef3ff; --accent2:#c67dff; --shadow:0 10px 30px rgba(0,0,0,.45);
+    --radius:14px; --gap:14px;
+  }
+  *{box-sizing:border-box;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  body{margin:0;color:var(--text);background:
+    radial-gradient(1200px 600px at 0% -10%, #16235a33, transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, #1d2b6933, transparent 60%),
+    var(--bg);}
+  header{position:sticky;top:0;z-index:5;display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+    padding:14px 16px;border-bottom:1px solid var(--line);
+    backdrop-filter: blur(10px);
+    background:linear-gradient(180deg, rgba(12,18,40,.9), rgba(12,18,40,.6));}
+  .brand{font-weight:800;letter-spacing:.2px}
+  input,button,textarea{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);padding:10px 12px}
+  input::placeholder, textarea::placeholder{color:#9fb2ffaa}
+  button{cursor:pointer;box-shadow:var(--shadow);border:none}
+  button.ghost{box-shadow:none;border:1px solid var(--line);background:transparent}
+  button.primary{background:linear-gradient(180deg, #2cd9ff, #1aa8cc); color:#00121a;border:none}
+  .pill{font-size:12px;padding:4px 8px;border-radius:999px;border:1px solid var(--line);background:transparent;color:#bcd1ff}
+  main{padding:16px}
+  .board{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--gap);min-height:calc(100dvh - 96px)}
+  .col{background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+    border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;min-height:60vh;
+    box-shadow:var(--shadow);}
+  .col-header{display:flex;justify-content:space-between;align-items:center;padding:12px 12px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(110,243,255,.12), rgba(198,125,255,.08));}
+  .col-title{font-weight:800;letter-spacing:.3px}
+  .cards{display:flex;flex-direction:column;gap:10px;padding:10px;flex:1}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border:1px solid var(--line);border-radius:14px;padding:10px;box-shadow:var(--shadow);backdrop-filter: blur(6px)}
+  .card small{color:#a8bdff}
+  .add-area{padding:10px;border-top:1px dashed var(--line);background:linear-gradient(180deg, rgba(255,255,255,.02), transparent)}
+  .add-area input,.add-area textarea{width:100%}
+  .drag-over{outline:2px dashed var(--accent);outline-offset:-6px}
+  .toolbar{display:flex;gap:8px;align-items:center;margin-left:auto}
+  .hint{color:#a8b6ff;font-size:12px}
+  .canvas-wrap{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel);box-shadow:var(--shadow)}
+  .canvas-caption{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));border-bottom:1px solid var(--line)}
+  .canvas-caption b{font-weight:800}
+  .badge-plan{background:linear-gradient(90deg, #6ef3ff22, #6ef3ff11);}
+  .badge-do{background:linear-gradient(90deg, #7bffb722, #7bffb711);}
+  .badge-check{background:linear-gradient(90deg, #ffd36e22, #ffd36e11);}
+  .badge-act{background:linear-gradient(90deg, #ff7bb722, #ff7bb711);}
+  @media (max-width:1100px){ .board{grid-template-columns:repeat(2,1fr)} }
+  @media (max-width:700px){ .board{grid-template-columns:1fr} header{flex-direction:column;align-items:flex-start} .toolbar{margin-left:0} }
+
+  .owner{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .avatar{width:22px;height:22px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
+    background:linear-gradient(135deg, #2cd9ff55, #c67dff55);border:1px solid var(--line);font-size:12px;color:#e6eeff}
+
+  dialog{border:none;border-radius:16px;padding:0;max-width:760px;box-shadow:var(--shadow)}
+  dialog::backdrop{background:rgba(0,0,0,.65)}
+  .modal{background:#0f1535;color:#eaf2ff;border:1px solid rgba(255,255,255,.14);border-radius:16px;overflow:hidden}
+  .modal header{padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.12);background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02))}
+  .modal header h3{margin:0;font-size:18px;letter-spacing:.2px}
+  .modal .content{padding:16px 18px}
+  .modal .content ul{margin:0 0 8px 1.2em; padding:0; line-height:1.9}
+  .modal .content li{color:#dbe6ff}
+  .modal .content b, .modal .content strong{color:#ffffff}
+  .modal footer{display:flex;justify-content:flex-end;padding:12px 16px;border-top:1px solid rgba(255,255,255,.1);background:linear-gradient(180deg, rgba(255,255,255,.02), transparent)}
+  .modal .primary{background:linear-gradient(180deg, #2cd9ff, #1aa8cc); color:#00121a;border:none;padding:10px 16px;border-radius:12px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">🧭 受発注課取り組み一覧</div>
+  <div class="hint">※データはブラウザに自動保存／初回はサンプル入り。</div>
+  <div class="toolbar">
+    <button class="ghost" id="btnExport">JSONエクスポート</button>
+    <input type="file" id="fileImport" accept="application/json" hidden />
+    <button class="ghost" id="btnImport">JSONインポート</button>
+    <button class="ghost" id="btnHow">使い方</button>
+  </div>
+</header>
+
+<section id="global-add" style="padding:12px 16px;border-bottom:1px dashed var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;background:linear-gradient(180deg, rgba(255,255,255,.04), transparent)">
+  <input id="gTitle" placeholder="タイトル（例：見積テンプレ見直し/山田）" style="flex:2;min-width:220px" />
+  <input id="gOwner" placeholder="担当者（空欄可：未割当）" style="flex:1;min-width:160px" />
+  <textarea id="gDesc" rows="2" placeholder="詳細（任意）" style="flex:3;min-width:260px"></textarea>
+  <button class="ghost" id="gAddBtn">＋ 追加（計画列に入る）</button>
+  <div class="hint" style="flex-basis:100%">※ 「タイトル/山田」のようにスラッシュ区切りでも担当者を自動で入れます</div>
+</section>
+
+
+<main>
+  <!-- Canvas Preview -->
+  <div class="canvas-wrap" style="margin-bottom:16px">
+    <div class="canvas-caption"><b>プレビュー（キャンバス）</b><span class="pill">表示のみ</span></div>
+    <canvas id="preview" width="1400" height="420" style="width:100%;display:block;background:transparent"></canvas>
+  </div>
+
+  <!-- Live Board -->
+  <section id="board" class="board"></section>
+</main>
+
+<dialog id="howDialog">
+  <div class="modal">
+    <header><h3>使い方</h3></header>
+
+<section id="global-add" style="padding:12px 16px;border-bottom:1px dashed var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;background:linear-gradient(180deg, rgba(255,255,255,.04), transparent)">
+  <input id="gTitle" placeholder="タイトル（例：見積テンプレ見直し/山田）" style="flex:2;min-width:220px" />
+  <input id="gOwner" placeholder="担当者（空欄可：未割当）" style="flex:1;min-width:160px" />
+  <textarea id="gDesc" rows="2" placeholder="詳細（任意）" style="flex:3;min-width:260px"></textarea>
+  <button class="ghost" id="gAddBtn">＋ 追加（計画列に入る）</button>
+  <div class="hint" style="flex-basis:100%">※ 「タイトル/山田」のようにスラッシュ区切りでも担当者を自動で入れます</div>
+</section>
+
+    <div class="content">
+      <ul>
+        <li>列は <b>計画 / 実行 / 結果チェック / 振り返り</b> です（PDCA）。</li>
+        <li>カードは <b>ドラッグ＆ドロップ</b> で列を移動できます。</li>
+        <li>カードの <b>編集 / 削除</b> は各カードのボタンから。</li>
+        <li>各列の <b>＋ 追加</b> からカード追加。タイトル末尾に <code>/山田</code> と書くと担当者を自動設定。</li>
+        <li><b>JSONエクスポート/インポート</b> で受け渡し可能（担当者も保存されます）。</li>
+        <li>データはブラウザに自動保存（自分のPCのみ）。</li>
+      </ul>
+    </div>
+    <footer><button id="howClose" class="primary">OK</button></footer>
+  </div>
+</dialog>
+
+<script>
+const STORAGE_KEY = 'kanban_pdca_local_v1';
+
+const STATUSES = [
+  { id: "plan",   name: "計画", badge:"badge-plan" },
+  { id: "do",     name: "実行", badge:"badge-do" },
+  { id: "check",  name: "結果チェック", badge:"badge-check" },
+  { id: "act",    name: "振り返り", badge:"badge-act" }
+];
+
+const boardEl = document.getElementById('board');
+const btnExport = document.getElementById('btnExport');
+const btnImport = document.getElementById('btnImport');
+const fileImport = document.getElementById('fileImport');
+const btnHow = document.getElementById('btnHow');
+const dlgHow = document.getElementById('howDialog');
+const btnHowClose = document.getElementById('howClose');
+
+const uid = () => crypto?.randomUUID ? crypto.randomUUID() : ('id-'+Math.random().toString(36).slice(2));
+
+let cards = []; // {id, status, title, descr, pos, createdAt, updatedAt}
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      // 初回サンプル（PDCA想定）
+      const now = Date.now();
+      cards = [
+        { id: uid(), status:'plan',  title:'出荷遅延の発生要因を洗い出す', descr:'対象：7月データ、KPI：平均遅延時間15%改善', pos:1, createdAt:now, updatedAt:now },
+        { id: uid(), status:'plan',  title:'見積書テンプレ見直し計画', descr:'社名ロゴ更新＆税込表示統一', pos:2, createdAt:now, updatedAt:now },
+        { id: uid(), status:'do',    title:'在庫CSVの自動取込を実装', descr:'岡山・仙台のスケジュール自動化', pos:1, createdAt:now, updatedAt:now },
+        { id: uid(), status:'check', title:'電話応対マニュアル改定の効果測定', descr:'クレーム率の推移を確認（週次）', pos:1, createdAt:now, updatedAt:now },
+        { id: uid(), status:'act',   title:'請求書送信フローの是正案', descr:'自動化テスト結果を本番に反映', pos:1, createdAt:now, updatedAt:now },
+        { id: uid(), status:'act',   title:'見積作成リードタイム短縮の振り返り', descr:'課題：二重確認、対策：テンプレ化', pos:2, createdAt:now, updatedAt:now }
+      ];
+      save();
+    } else {
+      cards = JSON.parse(raw);
+    }
+  } catch(e) { cards = []; }
+}
+
+function save() { localStorage.setItem(STORAGE_KEY, JSON.stringify(cards)); }
+
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+
+function initials(name){
+  const n = (name||'').trim();
+  if (!n) return '未';
+  const ascii = /^[A-Za-z]/.test(n);
+  return ascii ? n.slice(0,2).toUpperCase() : n.slice(0,1);
+}
+function ownerLabel(o){
+  const name = (o||'').trim() || '未割当';
+  return `<div class="owner">
+    <span class="avatar" title="${escapeHtml(name)}">${escapeHtml(initials(name))}</span>
+    <small>👤 ${escapeHtml(name)}</small>
+  </div>`;
+}
+
+function renderColumns() {
+  boardEl.innerHTML = '';
+  STATUSES.forEach(s => {
+    const col = document.createElement('div');
+    col.className = 'col';
+    col.dataset.status = s.id;
+    col.innerHTML = `
+      <div class="col-header ${s.badge}">
+        <div class="col-title">${s.name}</div>
+        <span class="pill">${s.id.toUpperCase()}</span>
+      </div>
+      <div class="cards" data-status="${s.id}"></div>
+      `;
+    boardEl.appendChild(col);
+  });
+  boardEl.querySelectorAll('.add-btn').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const col = e.target.closest('.col');
+      let title = col.querySelector('.title').value.trim();
+      const descr = col.querySelector('.desc').value.trim();
+      let owner = (col.querySelector('.owner')?.value || '').trim();
+      if (!title) return;
+      // allow "タイトル/担当者" shorthand when owner empty
+      if (title.includes('/') && !owner){ const p = title.split('/'); title = p.slice(0,-1).join('/').trim() || '（無題）'; owner = p.slice(-1)[0].trim(); }
+      addCard(col.dataset.status, { title, descr, owner });
+      col.querySelector('.title').value = '';
+      col.querySelector('.desc').value = '';
+      if (col.querySelector('.owner')) col.querySelector('.owner').value = '';
+    });
+  });
+  enableDnD();
+  paint();
+  drawCanvasPreview();
+}
+
+function paint() {
+  boardEl.querySelectorAll('.cards').forEach(z=> z.innerHTML='');
+  const list = Object.fromEntries(STATUSES.map(s=>[s.id, []]));
+  for(const c of cards) list[c.status]?.push(c);
+  for(const k in list) list[k].sort((a,b)=> (a.pos??0)-(b.pos??0));
+  for(const s of STATUSES){
+    const zone = boardEl.querySelector(`.cards[data-status="${s.id}"]`);
+    for(const c of list[s.id]){
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.draggable = true;
+      el.dataset.id = c.id;
+      el.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+          <div style="font-weight:700;line-height:1.3">${escapeHtml(c.title || '（無題）')}</div>
+          <div style="display:flex;gap:6px">
+            <button class="ghost" data-act="edit">編集</button>
+            <button class="ghost" data-act="del">削除</button>
+          </div>
+        </div>
+        ${c.descr ? `<div style="margin-top:6px;white-space:pre-wrap;color:#c6d3ff">${escapeHtml(c.descr)}</div>` : ''}
+        ${ownerLabel(c.owner)}
+        <small style="display:block;margin-top:8px;color:#8ca5ff">#${String(c.id).slice(-5)}・${s.name}</small>
+      `;
+      el.querySelector('[data-act="del"]').addEventListener('click', ()=>{
+        if(confirm('削除しますか？')) removeCard(c.id);
+      });
+      el.querySelector('[data-act="edit"]').addEventListener('click', ()=>{
+        const t = prompt('タイトルを編集', c.title||'');
+        if (t===null) return;
+        const d = prompt('詳細を編集（空可）', c.descr||'');
+        const o = prompt('担当者（空欄可：未割当）', c.owner||'');
+        updateCard(c.id, { title: t, descr: d||'', owner: (o||'') });
+      });
+      zone.appendChild(el);
+    }
+  }
+}
+
+function nextPos(status){
+  const arr = cards.filter(c=>c.status===status);
+  if (!arr.length) return 1;
+  return Math.max(...arr.map(c=>c.pos||0)) + 1;
+}
+
+function addCard(status, {title, descr, owner}){
+  const now = Date.now();
+  const item = { id: uid(), status, title, descr, owner: (owner||''), pos: nextPos(status), createdAt: now, updatedAt: now };
+  cards.push(item);
+  save(); paint(); drawCanvasPreview();
+}
+
+function updateCard(id, patch){
+  const i = cards.findIndex(c=>c.id===id);
+  if (i<0) return;
+  cards[i] = { ...cards[i], ...patch, updatedAt: Date.now() };
+  save(); paint(); drawCanvasPreview();
+}
+
+function removeCard(id){
+  cards = cards.filter(c=>c.id!==id);
+  save(); paint(); drawCanvasPreview();
+}
+
+function moveCard(id, newStatus){
+  const i = cards.findIndex(c=>c.id===id);
+  if (i<0) return;
+  cards[i].status = newStatus;
+  cards[i].pos = nextPos(newStatus);
+  cards[i].updatedAt = Date.now();
+  save(); paint(); drawCanvasPreview();
+}
+
+function enableDnD(){
+  let dragCard = null;
+  boardEl.addEventListener('dragstart', e=>{
+    const card = e.target.closest('.card');
+    if(!card) return;
+    dragCard = card;
+    e.dataTransfer.setData('text/plain', card.dataset.id);
+    setTimeout(()=> card.style.opacity='.55',0);
+  });
+  boardEl.addEventListener('dragend', ()=>{
+    if(dragCard){ dragCard.style.opacity='1'; dragCard=null; }
+  });
+  boardEl.querySelectorAll('.cards').forEach(zone=>{
+    zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', ()=> zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e=>{
+      e.preventDefault(); zone.classList.remove('drag-over');
+      const id = e.dataTransfer.getData('text/plain');
+      moveCard(id, zone.dataset.status);
+    });
+  });
+}
+
+// Export / Import
+btnExport.addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify({ cards }, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'pdca_kanban_backup.json';
+  a.click();
+});
+btnImport.addEventListener('click', ()=> fileImport.click());
+fileImport.addEventListener('change', async (e)=>{
+  const file = e.target.files[0]; if (!file) return;
+  const text = await file.text();
+  try {
+    const json = JSON.parse(text);
+    if (!Array.isArray(json.cards)) return alert('形式が不正です');
+    cards = json.cards;
+    save(); renderColumns();
+    alert('インポート完了');
+  } catch { alert('JSONの読み込みに失敗しました'); }
+});
+
+// 使い方
+btnHow.addEventListener('click', ()=> dlgHow.showModal());
+btnHowClose.addEventListener('click', ()=> dlgHow.close());
+
+// ---- Canvas Preview ----
+function drawCanvasPreview(){
+  const cvs = document.getElementById('preview');
+  const ctx = cvs.getContext('2d');
+  const W = cvs.width, H = cvs.height;
+  // clear
+  ctx.clearRect(0,0,W,H);
+  // title bar
+  ctx.fillStyle = 'rgba(255,255,255,.06)';
+  ctx.fillRect(0,0,W,44);
+  ctx.fillStyle = '#e6eeff';
+  ctx.font = 'bold 16px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+  ctx.fillText('受発注課取り組み一覧・プレビュー', 16, 28);
+  // columns
+  const colW = (W - 80) / 4;
+  const x0 = 20;
+  const y0 = 64;
+  const cardH = 60;
+  const gap = 10;
+  STATUSES.forEach((s,idx)=>{
+    const x = x0 + idx*(colW+10);
+    // header
+    const headerGrad = ctx.createLinearGradient(x, y0, x, y0+28);
+    headerGrad.addColorStop(0, 'rgba(110,243,255,.2)');
+    headerGrad.addColorStop(1, 'rgba(198,125,255,.12)');
+    ctx.fillStyle = headerGrad;
+    ctx.fillRect(x, y0, colW, 28);
+    ctx.strokeStyle = 'rgba(255,255,255,.12)';
+    ctx.strokeRect(x, y0, colW, 28);
+    ctx.fillStyle = '#e6eeff';
+    ctx.font = 'bold 14px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+    ctx.fillText(s.name, x+8, y0+20);
+    // body
+    const by = y0+28;
+    ctx.fillStyle = 'rgba(255,255,255,.03)';
+    ctx.fillRect(x, by, colW, H-20-by);
+    ctx.strokeStyle = 'rgba(255,255,255,.12)';
+    ctx.strokeRect(x, by, colW, H-20-by);
+    // sample cards from current data
+    const cs = cards.filter(c=>c.status===s.id).sort((a,b)=> (a.pos??0)-(b.pos??0)).slice(0,3);
+    let cy = by + gap;
+    cs.forEach((c,i)=>{
+      const grad = ctx.createLinearGradient(x+8, cy, x+8, cy+cardH);
+      grad.addColorStop(0, 'rgba(255,255,255,.12)');
+      grad.addColorStop(1, 'rgba(255,255,255,.04)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x+8, cy, colW-16, cardH);
+      ctx.strokeStyle = 'rgba(255,255,255,.12)';
+      ctx.strokeRect(x+8, cy, colW-16, cardH);
+      ctx.fillStyle = '#e6eeff';
+      ctx.font = 'bold 13px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      ctx.fillText((c.title||'（無題）').slice(0,24), x+16, cy+22);
+      ctx.fillStyle = '#a8b6ff';
+      ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto, Arial';
+      const sub = (c.descr||'').slice(0,36);
+      if (sub) ctx.fillText(sub, x+16, cy+42);
+      cy += cardH + gap;
+    });
+  });
+}
+
+// init
+load();
+renderColumns();
+
+// ---- Global Add Form (single) ----
+(function(){
+  const gTitle = document.getElementById('gTitle');
+  const gOwner = document.getElementById('gOwner');
+  const gDesc  = document.getElementById('gDesc');
+  const gAdd   = document.getElementById('gAddBtn');
+  if (gAdd) {
+    gAdd.addEventListener('click', ()=>{
+      let title = (gTitle.value||'').trim();
+      let owner = (gOwner.value||'').trim();
+      const descr = (gDesc.value||'').trim();
+      if (!title) { alert('タイトルを入力してください'); return; }
+      // "タイトル/担当者" のショートハンド
+      if (title.includes('/') && !owner){
+        const parts = title.split('/');
+        owner = parts.pop().trim();
+        title = parts.join('/').trim() || '（無題）';
+      }
+      addCard('plan', { title, descr, owner });
+      gTitle.value = ''; gOwner.value=''; gDesc.value='';
+    });
+  }
+})();
+</script>
+</body>
+</html>

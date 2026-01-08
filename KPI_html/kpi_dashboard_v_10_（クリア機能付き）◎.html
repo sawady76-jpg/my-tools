@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KPI Dashboard v12（稼働日追加・重ねグラフ・PNG・貼り付け取込・全クリア）</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body{font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Noto Sans JP", "Meiryo", sans-serif; margin:16px;}
+    h1{margin:8px 0 12px}
+    section{margin:18px 0}
+    .charts{display:grid;grid-template-columns:repeat(2, minmax(320px, 1fr));gap:16px}
+    .panel{border:1px solid #ddd;border-radius:10px;padding:10px}
+    .panel h3{margin:0 0 8px;display:flex;justify-content:space-between;align-items:center;font-size:16px;gap:8px}
+    .btn{font-size:12px;padding:6px 10px;border:1px solid #bbb;border-radius:8px;background:#fff;cursor:pointer}
+    .btn.danger{border-color:#e03131;color:#e03131}
+    table{border-collapse:collapse;width:100%}
+    th,td{border:1px solid #ccc;padding:4px 6px;text-align:right}
+    th:first-child,td:first-child{text-align:left}
+    input[type=number]{width:100%;box-sizing:border-box}
+    textarea{width:100%;height:120px;box-sizing:border-box}
+    .muted{color:#666;font-size:12px}
+    .controls{display:flex;gap:8px;align-items:center}
+    #testLog{white-space:pre-wrap;background:#fafafa;border:1px solid #eee;border-radius:8px;padding:8px;max-height:220px;overflow:auto}
+  </style>
+</head>
+<body>
+  <h1>受発注課 KPI ダッシュボード</h1>
+
+  <section class="panel">
+    <h3>
+      <span>貼り付けて取込</span>
+      <span class="controls">
+        <label style="font-size:12px;display:flex;gap:4px;align-items:center"><input type="checkbox" id="replaceMode"> 貼り付け月で置き換え（旧月を削除）</label>
+        <button class="btn" id="btnImport">⏬ 取込</button>
+        <button class="btn danger" id="btnClear" title="すべての月と数値を空にします">🧹 全クリア</button>
+      </span>
+    </h3>
+    <div>1行目「月」、2行目以降「<b>稼働日</b> / 残業時間 / 受注件数 / 着信数/日 / 受信数/日 / 応答率 / 受発注課処理比率」。<br>Excel等から <b>タブ区切り</b> で貼り付けてください（空欄OK）。同じ月は上書き、新しい月は右端に追加します。</div>
+    <textarea id="pasteArea" placeholder="月\t2025年1月\t2025年2月\t...\n稼働日\t19\t18\n残業時間\t12.7\t12.7\n受注件数\t23216\t22600\n着信数/日\t\t2208\n受信数/日\t2195\t2103\n応答率\t95.3%\t96.4%\n受発注課処理比率\t74.2%\t75.3%"></textarea>
+    <div class="muted">※「🧹 全クリア」は取り消しできません（再取込で復元可能）。</div>
+  </section>
+
+  <section class="panel">
+    <h3>グラフ</h3>
+    <div class="charts">
+      <div class="panel">
+        <h3><span>残業時間（左軸・h）× 受注件数（右軸・件）</span>
+          <button class="btn" data-png="chart_ov_orders">🖼 PNG</button>
+        </h3>
+        <canvas id="chart_ov_orders" width="480" height="220"></canvas>
+      </div>
+      <div class="panel">
+        <h3><span>残業時間（左軸・h）× 稼働日（右軸・日）</span>
+          <button class="btn" data-png="chart_ov_biz">🖼 PNG</button>
+        </h3>
+        <canvas id="chart_ov_biz" width="480" height="220"></canvas>
+      </div>
+      <div class="panel">
+        <h3><span>稼働日（左軸・日）× 受注件数（右軸・件）</span>
+          <button class="btn" data-png="chart_biz_orders">🖼 PNG</button>
+        </h3>
+        <canvas id="chart_biz_orders" width="480" height="220"></canvas>
+      </div>
+      <div class="panel">
+        <h3><span>着信 / 日 ＆ 受信 / 日（同一グラフ）</span>
+          <button class="btn" data-png="chart_in_recv">🖼 PNG</button>
+        </h3>
+        <canvas id="chart_in_recv" width="480" height="220"></canvas>
+      </div>
+      <div class="panel">
+        <h3><span>応答率</span>
+          <button class="btn" data-png="chart_rate">🖼 PNG</button>
+        </h3>
+        <canvas id="chart_rate" width="480" height="220"></canvas>
+      </div>
+      <div class="panel">
+        <h3><span>受発注課処理比率</span>
+          <button class="btn" data-png="chart_ratio">🖼 PNG</button>
+        </h3>
+        <canvas id="chart_ratio" width="480" height="220"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3>編集テーブル</h3>
+    <div id="tableWrap"></div>
+  </section>
+
+  <section class="panel">
+    <h3>テスト</h3>
+    <div class="controls">
+      <button class="btn" id="btnRunTests">🧪 Run tests</button>
+      <div class="muted">（結果は下に表示 & コンソールにも出力）</div>
+    </div>
+    <pre id="testLog"></pre>
+  </section>
+
+  <script>
+    // ===== 初期データ =====
+    let months=['Jan-25','Feb-25','Mar-25','Apr-25','May-25','Jun-25','Jul-25','Aug-25'];
+    let data={
+      bizdays:[null,null,null,null,null,null,null,null], // 稼働日
+      overtime:[12.7,12.7,11.5,12.7,11.5,13.2,13.9,9.1],
+      orders:[23216,22600,22811,23489,23101,24224,26981,18883],
+      inbound:[null,2208,2037,2022,1994,2196,2197,2089],
+      received:[2195,2103,1830,1918,1776,2077,2078,1974],
+      answerRT:[95.3,96.4,94.6,94.9,94.6,94.6,94.6,94.48],
+      ratio:[74.2,75.3,74.1,74.5,76.5,75.8,77.4,77.3]
+    };
+
+    // ===== 取込（タブ区切り） =====
+    function parsePasted(text){
+      const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').filter(s=>s.trim()!=='');
+      const rows = lines.map(line=> line.split('\t'));
+      if(rows.length<2) return;
+
+      // --- 月名の正規化
+      const monthAbbr=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      function normMonth(s){
+        const raw=String(s||'').trim(); if(!raw) return '';
+        let m = raw.match(/^(\d{4})\s*年\s*(\d{1,2})\s*月$/);
+        if(m){ const y=+m[1], mo=+m[2]; return `${monthAbbr[mo-1]}-${String(y).slice(-2)}`; }
+        m = raw.match(/^(\d{4})[\/\.-](\d{1,2})$/);
+        if(m){ const y=+m[1], mo=+m[2]; return `${monthAbbr[mo-1]}-${String(y).slice(-2)}`; }
+        m = raw.match(/^(\d{1,2})[\/\.-](\d{2,4})$/);
+        if(m){ let mo=+m[1]; let y=+m[2]; if(y<100) y=2000+y; return `${monthAbbr[mo-1]}-${String(y).slice(-2)}`; }
+        m = raw.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-(\d{2})$/);
+        if(m) return raw;
+        return raw;
+      }
+
+      const newMonths = rows[0].slice(1).map(s=>normMonth(s)).filter(Boolean);
+      const map={'稼働日':'bizdays','残業時間':'overtime','受注件数':'orders','着信数/日':'inbound','受信数/日':'received','応答率':'answerRT','受発注課処理比率':'ratio'};
+      const next={bizdays:[],overtime:[],orders:[],inbound:[],received:[],answerRT:[],ratio:[]};
+      for(const r of rows.slice(1)){
+        const key=map[(r[0]||'').trim()]; if(!key) continue;
+        next[key]=r.slice(1).map(x=>{
+          const t=String(x??'').trim().replace(/[,％%]/g,'');
+          if(t==='') return null;
+          const n=Number(t);
+          if(!Number.isFinite(n)) return null;
+          return (key==='bizdays') ? Math.round(n) : n;
+        });
+      }
+
+      const replace = document.getElementById('replaceMode')?.checked;
+      if(replace){
+        months = [...newMonths];
+        Object.keys(data).forEach(s=>{ data[s] = newMonths.map((_,i)=> next[s]?.[i] ?? null); });
+        return;
+      }
+
+      // 右に拡張／同名は上書き
+      const idx=new Map(months.map((m,i)=>[normMonth(m),i]));
+      for(let i=0;i<newMonths.length;i++){
+        const m=newMonths[i];
+        if(idx.has(m)){
+          const k=idx.get(m);
+          Object.keys(data).forEach(s=>{ data[s][k] = next[s]?.[i] ?? data[s][k] ?? null; });
+        }else{
+          months.push(m);
+          Object.keys(data).forEach(s=>{ data[s].push(next[s]?.[i] ?? null); });
+        }
+      }
+    }
+
+    document.getElementById('btnImport').addEventListener('click',()=>{
+      const raw=document.getElementById('pasteArea').value;
+      if(!raw.trim()) { alert('貼り付けデータが空です'); return; }
+
+      if(document.getElementById('replaceMode')?.checked){
+        clearAll();
+      }
+
+      // %/％除去 & 月の正規化（1行目）
+      const monthAbbr=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      function normMonth(s){
+        const _r=String(s||'').trim(); if(!_r) return '';
+        let m = _r.match(/^(\d{4})\s*年\s*(\d{1,2})\s*月$/);
+        if(m){ const y=+m[1], mo=+m[2]; return monthAbbr[mo-1] + '-' + String(y).slice(-2); }
+        m = _r.match(/^(\d{4})[\/\.-](\d{1,2})$/);
+        if(m){ const y=+m[1], mo=+m[2]; return monthAbbr[mo-1] + '-' + String(y).slice(-2); }
+        m = _r.match(/^(\d{1,2})[\/\.-](\d{2,4})$/);
+        if(m){ let mo=+m[1]; let y=+m[2]; if(y<100) y=2000+y; return monthAbbr[mo-1] + '-' + String(y).slice(-2); }
+        m = _r.match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-(\d{2})$/);
+        if(m) return _r;
+        return _r;
+      }
+      const lines=raw.replace(/%/g,'').replace(/％/g,'').split(/\r?\n/);
+      if(lines.length){
+        const head=lines[0].split('\t');
+        for(let i=1;i<head.length;i++){ head[i]=normMonth(head[i]); }
+        lines[0]=head.join('\t');
+      }
+      const t=lines.join('\n');
+
+      parsePasted(t); buildTable(); renderCharts();
+    });
+
+    // ===== 全クリア =====
+    function clearAll(){
+      months = [];
+      data = {bizdays:[],overtime:[],orders:[],inbound:[],received:[],answerRT:[],ratio:[]};
+      document.getElementById('pasteArea').value='';
+      buildTable();
+      renderCharts();
+    }
+
+    document.getElementById('btnClear').addEventListener('click',()=>{
+      if(confirm('貼り付け取込データ、テーブル、グラフをすべて空にします。よろしいですか？')){
+        clearAll();
+      }
+    });
+
+    // ===== テーブル =====
+    function buildTable(){
+      const wrap=document.getElementById('tableWrap'); wrap.innerHTML='';
+      const tbl=document.createElement('table');
+      const thead=document.createElement('thead');
+      const trh=document.createElement('tr');
+      const th0=document.createElement('th'); th0.textContent='KPI/月'; trh.appendChild(th0);
+      for(const m of months){ const th=document.createElement('th'); th.textContent=m; trh.appendChild(th); }
+      thead.appendChild(trh); tbl.appendChild(thead);
+      const tbody=document.createElement('tbody');
+      const defs=[["稼働日","bizdays"],["残業時間","overtime"],["受注件数","orders"],["着信数 / 日","inbound"],["受信数 / 日","received"],["応答率","answerRT"],["受発注課処理比率","ratio"]];
+      for(const [label,key] of defs){
+        const tr=document.createElement('tr');
+        const th=document.createElement('th'); th.textContent=label; tr.appendChild(th);
+        for(let i=0;i<months.length;i++){
+          const td=document.createElement('td');
+          const inp=document.createElement('input'); inp.type='number'; inp.step= key==='bizdays' ? '1' : 'any';
+          const v=data[key][i]; inp.value = (v==null||isNaN(v))? '' : String(v);
+          inp.addEventListener('input',()=>{
+          if(inp.value===''){
+            data[key][i]=null;
+          }else{
+            let v = Number(inp.value);
+            if(key==='bizdays' && Number.isFinite(v)) v = Math.round(v);
+            data[key][i] = Number.isFinite(v) ? v : null;
+          }
+          renderCharts();
+        });
+          td.appendChild(inp); tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+      }
+      if(months.length===0){
+        const tr=document.createElement('tr');
+        const td=document.createElement('td'); td.colSpan=1; td.innerHTML='<span class="muted">※ 現在データは空です。上のテキストエリアにタブ区切りで貼り付けて「取込」を押してください。</span>';
+        tr.appendChild(td); tbody.appendChild(tr);
+      }
+      tbl.appendChild(tbody); wrap.appendChild(tbl);
+    }
+
+    // ===== グラフ =====
+    let charts=[];
+    function renderCharts(){
+      charts.forEach(c=>c?.destroy()); charts=[];
+      const labels=months.map(m=>m);
+      const lineCommon={tension:.35,borderWidth:2,pointRadius:3,pointHoverRadius:5,fill:false};
+
+      charts.push(new Chart(document.getElementById('chart_ov_orders').getContext('2d'),{
+        type:'line',
+        data:{labels, datasets:[
+          {label:'残業時間（h）',data:data.overtime,yAxisID:'yL',borderColor:'#2b8a3e',...lineCommon},
+          {label:'受注件数（件）',data:data.orders,yAxisID:'yR',borderColor:'#1c7ed6',...lineCommon},
+        ]},
+        options:{responsive:false,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+          scales:{yL:{type:'linear',position:'left'},yR:{type:'linear',position:'right'}}}
+      }));
+
+      charts.push(new Chart(document.getElementById('chart_ov_biz').getContext('2d'),{
+        type:'line',
+        data:{labels, datasets:[
+          {label:'残業時間（h）',data:data.overtime,yAxisID:'yL',borderColor:'#2b8a3e',...lineCommon},
+          {label:'稼働日（日）',data:data.bizdays,yAxisID:'yR',borderColor:'#845ef7',...lineCommon},
+        ]},
+        options:{responsive:false,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+          scales:{yL:{type:'linear',position:'left'},yR:{type:'linear',position:'right'}}}
+      }));
+
+      charts.push(new Chart(document.getElementById('chart_biz_orders').getContext('2d'),{
+        type:'line',
+        data:{labels, datasets:[
+          {label:'稼働日（日）',data:data.bizdays,yAxisID:'yL',borderColor:'#845ef7',...lineCommon},
+          {label:'受注件数（件）',data:data.orders,yAxisID:'yR',borderColor:'#1c7ed6',...lineCommon}
+        ]},
+        options:{responsive:false,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+          scales:{yL:{type:'linear',position:'left'},yR:{type:'linear',position:'right'}}}
+      }));
+
+      charts.push(new Chart(document.getElementById('chart_in_recv').getContext('2d'),{
+        type:'line',
+        data:{labels,datasets:[
+          {label:'着信/日',data:data.inbound,borderColor:'#f59f00',...lineCommon},
+          {label:'受信/日',data:data.received,borderColor:'#e03131',...lineCommon}
+        ]},
+        options:{responsive:false,maintainAspectRatio:false}
+      }));
+
+      charts.push(new Chart(document.getElementById('chart_rate').getContext('2d'),{
+        type:'line',
+        data:{labels,datasets:[{label:'応答率',data:data.answerRT,borderColor:'#495057',...lineCommon}]},
+        options:{responsive:false,maintainAspectRatio:false,scales:{y:{suggestedMin:80,suggestedMax:100}}}
+      }));
+
+      charts.push(new Chart(document.getElementById('chart_ratio').getContext('2d'),{
+        type:'line',
+        data:{labels,datasets:[{label:'受発注課処理比率(%)',data:data.ratio,borderColor:'#0ca678',...lineCommon}]},
+        options:{responsive:false,maintainAspectRatio:false,scales:{y:{suggestedMin:60,suggestedMax:100}}}
+      }));
+    }
+
+    // ===== PNG保存 =====
+    document.addEventListener('click', (e)=>{
+      const btn=e.target.closest('button[data-png]'); if(!btn) return;
+      const id=btn.getAttribute('data-png');
+      const canvas=document.getElementById(id);
+      if(!canvas){ alert('Canvas not found: '+id); return; }
+      const link=document.createElement('a');
+      link.download = id + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+
+    // ===== テストスイート =====
+    function log(msg){
+      const pre=document.getElementById('testLog');
+      pre.textContent += (typeof msg==='string'? msg : JSON.stringify(msg)) + "\n";
+      console.log(msg);
+    }
+    function expect(cond, desc){
+      if(cond){ log('✅ ' + desc); }
+      else{ log('❌ ' + desc); }
+    }
+    document.getElementById('btnRunTests').addEventListener('click',()=>{
+      // reset
+      clearAll();
+
+      // 1) 日本語月 & %除去 & 稼働日の取込
+      const raw1=[
+        '月\t2025年1月\t2025年2月',
+        '稼働日\t19\t18',
+        '残業時間\t1\t2',
+        '受注件数\t10\t20',
+        '応答率\t95.0%\t96.0％',
+        '受発注課処理比率\t75.0%\t76.0%'
+      ].join('\n');
+      document.getElementById('pasteArea').value=raw1;
+      document.getElementById('replaceMode').checked=true;
+      document.getElementById('btnImport').click();
+      expect(months.join(',')==='Jan-25,Feb-25','日本語月が Jan-YY に正規化される');
+      expect(data.bizdays[0]===19 && data.bizdays[1]===18,'稼働日が取り込まれる');
+      expect(data.answerRT[0]===95 && data.answerRT[1]===96,'応答率の%/％が数値化される');
+      expect(data.ratio[0]===75 && data.ratio[1]===76,'処理比率の%が数値化される');
+
+      // 2) 追加（replaceモードOFF）
+      const raw2=[
+        '月\t2025/03',
+        '稼働日\t20',
+        '残業時間\t3',
+        '受注件数\t30'
+      ].join('\n');
+      document.getElementById('replaceMode').checked=false;
+      document.getElementById('pasteArea').value=raw2;
+      document.getElementById('btnImport').click();
+      expect(months.includes('Mar-25'),'2025/03 が Mar-25 として追加される');
+      const idxMar=months.indexOf('Mar-25');
+      expect(data.bizdays[idxMar]===20,'Mar-25 の稼働日が 20 で取り込まれる');
+
+      // 3) 既存月の上書き
+      const raw3=[
+        '月\tJan-25',
+        '稼働日\t21',
+        '残業時間\t9.9',
+        '受注件数\t999'
+      ].join('\n');
+      document.getElementById('pasteArea').value=raw3;
+      document.getElementById('btnImport').click();
+      const idxJan=months.indexOf('Jan-25');
+      expect(data.overtime[idxJan]===9.9 && data.orders[idxJan]===999,'同一月は上書きされる');
+      expect(data.bizdays[idxJan]===21,'稼働日も上書きされる');
+
+      // 4) 稼働日の四捨五入
+      const raw4=[
+        '月\tJan-25',
+        '稼働日\t20.4'
+      ].join('\n');
+      document.getElementById('pasteArea').value=raw4;
+      document.getElementById('btnImport').click();
+      const idxJan2=months.indexOf('Jan-25');
+      expect(data.bizdays[idxJan2]===20,'稼働日20.4は四捨五入で20');
+      const raw5=[
+        '月\tJan-25',
+        '稼働日\t20.5'
+      ].join('\n');
+      document.getElementById('pasteArea').value=raw5;
+      document.getElementById('btnImport').click();
+      expect(data.bizdays[idxJan2]===21,'稼働日20.5は四捨五入で21');
+
+      // 5) DOMに必要なCanvasが存在する（getContext対策）
+      const mustIds=['chart_ov_orders','chart_ov_biz','chart_biz_orders','chart_in_recv','chart_rate','chart_ratio'];
+      const allExist = mustIds.every(id=>{
+        const el=document.getElementById(id);
+        return el instanceof HTMLCanvasElement && typeof el.getContext==='function';
+      });
+      expect(allExist,'すべてのグラフCanvas要素が存在し、getContextが呼べる');
+
+      // 6) グラフが6枚レンダリングされる
+      renderCharts();
+      expect(typeof charts!== 'undefined' && charts.length===6,'グラフが6枚描画される');
+
+      log('— tests finished —');
+    });
+
+    // 初期描画
+    buildTable();
+    renderCharts();
+  </script>
+</body>
+</html>

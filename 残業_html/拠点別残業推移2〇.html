@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>拠点別 残業モニタリング（Excelピボット貼り付け対応）</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root{--bg:#0b1020;--card:#121a32;--muted:#9aa7bd;--text:#e8eefb;--accent:#76a9ff;--ok:#1db954;--warn:#ffb020;--bad:#ff5d5d}
+    html,body{height:100%}
+    body{margin:0;background:linear-gradient(180deg,#0b1020,#0d1430 40%,#0b1020);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,"Helvetica Neue",Arial,"Noto Sans",sans-serif;}
+    .wrap{max-width:1200px;margin:24px auto;padding:0 16px}
+    .grid{display:grid;gap:16px}
+    .grid.cols{grid-template-columns:1fr}
+    @media(min-width:1080px){.grid.cols{grid-template-columns:1.1fr 1fr}}
+    .card{background:rgba(255,255,255,0.04);backdrop-filter: blur(6px);border:1px solid rgba(255,255,255,0.06);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,0.25)}
+    .card h2{font-size:16px;margin:0 0 8px 0;color:#dfe8ff}
+    .card .inner{padding:16px}
+    .row{display:flex;gap:8px;flex-wrap:wrap}
+    .row>*{flex:1}
+    label{font-size:12px;color:var(--muted)}
+    input,select,textarea,button{background:#0f1730;color:var(--text);border:1px solid #2e3b60;border-radius:10px;padding:10px 12px;font:inherit}
+    textarea{min-height:160px;white-space:pre}
+    .btn{cursor:pointer}
+    .btn.primary{background:#1b3a77;border-color:#365fb3}
+    .btn.ghost{background:transparent;border-color:#334166}
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+    .kpi{padding:14px;border-radius:12px;background:linear-gradient(180deg,#111a36,#0f1730);border:1px solid #2a3a66}
+    .kpi .v{font-size:22px;font-weight:700}
+    .kpi .s{font-size:12px;color:var(--muted)}
+    .pill{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;font-size:12px;border:1px solid #2e3b60;color:#bcd1ff}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid #233153;padding:10px;text-align:left}
+    th{color:#cfe0ff;font-weight:600}
+    tr.warn td{background:rgba(255,176,32,0.06)}
+    tr.bad td{background:rgba(255,93,93,0.07)}
+    .right{text-align:right}
+    .muted{color:var(--muted)}
+    .small{font-size:12px}
+    .note{font-size:12px;color:#a9b8d6}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid #334166;background:#0f1730}
+    .chip input{accent-color:#7aa7ff}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1 style="margin:0 0 10px 0;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      拠点別 残業モニタリング <span class="pill">Excelピボットを丸ごと貼り付け→自動変換</span>
+    </h1>
+
+    <div class="grid cols">
+      <!-- 左：貼り付け & 設定 -->
+      <div class="grid" style="grid-template-rows:auto auto 1fr">
+        <div class="card">
+          <div class="inner">
+            <h2>① Excelピボットを貼り付け</h2>
+            <div class="row"><div>
+              <label>Excelで「行ラベル〜各拠点（平均含む）」の範囲をコピー→ここに貼り付け</label>
+              <textarea id="paste" spellcheck="false"></textarea>
+              <div class="note">想定：1行目=拠点ヘッダ、2行目=スタッフ見出し（"行ラベル" を含む）、3行目以降=月別行（1月,2月,…,総計）。</div>
+            </div></div>
+            <div class="row">
+              <button class="btn primary" id="btnParse">取り込む</button>
+              <button class="btn ghost" id="btnSample">サンプル読込</button>
+              <button class="btn ghost" id="btnClear">クリア</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="inner">
+            <h2>② 表示設定</h2>
+            <div class="row">
+              <div>
+                <label>KPI集計（全社）</label>
+                <select id="aggType">
+                  <option value="avg">平均（拠点平均の平均）</option>
+                  <option value="sum">合計（全拠点合算）</option>
+                </select>
+              </div>
+              <div>
+                <label>警告しきい値（h）</label>
+                <input id="warnTh" type="number" step="0.1" value="15">
+              </div>
+              <div>
+                <label>重大しきい値（h）</label>
+                <input id="badTh" type="number" step="0.1" value="20">
+              </div>
+            </div>
+            <div class="row">
+              <div style="flex:1 1 100%">
+                <label>拠点フィルタ（表示/非表示）</label>
+                <div id="branchChips" class="chips"></div>
+              </div>
+            </div>
+            <div class="row">
+              <button class="btn primary" id="btnUpdate">ダッシュボード更新</button>
+              <button class="btn ghost" id="btnExportWide">CSV出力（横持ち：月×拠点）</button>
+              <button class="btn ghost" id="btnExportLong">CSV出力（縦持ち：月,拠点,平均残業）</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="min-height:220px">
+          <div class="inner">
+            <h2>③ 取り込み結果（プレビュー）</h2>
+            <div id="preview" class="small muted">貼り付け→取り込む を実行してください。</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：ダッシュボード -->
+      <div class="grid" style="grid-template-rows:auto auto auto 1fr">
+        <div class="card">
+          <div class="inner">
+            <h2>全体KPI</h2>
+            <div class="kpis" id="kpis">
+              <div class="kpi"><div class="s">最新月（全社集計）</div><div class="v" id="kpi_latest">-</div></div>
+              <div class="kpi"><div class="s">月平均（年内）</div><div class="v" id="kpi_avg">-</div></div>
+              <div class="kpi"><div class="s">前月比</div><div class="v" id="kpi_mom">-</div></div>
+              <div class="kpi"><div class="s">対象拠点数</div><div class="v" id="kpi_sites">-</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="inner">
+            <h2>月次トレンド（拠点別 平均残業 h）</h2>
+            <canvas id="trend" height="150"></canvas>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="inner">
+            <h2>最新月の拠点ランキング（直近3か月の実績付き）</h2>
+            <table id="rank">
+              <thead><tr><th style="width:56px">#</th><th>拠点</th><th class="right">最新</th><th class="right">-1か月</th><th class="right">-2か月</th><th class="right">前月差</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="inner">
+            <h2>ログ / メモ</h2>
+            <div id="log" class="small muted">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ========= ユーティリティ =========
+const $ = (q) => document.querySelector(q);
+const $$ = (q) => [...document.querySelectorAll(q)];
+const toNum = (v) => {
+  if (v==null) return null;
+  if (typeof v === 'number') return v;
+  const t = String(v).trim().replace(/[\,\s]/g,'');
+  if (t==='' || t==='-') return null;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : null;
+};
+function parseMonthKey(v){
+  if (!v) return null;
+  const t = String(v).trim();
+  const map = {jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  const m1 = t.match(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[-\s_/\\.]*([0-9]{2,4})$/i);
+  if (m1){ let y = Number(m1[2]); if (y<100) y = 2000 + y; return `${y}-${String(map[m1[1].toLowerCase()]).padStart(2,'0')}`; }
+  const m2 = t.match(/^([0-9]{4})[-/.年 ]?([0-9]{1,2})/); // 2025/01, 2025年1月
+  if (m2){ const y = Number(m2[1]); const m = Number(m2[2]); return `${y}-${String(m).padStart(2,'0')}`; }
+  const m3 = t.match(/^([0-9]{1,2})月$/); // 1月, 12月
+  if (m3){ const y = new Date().getFullYear(); const m = Number(m3[1]); return `${y}-${String(m).padStart(2,'0')}`; }
+  const m4 = t.match(/^([0-9]{1,2})$/); // 単数字
+  if (m4){ const y = new Date().getFullYear(); const m = Number(m4[1]); return `${y}-${String(m).padStart(2,'0')}`; }
+  return t; // フォールバック
+}
+function tsvToRows(tsv){
+  return tsv
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .filter(line => line.trim()!=='')
+    .map(line => line.split("\t"));
+}
+function unique(arr){ return [...new Set(arr)]; }
+function groupBy(arr, keyFn){ const m = new Map(); for(const x of arr){ const k = keyFn(x); if(!m.has(k)) m.set(k,[]); m.get(k).push(x);} return m; }
+
+// ========= 状態 =========
+let chart;
+let months = [];                   // ['2025-01', ...]
+let branches = [];                 // ['横浜支店', ...]
+let branchSetSelected = new Set(); // 表示対象
+let table = {};                    // table[month][branch] = avgOvertime
+
+// ========= ピボット → 平坦化（拠点平均のみ算出） =========
+function parsePivotAndBuild(tsv){
+  const rows = tsvToRows(tsv);
+  if (rows.length < 3) throw new Error('行数が足りません（貼り付け範囲を再確認してください）');
+
+  // ヘッダ行探索："行ラベル"を含む行を探す
+  const idxRowLabel = rows.findIndex(r => (r[0]||'').includes('行ラベル'));
+  if (idxRowLabel === -1) throw new Error('ヘッダに「行ラベル」を含む行が見つかりません');
+
+  const branchRow = rows[Math.max(0, idxRowLabel-1)] || [];
+  const staffRow  = rows[idxRowLabel] || [];
+
+  // 列ごとの 拠点名 / 平均列フラグ を抽出
+  let lastBranch = '';
+  const colMeta = staffRow.map((_,j)=>{
+    let rawB = (branchRow[j]||'').trim();
+    if (!rawB && j>0) rawB = lastBranch; else lastBranch = rawB || lastBranch;
+    const rawS = (staffRow[j]||'').trim();
+    const isAvg = /平均/.test(rawB) || /平均/.test(rawS);
+    const isTotalCol = /総計/.test(rawB) || /総計/.test(rawS);
+    let bName = rawB.replace(/\s*平均.*/, '').replace(/\s*総計.*/, '').trim();
+    return {j, branch:bName, isAvg, isTotalCol, staff:rawS};
+  });
+
+  // 拠点ごとの列リスト
+  const branchCols = new Map();   // branch -> {staffCols:number[], avgCol:number|null}
+  for (let j=1; j<colMeta.length; j++){
+    const m = colMeta[j];
+    if (!m.branch || m.isTotalCol) continue; // 総計列は除外
+    if (!branchCols.has(m.branch)) branchCols.set(m.branch, {staffCols:[], avgCol:null});
+    if (m.isAvg) branchCols.get(m.branch).avgCol = j; else branchCols.get(m.branch).staffCols.push(j);
+  }
+
+  // データ行（行ラベルの次行〜末尾）
+  const dataRows = rows.slice(idxRowLabel+1);
+  const monthKeys = [];
+  const tableTmp = {}; // month -> branch -> value
+
+  for (const r of dataRows){
+    const label = (r[0]||'').trim();
+    if (!label || /総計/.test(label)) continue; // 総計行は除外
+    const mk = parseMonthKey(label);
+    if (!mk) continue;
+    if (!tableTmp[mk]) tableTmp[mk] = {};
+
+    // 各拠点の平均値を算出（スタッフ列の平均。なければ平均列を採用）
+    for (const [b, info] of branchCols.entries()){
+      const vals = [];
+      for (const cj of info.staffCols){ const v = toNum(r[cj]); if (v!=null) vals.push(v); }
+      let val = null;
+      if (vals.length>0){ val = vals.reduce((s,n)=>s+n,0) / vals.length; }
+      else if (info.avgCol!=null){ val = toNum(r[info.avgCol]); }
+      if (val!=null && Number.isFinite(val)) tableTmp[mk][b] = Number(val.toFixed(2));
+    }
+    monthKeys.push(mk);
+  }
+
+  // 整形
+  months = unique(monthKeys).sort();
+  branches = [...branchCols.keys()];
+  table = tableTmp;
+
+  // 初期選択（全拠点ON）
+  branchSetSelected = new Set(branches);
+}
+
+// ========= UI：拠点チップ描画 =========
+function renderBranchChips(){
+  const box = $('#branchChips'); box.innerHTML='';
+  branches.forEach(b=>{
+    const id = 'b_'+b.replace(/[^a-zA-Z0-9]/g,'');
+    const div = document.createElement('label');
+    div.className='chip';
+    div.innerHTML = `<input type="checkbox" id="${id}" ${branchSetSelected.has(b)?'checked':''}> <span>${b}</span>`;
+    box.appendChild(div);
+    div.querySelector('input').addEventListener('change', (e)=>{
+      if (e.target.checked) branchSetSelected.add(b); else branchSetSelected.delete(b);
+      updateDashboard();
+    });
+  });
+}
+
+// ========= KPI/チャート/ランキング =========
+function fmt(n,d=2){ if(n==null||!isFinite(n)) return '-'; return Number(n).toFixed(d); }
+function pct(a,b){ if(a==null||b==null||b===0) return '-'; const p=((a-b)/b)*100; const sign=p>=0?'+':''; return `${sign}${p.toFixed(1)}%`; }
+
+function buildSeries(){
+  // 月ごとの拠点平均（選択拠点のみ）
+  const series = {}; // branch -> number[]
+  branches.forEach(b=>{ if (branchSetSelected.has(b)) series[b] = months.map(m=> table[m]?.[b] ?? null); });
+  return series;
+}
+
+function updateDashboard(){
+  if (months.length===0){ alert('先に「取り込む」を実行してください'); return; }
+  const warn = Number($('#warnTh').value||15), bad = Number($('#badTh').value||20);
+  const agg = $('#aggType').value; // avg / sum
+
+  // KPI（全社）
+  const latest = months[months.length-1];
+  const prev   = months[months.length-2];
+  const prev2  = months[months.length-3];
+  const latestVals = branches.filter(b=>branchSetSelected.has(b)).map(b=> table[latest]?.[b]).filter(v=>v!=null);
+  const prevVals   = branches.filter(b=>branchSetSelected.has(b)).map(b=> table[prev]?.[b]).filter(v=>v!=null);
+  const aggLatest = latestVals.length ? (agg==='sum' ? latestVals.reduce((s,n)=>s+n,0) : latestVals.reduce((s,n)=>s+n,0)/latestVals.length) : null;
+  const aggPrev   = prevVals.length ? (agg==='sum' ? prevVals.reduce((s,n)=>s+n,0) : prevVals.reduce((s,n)=>s+n,0)/prevVals.length) : null;
+  const monthAggs = months.map(m=>{
+    const arr = branches.filter(b=>branchSetSelected.has(b)).map(b=> table[m]?.[b]).filter(v=>v!=null);
+    if (!arr.length) return null;
+    return agg==='sum' ? arr.reduce((s,n)=>s+n,0) : (arr.reduce((s,n)=>s+n,0)/arr.length);
+  }).filter(v=>v!=null);
+  const yearAvg = monthAggs.length? (monthAggs.reduce((s,n)=>s+n,0)/monthAggs.length): null;
+
+  $('#kpi_latest').textContent = fmt(aggLatest);
+  $('#kpi_avg').textContent    = fmt(yearAvg);
+  $('#kpi_mom').textContent    = pct(aggLatest, aggPrev);
+  $('#kpi_sites').textContent  = String([...branchSetSelected].length);
+
+  // チャート（拠点別）
+  const ctx = $('#trend');
+  const series = buildSeries();
+  const datasets = Object.entries(series).map(([b,arr])=>({label:b, data:arr, tension:0.3}));
+  if (chart) chart.destroy();
+  chart = new Chart(ctx, { type:'line', data:{ labels: months, datasets }, options:{ responsive:true, plugins:{legend:{labels:{color:'#cfe0ff'}}, tooltip:{mode:'index', intersect:false}}, scales:{ x:{ticks:{color:'#bcd1ff'}}, y:{ticks:{color:'#bcd1ff'}, grid:{color:'rgba(255,255,255,0.08)'}} } }});
+
+  // ランキング（直近3か月の実績列を追加）
+  const tbody = $('#rank tbody');
+  tbody.innerHTML='';
+  const latestMap = table[latest] || {};
+  const prevMap   = table[prev] || {};
+  const prev2Map  = table[prev2] || {};
+  const rows = branches
+    .filter(b=>branchSetSelected.has(b) && latestMap[b]!=null)
+    .map(b=>({branch:b, latest:latestMap[b], m1: prevMap[b] ?? null, m2: prev2Map[b] ?? null, diff: (prevMap[b]!=null? (latestMap[b]-prevMap[b]) : null)}))
+    .sort((a,b)=> b.latest - a.latest);
+  rows.forEach((r,i)=>{
+    const tr = document.createElement('tr');
+    tr.className = r.latest >= bad ? 'bad' : (r.latest >= warn ? 'warn' : '');
+    tr.innerHTML = `<td>${i+1}</td><td>${r.branch}</td><td class="right">${fmt(r.latest,2)}</td><td class="right">${r.m1==null?'-':fmt(r.m1,2)}</td><td class="right">${r.m2==null?'-':fmt(r.m2,2)}</td><td class="right">${r.diff==null?'-':fmt(r.diff,2)}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  $('#log').textContent = `更新: ${new Date().toLocaleString()} ／ 期間: ${months[0]} ~ ${months[months.length-1]} ／ 拠点: ${branches.length}`;
+}
+
+// ========= ボタン動作 =========
+$('#btnParse').addEventListener('click', ()=>{
+  try{
+    const txt = $('#paste').value.trim();
+    if (!txt){ alert('貼り付けデータが空です'); return; }
+    parsePivotAndBuild(txt);
+    renderBranchChips();
+
+    // プレビュー（先頭5行×先頭10列）
+    const lines = tsvToRows(txt).slice(0,6).map(r=> r.slice(0,10).join(' | ')).join('\n');
+    $('#preview').textContent = lines + (tsvToRows(txt).length>6?'\n…（省略）':'');
+
+    updateDashboard();
+  }catch(e){ alert('取込エラー: '+ e.message); }
+});
+
+$('#btnSample').addEventListener('click', ()=>{
+  // 小型サンプル（横浜/岡山/埼玉の3拠点、各2名＋平均列付き）
+  const sample = [
+    '\t横浜支店\t\t\t横浜支店 平均\t岡山営業所\t\t岡山営業所 平均\t埼玉支店\t\t埼玉支店 平均',
+    '行ラベル\t奥秋素子\t吉田玲\t山崎啓右\t\t伊藤優\t河原由布子\t\t吉田夏子\t金子友希\t',
+    '1月\t19.25\t0\t19.25\t12.27\t17.25\t9.75\t13.5\t6.29\t13.5\t5.5',
+    '2月\t19.5\t0.5\t19.5\t13.17\t20\t7.25\t13.63\t5.63\t14.25\t5.5',
+    '3月\t18\t1\t18\t12.33\t25.25\t9.75\t17.5\t7.08\t15\t6.75',
+    '総計\t—\t—\t—\t—\t—\t—\t—\t—\t—\t—'
+  ].join('\n');
+  $('#paste').value = sample;
+});
+
+$('#btnClear').addEventListener('click', ()=>{
+  $('#paste').value=''; months=[]; branches=[]; table={}; branchSetSelected.clear();
+  $('#branchChips').innerHTML='';
+  $('#preview').textContent='—';
+  if (chart) chart.destroy();
+  $('#kpi_latest').textContent = $('#kpi_avg').textContent = $('#kpi_mom').textContent = '-';
+  $('#kpi_sites').textContent = '0';
+  $('#rank tbody').innerHTML='';
+  $('#log').textContent='—';
+});
+
+// ========= CSV出力 =========
+function downloadCSV(name, csv){ const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url); }
+
+$('#btnExportWide').addEventListener('click', ()=>{
+  if (!months.length){ alert('データがありません'); return; }
+  const active = branches.filter(b=>branchSetSelected.has(b));
+  const head = ['月', ...active];
+  const lines = months.map(m=> [m, ...active.map(b=> table[m]?.[b]??'')].join(','));
+  downloadCSV('overtime_branch_wide.csv', [head.join(','), ...lines].join('\n'));
+});
+
+$('#btnExportLong').addEventListener('click', ()=>{
+  if (!months.length){ alert('データがありません'); return; }
+  const active = branches.filter(b=>branchSetSelected.has(b));
+  const lines = ['月,拠点,平均残業(h)'];
+  months.forEach(m=>{ active.forEach(b=>{ const v = table[m]?.[b]; if (v!=null) lines.push(`${m},${b},${v}`); }); });
+  downloadCSV('overtime_branch_long.csv', lines.join('\n'));
+});
+</script>
+</body>
+</html>

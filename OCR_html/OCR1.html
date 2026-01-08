@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PDF/画像 → CSV（自己診断つき一枚HTML）</title>
+<style>
+  body{margin:0;background:#0b1020;color:#e8eefa;font-family:system-ui,-apple-system,Segoe UI,Roboto,'Hiragino Kaku Gothic ProN',Meiryo,sans-serif}
+  header{padding:16px 18px;border-bottom:1px solid #223;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  h1{font-size:18px;margin:0 8px 0 0}
+  .wrap{max-width:1060px;margin:18px auto;padding:0 14px}
+  .panel{background:#121a2f;border:1px solid #1f2740;border-radius:14px;padding:14px;margin-bottom:14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  button{background:#4f8cff;border:1px solid #3a6ee8;color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer}
+  button.ghost{background:transparent;border-color:#2a355a}
+  input[type=file],label,small{color:#93a1bd}
+  .ok{color:#7fe29a}.ng{color:#ff8b8b}.warn{color:#ffd27f}
+  .textarea{width:100%;min-height:300px;background:#0f162a;color:#e8eefa;border:1px solid #283253;border-radius:12px;padding:10px;white-space:pre-wrap}
+  progress{width:240px;height:12px}
+  .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>PDF/PNG/JPG → CSV</h1>
+  <small>※ファイル内容はブラウザ内で処理・送信しません</small>
+</header>
+
+<div class="wrap">
+  <!-- 診断 -->
+  <section class="panel">
+    <div class="row">
+      <button id="diag" class="ghost">診断を実行</button>
+      <div id="diagOut" class="mono"></div>
+    </div>
+    <small>（CDNがブロックされている場合は自動でミラーへ切替します）</small>
+  </section>
+
+  <!-- 入力 -->
+  <section class="panel">
+    <div class="row">
+      <input id="files" type="file" accept="application/pdf,image/png,image/jpeg" multiple />
+      <button id="run">一括変換</button>
+      <label><input id="forceOcr" type="checkbox"> 常にOCR（PDFの埋込テキスト無視）</label>
+      <progress id="prog" value="0" max="1"></progress>
+      <span id="status" class="mono"></span>
+    </div>
+  </section>
+
+  <!-- 出力 -->
+  <section class="panel">
+    <div class="row" style="justify-content:space-between">
+      <div>結果（CSV：file,page,text）</div>
+      <div class="row">
+        <button id="copyCsv" class="ghost">CSVコピー</button>
+        <button id="saveCsv" class="ghost">CSV保存</button>
+      </div>
+    </div>
+    <textarea id="out" class="textarea" placeholder="file,page,text&#10;example.pdf,1,ここに結果が出ます"></textarea>
+  </section>
+</div>
+
+<script>
+  // ---- 動的ローダ（CDNフォールバック） ----
+  async function loadWithFallback(tag, urls) {
+    for (const url of urls) {
+      try {
+        await new Promise((res, rej) => {
+          const el = document.createElement(tag);
+          if (tag === 'script') el.src = url;
+          if (tag === 'link') { el.rel='stylesheet'; el.href=url; }
+          el.onload = () => res();
+          el.onerror = () => rej(new Error('load error: '+url));
+          document.head.appendChild(el);
+        });
+        return { ok:true, url };
+      } catch(e) { lastErr = e; }
+    }
+    return { ok:false, url:null };
+  }
+
+  const sources = {
+    pdfjs: [
+      'https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.min.js',
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.min.js'
+    ],
+    pdfworker: [
+      'https://unpkg.com/pdfjs-dist@4.6.82/build/pdf.worker.min.js',
+      'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.js'
+    ],
+    tesseract: [
+      'https://unpkg.com/tesseract.js@5.1.0/dist/tesseract.min.js',
+      'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/tesseract.min.js'
+    ],
+    tessWorker: [
+      'https://unpkg.com/tesseract.js@5.1.0/dist/worker.min.js',
+      'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.0/dist/worker.min.js'
+    ],
+    tessCore: [
+      'https://unpkg.com/tesseract.js-core@5.1.0/tesseract-core.wasm.js',
+      'https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.0/tesseract-core.wasm.js'
+    ],
+    tessLangBase: [
+      // best 学習データ（英/日）
+      'https://tessdata.projectnaptha.com/5.0.0_best',
+      'https://rawcdn.githack.com/tesseract-ocr/tessdata_best/4.1.0'
+    ]
+  };
+
+  let diagLog = [];
+  function logDiag(msg, cls='') {
+    diagLog.push(`<div class="${cls}">${msg}</div>`);
+    document.getElementById('diagOut').innerHTML = diagLog.join('');
+  }
+
+  async function ensureLibs() {
+    // 1) pdf.js
+    if (!window.pdfjsLib) {
+      const r1 = await loadWithFallback('script', sources.pdfjs);
+      logDiag(r1.ok?`PDF.js 読み込み: OK (${r1.url})`:`PDF.js 読み込み: NG` , r1.ok?'ok':'ng');
+    } else { logDiag('PDF.js 既にOK','ok'); }
+
+    // worker は file:// でも動くよう CDNに固定
+    if (window.pdfjsLib) {
+      const r2 = await loadWithFallback('script', sources.pdfworker);
+      if (r2.ok) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = r2.url;
+        logDiag(`PDF.js worker 設定: ${r2.url}`,'ok');
+      } else { logDiag('PDF.js worker 読み込み: NG','ng'); }
+    }
+
+    // 2) tesseract.js
+    if (!window.Tesseract) {
+      const r3 = await loadWithFallback('script', sources.tesseract);
+      logDiag(r3.ok?`Tesseract.js 読み込み: OK (${r3.url})`:`Tesseract.js 読み込み: NG`, r3.ok?'ok':'ng');
+    } else { logDiag('Tesseract.js 既にOK','ok'); }
+  }
+
+  document.getElementById('diag').addEventListener('click', async () => {
+    diagLog = [];
+    logDiag('診断開始…','warn');
+    await ensureLibs();
+    if (window.pdfjsLib) logDiag('pdfjsLib ✅','ok'); else logDiag('pdfjsLib ❌','ng');
+    if (window.Tesseract) logDiag('Tesseract ✅','ok'); else logDiag('Tesseract ❌','ng');
+    logDiag('診断完了','warn');
+  });
+</script>
+
+<script>
+  const el = {
+    files: document.getElementById('files'),
+    run: document.getElementById('run'),
+    forceOcr: document.getElementById('forceOcr'),
+    prog: document.getElementById('prog'),
+    status: document.getElementById('status'),
+    out: document.getElementById('out'),
+    copyCsv: document.getElementById('copyCsv'),
+    saveCsv: document.getElementById('saveCsv'),
+  };
+
+  window.addEventListener('error', e => { el.status.textContent = 'エラー: ' + e.message; });
+  window.addEventListener('unhandledrejection', e => { const r = e.reason; el.status.textContent = 'エラー: ' + (r && r.message ? r.message : r); });
+
+  el.copyCsv.addEventListener('click', () => { el.out.select(); document.execCommand('copy'); el.status.textContent = 'CSVをコピーしました'; });
+  el.saveCsv.addEventListener('click', () => {
+    const blob = new Blob([el.out.value], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'ocr_result.csv'; a.click(); URL.revokeObjectURL(a.href);
+  });
+
+  el.run.addEventListener('click', async () => {
+    const list = el.files.files;
+    if (!list || list.length === 0) { el.status.textContent = 'ファイルを選択してください'; return; }
+
+    // ライブラリを確実に読み込み
+    await ensureLibs();
+    if (!window.pdfjsLib || !window.Tesseract) { el.status.textContent = 'ライブラリが読み込めません（社内フィルタ要確認）'; return; }
+
+    // TesseractのパスをCDNに固定（ミラーを順番に試す）
+    let langBase = null;
+    for (const base of sources.tessLangBase) {
+      try {
+        // 試しに英語データのHEADを叩けないので、とりあえず使って失敗したら次へ
+        langBase = base; break;
+      } catch {}
+    }
+
+    const worker = await Tesseract.createWorker({
+      workerPath: (await loadWithFallback('script', sources.tessWorker)).url || sources.tessWorker[0],
+      corePath:   (await loadWithFallback('script', sources.tessCore)).url   || sources.tessCore[0],
+      langPath:   langBase || sources.tessLangBase[0]
+    });
+
+    await worker.loadLanguage('jpn+eng').catch(async ()=>{ await worker.loadLanguage('eng'); });
+    try { await worker.initialize('jpn+eng'); } catch { await worker.initialize('eng'); }
+
+    const rows = [['file','page','text']];
+
+    for (let fi = 0; fi < list.length; fi++) {
+      const f = list[fi];
+      el.status.textContent = `${fi+1}/${list.length} 処理中… (${f.name})`;
+      if ((f.type||'').includes('pdf') || f.name.toLowerCase().endsWith('.pdf')) {
+        const buf = await f.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+        el.prog.value = 0; el.prog.max = pdf.numPages;
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          let text = '';
+          if (!el.forceOcr.checked) {
+            try { const tc = await page.getTextContent(); text = (tc.items||[]).map(it=>it.str).join('\n'); } catch {}
+          }
+          if (el.forceOcr.checked || !isMeaningful(text)) {
+            const viewport = page.getViewport({ scale: 2.0 });
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = viewport.width; canvas.height = viewport.height;
+            await page.render({ canvasContext: ctx, viewport }).promise;
+            const dataUrl = canvas.toDataURL('image/png');
+            const { data: { text: t } } = await worker.recognize(dataUrl);
+            text = t || '';
+          }
+          rows.push([f.name, String(i), text.replace(/\r?\n/g,' ').trim()]);
+          el.prog.value = i;
+        }
+      } else if ((f.type||'').startsWith('image/') || /\.(png|jpe?g)$/i.test(f.name)) {
+        const dataUrl = URL.createObjectURL(f);
+        const { data: { text } } = await worker.recognize(dataUrl);
+        rows.push([f.name, '1', (text||'').replace(/\r?\n/g,' ').trim()]);
+        URL.revokeObjectURL(dataUrl);
+      }
+    }
+
+    await worker.terminate();
+
+    // CSV出力
+    el.out.value = rows.map(r=>r.map(csvEsc).join(',')).join('\r\n');
+    el.status.textContent = '完了しました';
+  });
+
+  function isMeaningful(s){ if(!s) return false; const t=s.replace(/\s+/g,''); if(t.length<30) return false; const nonAscii=(t.match(/[^\x00-\x7F]/g)||[]).length/t.length; return t.length>80 || nonAscii>0.05; }
+  function csvEsc(v){ if(v==null) return ''; const s=String(v); return /[",\n]/.test(s)? '"'+s.replace(/"/g,'""')+'"' : s; }
+</script>
+</body>
+</html>

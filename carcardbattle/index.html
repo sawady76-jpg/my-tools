@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>実写風カーカードバトル</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        canvas {
+            display: block;
+            max-width: 100%;
+            max-height: 100vh;
+        }
+    </style>
+</head>
+
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <script>
+        // ============================================
+        // データ定義
+        // ============================================
+        const CAR_DATA = [
+            // 【N: Normal】 (AP 10-22)
+            { name: "Honda N-BOX", en: "Honda N-BOX keicar white", rarity: "N", ap: 10 },
+            { name: "Daihatsu Tanto", en: "Daihatsu Tanto keicar", rarity: "N", ap: 12 },
+            { name: "Suzuki Spacia", en: "Suzuki Spacia gear green", rarity: "N", ap: 12 },
+            { name: "Suzuki Jimny", en: "Suzuki Jimny offroad jungle", rarity: "N", ap: 15 },
+            { name: "Daihatsu Move Canbus", en: "Daihatsu Move Canbus cute two-tone", rarity: "N", ap: 11 },
+            { name: "Suzuki Hustler", en: "Suzuki Hustler orange car", rarity: "N", ap: 13 },
+            { name: "Nissan Sakura", en: "Nissan Sakura EV pink gold", rarity: "N", ap: 14 },
+            { name: "Toyota Yaris", en: "Toyota Yaris hatchback red", rarity: "N", ap: 20 },
+            { name: "Toyota Aqua", en: "Toyota Aqua Prius C blue", rarity: "N", ap: 18 },
+            { name: "Honda Fit", en: "Honda Fit Jazz white", rarity: "N", ap: 19 },
+            { name: "Nissan Note", en: "Nissan Note Aura silver", rarity: "N", ap: 22 },
+            { name: "Mazda 2", en: "Mazda 2 demio red metallic", rarity: "N", ap: 18 },
+
+            // 【R: Rare】 (AP 32-42)
+            { name: "Toyota Voxy", en: "Toyota Voxy minivan black sharp front", rarity: "R", ap: 35 },
+            { name: "Honda Step WGN", en: "Honda Step WGN boxy white", rarity: "R", ap: 34 },
+            { name: "Nissan Serena", en: "Nissan Serena highway star silver", rarity: "R", ap: 33 },
+            { name: "Mitsubishi Delica D:5", en: "Mitsubishi Delica D5 offroad gray", rarity: "R", ap: 38 },
+            { name: "Toyota Harrier", en: "Toyota Venza Harrier luxury SUV black", rarity: "R", ap: 40 },
+            { name: "Toyota RAV4", en: "Toyota RAV4 adventure offroad mud", rarity: "R", ap: 42 },
+            { name: "Mazda CX-5", en: "Mazda CX-5 soul red crystal", rarity: "R", ap: 39 },
+            { name: "Subaru Forester", en: "Subaru Forester wilderness forest", rarity: "R", ap: 41 },
+            { name: "Honda Vezel", en: "Honda HR-V Vezel white", rarity: "R", ap: 32 },
+            { name: "Suzuki Swift Sport", en: "Suzuki Swift Sport yellow circuit", rarity: "R", ap: 36 },
+
+            // 【SR: Super Rare】 (AP 50-70)
+            { name: "Toyota Alphard", en: "Toyota Alphard luxury van executive lounge black", rarity: "SR", ap: 55 },
+            { name: "Toyota Land Cruiser 300", en: "Toyota Land Cruiser 300 desert", rarity: "SR", ap: 65 },
+            { name: "Toyota Crown Crossover", en: "Toyota Crown Crossover bronze", rarity: "SR", ap: 50 },
+            { name: "Lexus RX", en: "Lexus RX 500h f sport white", rarity: "SR", ap: 60 },
+            { name: "Nissan Fairlady Z", en: "Nissan Z Proto yellow sports car", rarity: "SR", ap: 68 },
+            { name: "Honda Civic Type R", en: "Honda Civic Type R FL5 white racing", rarity: "SR", ap: 70 },
+
+            // 【SEC: Secret】 (AP 95-99)
+            { name: "Nissan GT-R NISMO", en: "Nissan GT-R Nismo circuit run smoke", rarity: "SEC", ap: 95 },
+            { name: "Ferrari 296 GTB", en: "Ferrari 296 GTB red italian supercar", rarity: "SEC", ap: 99 }
+        ];
+
+        const RARITY_ORDER = ["N", "R", "SR", "SEC"];
+        const RARITY_COLORS = {
+            N: { primary: "#3498db", secondary: "#2980b9", glow: "#5dade2" },
+            R: { primary: "#bdc3c7", secondary: "#95a5a6", glow: "#ecf0f1" },
+            SR: { primary: "#9b59b6", secondary: "#8e44ad", glow: "#bb8fce", rainbow: true },
+            SEC: { primary: "#f1c40f", secondary: "#f39c12", glow: "#f7dc6f", gold: true },
+            GOD: { primary: "#f1c40f", secondary: "#f39c12", glow: "#f7dc6f", gold: true }
+        };
+
+        // ============================================
+        // ImageLoader クラス
+        // ============================================
+        class ImageLoader {
+            constructor() {
+                this.cache = new Map();
+                this.loading = new Set();
+            }
+
+            getImageUrl(carEn, isAnother = false) {
+                let prompt = `photorealistic automotive photography of ${carEn}, 8k resolution, cinematic lighting, detailed reflections`;
+                if (isAnother) {
+                    prompt += ", customized, black body, wide body kit, purple neon glow, dark atmosphere";
+                }
+                return `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=500&height=350&nologo=true`;
+            }
+
+            loadImage(carEn, isAnother = false) {
+                const key = `${carEn}_${isAnother}`;
+
+                if (this.cache.has(key)) {
+                    return Promise.resolve(this.cache.get(key));
+                }
+
+                if (this.loading.has(key)) {
+                    return new Promise((resolve) => {
+                        const check = () => {
+                            if (this.cache.has(key)) {
+                                resolve(this.cache.get(key));
+                            } else {
+                                setTimeout(check, 100);
+                            }
+                        };
+                        check();
+                    });
+                }
+
+                this.loading.add(key);
+
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.onload = () => {
+                        this.cache.set(key, img);
+                        this.loading.delete(key);
+                        resolve(img);
+                    };
+                    img.onerror = () => {
+                        this.loading.delete(key);
+                        resolve(null);
+                    };
+                    img.src = this.getImageUrl(carEn, isAnother);
+                });
+            }
+        }
+
+        // ============================================
+        // CardRenderer クラス
+        // ============================================
+        class CardRenderer {
+            constructor(ctx, imageLoader) {
+                this.ctx = ctx;
+                this.imageLoader = imageLoader;
+                this.time = 0;
+                this.particles = [];
+            }
+
+            update(deltaTime) {
+                this.time += deltaTime;
+                this.particles = this.particles.filter(p => p.life > 0);
+                this.particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.vy += 0.1;
+                    p.life -= deltaTime;
+                    p.alpha = Math.max(0, p.life / p.maxLife);
+                });
+            }
+
+            addParticles(x, y, color, count = 20) {
+                for (let i = 0; i < count; i++) {
+                    this.particles.push({
+                        x, y,
+                        vx: (Math.random() - 0.5) * 10,
+                        vy: (Math.random() - 0.5) * 10 - 5,
+                        size: Math.random() * 6 + 2,
+                        color,
+                        life: 1,
+                        maxLife: 1
+                    });
+                }
+            }
+
+            drawParticles() {
+                const ctx = this.ctx;
+                this.particles.forEach(p => {
+                    ctx.save();
+                    ctx.globalAlpha = p.alpha;
+                    ctx.fillStyle = p.color;
+                    ctx.shadowColor = p.color;
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                });
+            }
+
+            drawCard(x, y, width, height, carData, image, isAnother = false, animProgress = 1) {
+                const ctx = this.ctx;
+                const rarity = carData.rarity;
+                const colors = RARITY_COLORS[rarity] || RARITY_COLORS.N;
+
+                ctx.save();
+                ctx.globalAlpha = animProgress;
+
+                // カード背景とフレーム
+                this.drawCardFrame(x, y, width, height, colors, rarity, isAnother);
+
+                // 車画像
+                if (image) {
+                    const imgPadding = 15;
+                    const imgWidth = width - imgPadding * 2;
+                    const imgHeight = height * 0.6;
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.roundRect(x + imgPadding, y + imgPadding + 30, imgWidth, imgHeight, 8);
+                    ctx.clip();
+                    ctx.drawImage(image, x + imgPadding, y + imgPadding + 30, imgWidth, imgHeight);
+                    ctx.restore();
+
+                    // 裏モードオーバーレイ
+                    if (isAnother) {
+                        ctx.fillStyle = "rgba(138, 43, 226, 0.3)";
+                        ctx.fillRect(x + imgPadding, y + imgPadding + 30, imgWidth, imgHeight);
+                    }
+                } else {
+                    // ローディング表示
+                    ctx.fillStyle = "#333";
+                    ctx.fillRect(x + 15, y + 45, width - 30, height * 0.6);
+                    ctx.fillStyle = "#fff";
+                    ctx.font = "16px Arial";
+                    ctx.textAlign = "center";
+                    ctx.fillText("Loading...", x + width / 2, y + height * 0.4);
+                }
+
+                // レアリティバッジ
+                this.drawRarityBadge(x + 10, y + 10, rarity, isAnother);
+
+                // 車名
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 16px Arial";
+                ctx.textAlign = "center";
+                ctx.shadowColor = "#000";
+                ctx.shadowBlur = 4;
+                ctx.fillText(carData.name, x + width / 2, y + height - 40);
+
+                // AP表示
+                ctx.font = "bold 24px Arial";
+                ctx.fillStyle = isAnother ? "#ff00ff" : "#ffcc00";
+                ctx.shadowColor = isAnother ? "#ff00ff" : "#ffcc00";
+                ctx.shadowBlur = 10;
+                const displayAp = isAnother ? Math.floor(carData.ap * 1.5) : carData.ap;
+                ctx.fillText(`AP: ${displayAp}`, x + width / 2, y + height - 15);
+
+                ctx.restore();
+
+                // 高レアリティエフェクト
+                if (rarity === "SEC" || rarity === "GOD") {
+                    this.drawGoldEffect(x, y, width, height);
+                }
+                if (rarity === "SR") {
+                    this.drawRainbowEffect(x, y, width, height);
+                }
+                if (isAnother) {
+                    this.drawAnotherAura(x, y, width, height);
+                }
+            }
+
+            drawCardFrame(x, y, width, height, colors, rarity, isAnother) {
+                const ctx = this.ctx;
+                const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
+
+                if (isAnother) {
+                    gradient.addColorStop(0, "#4a0080");
+                    gradient.addColorStop(0.5, "#800080");
+                    gradient.addColorStop(1, "#4a0080");
+                } else if (colors.rainbow) {
+                    const hue = (this.time * 50) % 360;
+                    gradient.addColorStop(0, `hsl(${hue}, 70%, 50%)`);
+                    gradient.addColorStop(0.5, `hsl(${(hue + 120) % 360}, 70%, 50%)`);
+                    gradient.addColorStop(1, `hsl(${(hue + 240) % 360}, 70%, 50%)`);
+                } else if (colors.gold) {
+                    gradient.addColorStop(0, "#ffd700");
+                    gradient.addColorStop(0.3, "#ffec8b");
+                    gradient.addColorStop(0.5, "#ffd700");
+                    gradient.addColorStop(0.7, "#daa520");
+                    gradient.addColorStop(1, "#ffd700");
+                } else {
+                    gradient.addColorStop(0, colors.primary);
+                    gradient.addColorStop(1, colors.secondary);
+                }
+
+                // 外枠グロー
+                ctx.shadowColor = isAnother ? "#ff00ff" : colors.glow;
+                ctx.shadowBlur = 20;
+
+                // カード本体
+                ctx.fillStyle = "#1a1a2e";
+                ctx.beginPath();
+                ctx.roundRect(x, y, width, height, 15);
+                ctx.fill();
+
+                // フレーム
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 4;
+                ctx.stroke();
+
+                ctx.shadowBlur = 0;
+            }
+
+            drawRarityBadge(x, y, rarity, isAnother) {
+                const ctx = this.ctx;
+                const badgeColors = {
+                    N: "#3498db",
+                    R: "#c0c0c0",
+                    SR: "#9b59b6",
+                    SEC: "#ffd700",
+                    GOD: "#ffd700"
+                };
+
+                const badgeWidth = rarity.length * 12 + 16;
+
+                ctx.fillStyle = isAnother ? "#800080" : (badgeColors[rarity] || "#3498db");
+                ctx.shadowColor = ctx.fillStyle;
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.roundRect(x, y, badgeWidth, 24, 5);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 14px Arial";
+                ctx.textAlign = "center";
+                const displayText = isAnother ? `${rarity}★` : rarity;
+                ctx.fillText(displayText, x + badgeWidth / 2, y + 17);
+            }
+
+            drawRainbowEffect(x, y, width, height) {
+                const ctx = this.ctx;
+                const hue = (this.time * 100) % 360;
+
+                for (let i = 0; i < 4; i++) {
+                    const angle = (this.time * 2 + i * Math.PI / 2) % (Math.PI * 2);
+                    const px = x + width / 2 + Math.cos(angle) * (width / 2 + 15);
+                    const py = y + height / 2 + Math.sin(angle) * (height / 2 + 15);
+
+                    ctx.save();
+                    ctx.fillStyle = `hsla(${(hue + i * 90) % 360}, 100%, 70%, 0.6)`;
+                    ctx.shadowColor = `hsl(${(hue + i * 90) % 360}, 100%, 50%)`;
+                    ctx.shadowBlur = 15;
+                    ctx.beginPath();
+                    ctx.arc(px, py, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+
+            drawGoldEffect(x, y, width, height) {
+                const ctx = this.ctx;
+
+                // 稲妻エフェクト
+                if (Math.random() < 0.1) {
+                    ctx.save();
+                    ctx.strokeStyle = "#ffd700";
+                    ctx.shadowColor = "#ffd700";
+                    ctx.shadowBlur = 20;
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+
+                    const startX = x + Math.random() * width;
+                    const startY = y;
+                    ctx.moveTo(startX, startY);
+
+                    let currentY = startY;
+                    while (currentY < y + height) {
+                        currentY += Math.random() * 20 + 10;
+                        const offsetX = (Math.random() - 0.5) * 40;
+                        ctx.lineTo(startX + offsetX, Math.min(currentY, y + height));
+                    }
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // 粒子エフェクト
+                for (let i = 0; i < 2; i++) {
+                    const px = x + Math.random() * width;
+                    const py = y + height + 10;
+                    if (Math.random() < 0.3) {
+                        this.addParticles(px, py, "#ffd700", 1);
+                    }
+                }
+            }
+
+            drawAnotherAura(x, y, width, height) {
+                const ctx = this.ctx;
+                const pulse = Math.sin(this.time * 3) * 0.3 + 0.7;
+
+                ctx.save();
+                ctx.globalAlpha = 0.3 * pulse;
+
+                const gradient = ctx.createRadialGradient(
+                    x + width / 2, y + height / 2, 0,
+                    x + width / 2, y + height / 2, width
+                );
+                gradient.addColorStop(0, "transparent");
+                gradient.addColorStop(0.5, "rgba(138, 43, 226, 0.5)");
+                gradient.addColorStop(1, "transparent");
+
+                ctx.fillStyle = gradient;
+                ctx.fillRect(x - 50, y - 50, width + 100, height + 100);
+                ctx.restore();
+            }
+        }
+
+        // ============================================
+        // BattleManager クラス
+        // ============================================
+        class BattleManager {
+            constructor(imageLoader) {
+                this.imageLoader = imageLoader;
+                this.enemiesDefeated = 0;
+                this.playerHp = 100;
+                this.maxPlayerHp = 100;
+                this.currentEnemy = null;
+                this.enemyHp = 0;
+                this.maxEnemyHp = 0;
+                this.playerCard = null;
+                this.playerImage = null;
+                this.enemyImage = null;
+                this.isPlayerAnother = false;
+                this.battleState = "idle"; // idle, summoning, attacking, enemyAttack, victory, gameOver
+                this.animationProgress = 0;
+                this.damagePopups = [];
+                this.screenShake = 0;
+                this.attackPosition = { x: 0, y: 0 };
+                this.message = "画面下部をクリックしてガチャを回そう！";
+            }
+
+            getEnemyRarity() {
+                const stage = Math.floor(this.enemiesDefeated / 3);
+                if (stage >= 3) return "SEC";
+                if (stage >= 2) return "SR";
+                if (stage >= 1) return "R";
+                return "N";
+            }
+
+            async spawnEnemy() {
+                const targetRarity = this.getEnemyRarity();
+                const candidates = CAR_DATA.filter(c => c.rarity === targetRarity);
+                this.currentEnemy = candidates[Math.floor(Math.random() * candidates.length)];
+
+                const hpMultiplier = 1 + this.enemiesDefeated * 0.2;
+                this.maxEnemyHp = Math.floor(50 * hpMultiplier);
+                this.enemyHp = this.maxEnemyHp;
+
+                this.enemyImage = null;
+                this.imageLoader.loadImage(this.currentEnemy.en, false).then(img => {
+                    this.enemyImage = img;
+                });
+            }
+
+            async summonCard() {
+                if (this.battleState !== "idle") return;
+
+                this.battleState = "summoning";
+                this.animationProgress = 0;
+
+                // ガチャロジック
+                const roll = Math.random();
+                let rarity;
+                if (roll < 0.5) rarity = "N";
+                else if (roll < 0.8) rarity = "R";
+                else if (roll < 0.95) rarity = "SR";
+                else rarity = "SEC";
+
+                this.isPlayerAnother = Math.random() < 0.05;
+
+                const candidates = CAR_DATA.filter(c => c.rarity === rarity);
+                this.playerCard = candidates[Math.floor(Math.random() * candidates.length)];
+
+                this.playerImage = null;
+                this.imageLoader.loadImage(this.playerCard.en, this.isPlayerAnother).then(img => {
+                    this.playerImage = img;
+                });
+
+                const rarityText = this.isPlayerAnother ? `${rarity}★ 裏モード!!!` : rarity;
+                this.message = `${this.playerCard.name} (${rarityText}) を召喚！`;
+            }
+
+            attack(canvasWidth, canvasHeight) {
+                if (this.battleState !== "summoning" || this.animationProgress < 1) return;
+
+                this.battleState = "attacking";
+                this.animationProgress = 0;
+                this.attackPosition = {
+                    x: canvasWidth / 2,
+                    y: canvasHeight * 0.7
+                };
+            }
+
+            update(deltaTime, canvasWidth, canvasHeight) {
+                // ダメージポップアップ更新
+                this.damagePopups = this.damagePopups.filter(p => p.life > 0);
+                this.damagePopups.forEach(p => {
+                    p.y -= 2;
+                    p.life -= deltaTime;
+                    p.alpha = Math.max(0, p.life);
+                });
+
+                // 画面シェイク減衰
+                this.screenShake *= 0.9;
+                if (this.screenShake < 0.5) this.screenShake = 0;
+
+                switch (this.battleState) {
+                    case "summoning":
+                        this.animationProgress = Math.min(1, this.animationProgress + deltaTime * 2);
+                        if (this.animationProgress >= 1 && this.playerImage) {
+                            this.message = "クリックして攻撃！";
+                        }
+                        break;
+
+                    case "attacking":
+                        this.animationProgress += deltaTime * 3;
+
+                        // 攻撃アニメーション
+                        const targetY = canvasHeight * 0.25;
+                        this.attackPosition.y = canvasHeight * 0.7 - (canvasHeight * 0.7 - targetY) * Math.min(1, this.animationProgress);
+
+                        if (this.animationProgress >= 1) {
+                            // ダメージ計算
+                            let damage = this.playerCard.ap;
+                            if (this.isPlayerAnother) damage = Math.floor(damage * 1.5);
+
+                            this.enemyHp = Math.max(0, this.enemyHp - damage);
+                            this.screenShake = 20;
+
+                            this.damagePopups.push({
+                                x: canvasWidth / 2,
+                                y: canvasHeight * 0.25,
+                                damage,
+                                life: 1,
+                                alpha: 1,
+                                color: this.isPlayerAnother ? "#ff00ff" : "#ff4444"
+                            });
+
+                            this.message = `${damage} ダメージ！`;
+
+                            if (this.enemyHp <= 0) {
+                                this.battleState = "victory";
+                                this.animationProgress = 0;
+                            } else {
+                                this.battleState = "enemyAttack";
+                                this.animationProgress = 0;
+                            }
+                        }
+                        break;
+
+                    case "enemyAttack":
+                        this.animationProgress += deltaTime * 2;
+
+                        if (this.animationProgress >= 1) {
+                            const enemyDamage = Math.floor(this.currentEnemy.ap * 0.5);
+                            this.playerHp = Math.max(0, this.playerHp - enemyDamage);
+                            this.screenShake = 15;
+
+                            this.damagePopups.push({
+                                x: canvasWidth / 2,
+                                y: canvasHeight * 0.75,
+                                damage: enemyDamage,
+                                life: 1,
+                                alpha: 1,
+                                color: "#ff0000"
+                            });
+
+                            if (this.playerHp <= 0) {
+                                this.battleState = "gameOver";
+                                this.message = "GAME OVER... クリックでリスタート";
+                            } else {
+                                this.battleState = "idle";
+                                this.playerCard = null;
+                                this.playerImage = null;
+                                this.message = "クリックしてガチャを回そう！";
+                            }
+                        }
+                        break;
+
+                    case "victory":
+                        this.animationProgress += deltaTime;
+                        if (this.animationProgress >= 1.5) {
+                            this.enemiesDefeated++;
+                            this.message = `勝利！ 撃破数: ${this.enemiesDefeated} - 次の敵が現れた！`;
+                            this.spawnEnemy();
+                            this.battleState = "idle";
+                            this.playerCard = null;
+                            this.playerImage = null;
+                        }
+                        break;
+                }
+            }
+
+            reset() {
+                this.enemiesDefeated = 0;
+                this.playerHp = this.maxPlayerHp;
+                this.battleState = "idle";
+                this.playerCard = null;
+                this.playerImage = null;
+                this.message = "画面下部をクリックしてガチャを回そう！";
+                this.spawnEnemy();
+            }
+        }
+
+        // ============================================
+        // GameApp クラス
+        // ============================================
+        class GameApp {
+            constructor() {
+                this.canvas = document.getElementById("gameCanvas");
+                this.ctx = this.canvas.getContext("2d");
+
+                this.resize();
+                window.addEventListener("resize", () => this.resize());
+
+                this.imageLoader = new ImageLoader();
+                this.cardRenderer = new CardRenderer(this.ctx, this.imageLoader);
+                this.battleManager = new BattleManager(this.imageLoader);
+
+                this.lastTime = 0;
+                this.backgroundStars = this.createStars();
+
+                this.canvas.addEventListener("click", (e) => this.handleClick(e));
+
+                this.battleManager.spawnEnemy();
+                this.gameLoop(0);
+            }
+
+            resize() {
+                this.canvas.width = Math.min(window.innerWidth, 800);
+                this.canvas.height = Math.min(window.innerHeight, 900);
+            }
+
+            createStars() {
+                const stars = [];
+                for (let i = 0; i < 100; i++) {
+                    stars.push({
+                        x: Math.random(),
+                        y: Math.random(),
+                        size: Math.random() * 2 + 0.5,
+                        speed: Math.random() * 0.001 + 0.0005
+                    });
+                }
+                return stars;
+            }
+
+            handleClick(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const y = e.clientY - rect.top;
+
+                if (this.battleManager.battleState === "gameOver") {
+                    this.battleManager.reset();
+                    return;
+                }
+
+                if (this.battleManager.battleState === "idle") {
+                    this.battleManager.summonCard();
+                } else if (this.battleManager.battleState === "summoning" && this.battleManager.animationProgress >= 1) {
+                    this.battleManager.attack(this.canvas.width, this.canvas.height);
+                }
+            }
+
+            gameLoop(timestamp) {
+                const deltaTime = Math.min((timestamp - this.lastTime) / 1000, 0.1);
+                this.lastTime = timestamp;
+
+                this.update(deltaTime);
+                this.render();
+
+                requestAnimationFrame((t) => this.gameLoop(t));
+            }
+
+            update(deltaTime) {
+                this.cardRenderer.update(deltaTime);
+                this.battleManager.update(deltaTime, this.canvas.width, this.canvas.height);
+
+                // 背景の星更新
+                this.backgroundStars.forEach(star => {
+                    star.y += star.speed;
+                    if (star.y > 1) star.y = 0;
+                });
+            }
+
+            render() {
+                const ctx = this.ctx;
+                const w = this.canvas.width;
+                const h = this.canvas.height;
+
+                // 画面シェイク適用
+                ctx.save();
+                if (this.battleManager.screenShake > 0) {
+                    const shakeX = (Math.random() - 0.5) * this.battleManager.screenShake;
+                    const shakeY = (Math.random() - 0.5) * this.battleManager.screenShake;
+                    ctx.translate(shakeX, shakeY);
+                }
+
+                // 背景
+                this.drawBackground(w, h);
+
+                // UIセパレータ
+                ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, h * 0.5);
+                ctx.lineTo(w, h * 0.5);
+                ctx.stroke();
+
+                // 敵エリア
+                this.drawEnemyArea(w, h);
+
+                // プレイヤーエリア
+                this.drawPlayerArea(w, h);
+
+                // ダメージポップアップ
+                this.drawDamagePopups();
+
+                // メッセージ
+                this.drawMessage(w, h);
+
+                // パーティクル
+                this.cardRenderer.drawParticles();
+
+                ctx.restore();
+            }
+
+            drawBackground(w, h) {
+                const ctx = this.ctx;
+
+                // グラデーション背景
+                const bgGradient = ctx.createLinearGradient(0, 0, 0, h);
+                bgGradient.addColorStop(0, "#0a0a1a");
+                bgGradient.addColorStop(0.5, "#1a1a3a");
+                bgGradient.addColorStop(1, "#0a0a1a");
+                ctx.fillStyle = bgGradient;
+                ctx.fillRect(0, 0, w, h);
+
+                // 星
+                ctx.fillStyle = "#fff";
+                this.backgroundStars.forEach(star => {
+                    ctx.globalAlpha = 0.3 + Math.random() * 0.4;
+                    ctx.beginPath();
+                    ctx.arc(star.x * w, star.y * h, star.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                ctx.globalAlpha = 1;
+            }
+
+            drawEnemyArea(w, h) {
+                const ctx = this.ctx;
+                const bm = this.battleManager;
+
+                // ラベル
+                ctx.fillStyle = "#ff4444";
+                ctx.font = "bold 24px Arial";
+                ctx.textAlign = "left";
+                ctx.shadowColor = "#ff0000";
+                ctx.shadowBlur = 10;
+                ctx.fillText("【ENEMY】", 20, 40);
+                ctx.shadowBlur = 0;
+
+                // 撃破数表示
+                ctx.fillStyle = "#ffcc00";
+                ctx.font = "18px Arial";
+                ctx.textAlign = "right";
+                ctx.fillText(`撃破: ${bm.enemiesDefeated}`, w - 20, 40);
+
+                if (bm.currentEnemy) {
+                    // 敵HPバー
+                    this.drawHPBar(w / 2 - 150, 55, 300, 25, bm.enemyHp, bm.maxEnemyHp, "#ff4444", "#aa0000");
+
+                    // 敵車種名
+                    ctx.fillStyle = "#fff";
+                    ctx.font = "bold 20px Arial";
+                    ctx.textAlign = "center";
+                    ctx.fillText(`${bm.currentEnemy.name} [${bm.currentEnemy.rarity}]`, w / 2, 105);
+
+                    // 敵カード
+                    const cardWidth = 280;
+                    const cardHeight = 350;
+                    const cardX = w / 2 - cardWidth / 2;
+                    const cardY = 115;
+
+                    // 敵攻撃アニメーション
+                    let enemyOffset = 0;
+                    if (bm.battleState === "enemyAttack") {
+                        enemyOffset = Math.sin(bm.animationProgress * Math.PI) * 50;
+                    }
+
+                    this.cardRenderer.drawCard(
+                        cardX, cardY + enemyOffset,
+                        cardWidth, cardHeight,
+                        bm.currentEnemy, bm.enemyImage, false, 1
+                    );
+
+                    // 勝利エフェクト
+                    if (bm.battleState === "victory") {
+                        ctx.save();
+                        ctx.fillStyle = "rgba(255, 215, 0, 0.3)";
+                        ctx.fillRect(0, 0, w, h * 0.5);
+
+                        ctx.fillStyle = "#ffd700";
+                        ctx.font = "bold 48px Arial";
+                        ctx.textAlign = "center";
+                        ctx.shadowColor = "#ffd700";
+                        ctx.shadowBlur = 20;
+                        ctx.fillText("VICTORY!", w / 2, h * 0.3);
+                        ctx.restore();
+                    }
+                }
+            }
+
+            drawPlayerArea(w, h) {
+                const ctx = this.ctx;
+                const bm = this.battleManager;
+
+                // ラベル
+                ctx.fillStyle = "#44aaff";
+                ctx.font = "bold 24px Arial";
+                ctx.textAlign = "left";
+                ctx.shadowColor = "#0088ff";
+                ctx.shadowBlur = 10;
+                ctx.fillText("【PLAYER】", 20, h * 0.5 + 35);
+                ctx.shadowBlur = 0;
+
+                // プレイヤーHPバー
+                this.drawHPBar(w / 2 - 150, h * 0.5 + 45, 300, 25, bm.playerHp, bm.maxPlayerHp, "#44ff44", "#00aa00");
+
+                // 召喚エリア
+                if (bm.playerCard && bm.playerImage) {
+                    const cardWidth = 240;
+                    const cardHeight = 300;
+                    let cardX = w / 2 - cardWidth / 2;
+                    let cardY = h * 0.5 + 85;
+
+                    if (bm.battleState === "attacking") {
+                        cardX = bm.attackPosition.x - cardWidth / 2;
+                        cardY = bm.attackPosition.y - cardHeight / 2;
+                    }
+
+                    this.cardRenderer.drawCard(
+                        cardX, cardY,
+                        cardWidth, cardHeight,
+                        bm.playerCard, bm.playerImage,
+                        bm.isPlayerAnother,
+                        bm.animationProgress
+                    );
+                } else if (bm.battleState === "idle") {
+                    // ガチャ誘導
+                    ctx.save();
+                    const pulse = Math.sin(Date.now() / 300) * 0.2 + 0.8;
+                    ctx.globalAlpha = pulse;
+
+                    ctx.strokeStyle = "#44aaff";
+                    ctx.lineWidth = 3;
+                    ctx.setLineDash([10, 10]);
+                    ctx.strokeRect(w / 2 - 120, h * 0.65, 240, 200);
+                    ctx.setLineDash([]);
+
+                    ctx.fillStyle = "#44aaff";
+                    ctx.font = "24px Arial";
+                    ctx.textAlign = "center";
+                    ctx.fillText("TAP TO SUMMON", w / 2, h * 0.75);
+                    ctx.restore();
+                }
+
+                // ゲームオーバー
+                if (bm.battleState === "gameOver") {
+                    ctx.save();
+                    ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                    ctx.fillRect(0, 0, w, h);
+
+                    ctx.fillStyle = "#ff0000";
+                    ctx.font = "bold 56px Arial";
+                    ctx.textAlign = "center";
+                    ctx.shadowColor = "#ff0000";
+                    ctx.shadowBlur = 20;
+                    ctx.fillText("GAME OVER", w / 2, h / 2 - 30);
+
+                    ctx.fillStyle = "#fff";
+                    ctx.font = "24px Arial";
+                    ctx.shadowBlur = 0;
+                    ctx.fillText(`撃破数: ${bm.enemiesDefeated}`, w / 2, h / 2 + 20);
+                    ctx.fillText("クリックでリスタート", w / 2, h / 2 + 60);
+                    ctx.restore();
+                }
+            }
+
+            drawHPBar(x, y, width, height, current, max, color, darkColor) {
+                const ctx = this.ctx;
+                const ratio = Math.max(0, current / max);
+
+                // 背景
+                ctx.fillStyle = "#333";
+                ctx.beginPath();
+                ctx.roundRect(x, y, width, height, 5);
+                ctx.fill();
+
+                // HP
+                if (ratio > 0) {
+                    const gradient = ctx.createLinearGradient(x, y, x, y + height);
+                    gradient.addColorStop(0, color);
+                    gradient.addColorStop(1, darkColor);
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.roundRect(x + 2, y + 2, (width - 4) * ratio, height - 4, 3);
+                    ctx.fill();
+                }
+
+                // テキスト
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 14px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText(`${current} / ${max}`, x + width / 2, y + height - 7);
+            }
+
+            drawDamagePopups() {
+                const ctx = this.ctx;
+
+                this.battleManager.damagePopups.forEach(popup => {
+                    ctx.save();
+                    ctx.globalAlpha = popup.alpha;
+                    ctx.fillStyle = popup.color;
+                    ctx.font = "bold 48px Arial";
+                    ctx.textAlign = "center";
+                    ctx.shadowColor = popup.color;
+                    ctx.shadowBlur = 15;
+                    ctx.fillText(`-${popup.damage}`, popup.x, popup.y);
+                    ctx.restore();
+                });
+            }
+
+            drawMessage(w, h) {
+                const ctx = this.ctx;
+
+                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+                ctx.beginPath();
+                ctx.roundRect(w / 2 - 200, h - 50, 400, 40, 10);
+                ctx.fill();
+
+                ctx.fillStyle = "#fff";
+                ctx.font = "18px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText(this.battleManager.message, w / 2, h - 25);
+            }
+        }
+
+        // ============================================
+        // ゲーム開始
+        // ============================================
+        window.addEventListener("load", () => {
+            new GameApp();
+        });
+    </script>
+</body>
+
+</html>

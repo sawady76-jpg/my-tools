@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>業務時間・ステータス管理</title>
+    <style>
+        body {
+            font-family: "Helvetica Neue", Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: #fff;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+        h2 { margin-bottom: 20px; color: #2c3e50; }
+        
+        /* 現在の状態表示エリア */
+        .status-display {
+            background-color: #eef2f3;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+        .current-status {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .timer {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #3498db;
+            font-family: monospace;
+        }
+
+        /* ボタンエリア */
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+        button {
+            padding: 15px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.1s, opacity 0.2s;
+            font-weight: bold;
+            color: white;
+        }
+        button:active { transform: scale(0.98); }
+        
+        .btn-work { background-color: #27ae60; } /* 緑 */
+        .btn-break { background-color: #f39c12; } /* オレンジ */
+        .btn-away { background-color: #e74c3c; } /* 赤 */
+        .btn-finish { 
+            background-color: #7f8c8d; 
+            grid-column: 1 / -1; /* 全幅 */
+            margin-top: 10px;
+        }
+        
+        /* 集計テーブル */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+        }
+        th { background-color: #f8f9fa; }
+        
+        .summary-box {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            padding: 15px;
+            background: #fdfdfd;
+            border: 1px solid #eee;
+            border-radius: 8px;
+        }
+        .summary-item strong { display: block; font-size: 1.2em; }
+        .summary-item span { font-size: 1.1em; color: #555; }
+
+        .download-link {
+            display: block;
+            margin-top: 20px;
+            color: #3498db;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>⏱️ 業務ステータス管理</h2>
+
+    <div class="status-display">
+        <div class="current-status" id="statusText">未開始</div>
+        <div class="timer" id="timerDisplay">00:00:00</div>
+    </div>
+
+    <div class="button-group">
+        <button class="btn-work" onclick="changeStatus('業務中')">💻 業務中</button>
+        <button class="btn-break" onclick="changeStatus('休憩')">☕ 休憩</button>
+        <button class="btn-away" onclick="changeStatus('離席')">🚪 離席</button>
+        <button class="btn-finish" onclick="finishDay()">🏁 業務終了（集計確定）</button>
+    </div>
+
+    <div class="summary-box">
+        <div class="summary-item">
+            <strong>業務</strong>
+            <span id="totalWork">0分</span>
+        </div>
+        <div class="summary-item">
+            <strong>休憩</strong>
+            <span id="totalBreak">0分</span>
+        </div>
+        <div class="summary-item">
+            <strong>離席</strong>
+            <span id="totalAway">0分</span>
+        </div>
+    </div>
+
+    <h3>本日の履歴</h3>
+    <table id="logTable">
+        <thead>
+            <tr>
+                <th>状態</th>
+                <th>開始</th>
+                <th>終了</th>
+                <th>時間</th>
+            </tr>
+        </thead>
+        <tbody>
+            </tbody>
+    </table>
+
+    <a href="#" class="download-link" onclick="downloadCSV()">📥 履歴をCSVでダウンロード</a>
+    <div style="margin-top:10px; font-size:0.8em; color:#999; cursor:pointer;" onclick="resetData()">[データ全消去（リセット）]</div>
+</div>
+
+<script>
+    let currentStatus = "未開始";
+    let startTime = null;
+    let timerInterval = null;
+    let logs = JSON.parse(localStorage.getItem('workLogs')) || [];
+
+    // 初期化処理
+    window.onload = function() {
+        renderLogs();
+        calculateTotals();
+    };
+
+    function changeStatus(newStatus) {
+        const now = new Date();
+
+        // 既に計測中の場合、前のログを記録
+        if (currentStatus !== "未開始" && startTime) {
+            addLog(currentStatus, startTime, now);
+        }
+
+        // ステータス更新
+        currentStatus = newStatus;
+        startTime = now;
+        
+        // UI更新
+        document.getElementById('statusText').innerText = currentStatus;
+        document.getElementById('statusText').style.color = getStatusColor(currentStatus);
+        
+        // タイマーリセット＆スタート
+        clearInterval(timerInterval);
+        updateTimerDisplay(0);
+        timerInterval = setInterval(() => {
+            const diff = Math.floor((new Date() - startTime) / 1000);
+            updateTimerDisplay(diff);
+        }, 1000);
+    }
+
+    function finishDay() {
+        const now = new Date();
+        if (currentStatus !== "未開始" && startTime) {
+            addLog(currentStatus, startTime, now);
+        }
+        
+        clearInterval(timerInterval);
+        currentStatus = "業務終了";
+        startTime = null;
+        document.getElementById('statusText').innerText = "業務終了";
+        document.getElementById('timerDisplay').innerText = "00:00:00";
+        alert("お疲れ様でした。本日の業務を集計しました。");
+    }
+
+    function addLog(status, start, end) {
+        const durationSeconds = Math.floor((end - start) / 1000);
+        const log = {
+            status: status,
+            start: start.toLocaleTimeString(),
+            end: end.toLocaleTimeString(),
+            duration: durationSeconds,
+            durationStr: formatTime(durationSeconds)
+        };
+        logs.push(log);
+        localStorage.setItem('workLogs', JSON.stringify(logs));
+        renderLogs();
+        calculateTotals();
+    }
+
+    function renderLogs() {
+        const tbody = document.querySelector('#logTable tbody');
+        tbody.innerHTML = '';
+        // 新しい順に表示
+        logs.slice().reverse().forEach(log => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${log.status}</td><td>${log.start}</td><td>${log.end}</td><td>${log.durationStr}</td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function calculateTotals() {
+        let totals = { "業務中": 0, "休憩": 0, "離席": 0 };
+        
+        logs.forEach(log => {
+            if (totals[log.status] !== undefined) {
+                totals[log.status] += log.duration;
+            }
+        });
+
+        document.getElementById('totalWork').innerText = Math.floor(totals["業務中"] / 60) + "分";
+        document.getElementById('totalBreak').innerText = Math.floor(totals["休憩"] / 60) + "分";
+        document.getElementById('totalAway').innerText = Math.floor(totals["離席"] / 60) + "分";
+    }
+
+    // 補助関数
+    function updateTimerDisplay(seconds) {
+        document.getElementById('timerDisplay').innerText = formatTime(seconds);
+    }
+
+    function formatTime(seconds) {
+        const h = Math.floor(seconds / 3600).toString().padStart(2, '0');
+        const m = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+        const s = (seconds % 60).toString().padStart(2, '0');
+        return `${h}:${m}:${s}`;
+    }
+
+    function getStatusColor(status) {
+        if (status === '業務中') return '#27ae60';
+        if (status === '休憩') return '#f39c12';
+        if (status === '離席') return '#e74c3c';
+        return '#333';
+    }
+
+    function downloadCSV() {
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF"; // BOM付き
+        csvContent += "ステータス,開始時間,終了時間,経過時間\n";
+        
+        logs.forEach(log => {
+            csvContent += `${log.status},${log.start},${log.end},${log.durationStr}\n`;
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "my_work_log.csv");
+        document.body.appendChild(link);
+        link.click();
+    }
+
+    function resetData() {
+        if(confirm("履歴をすべて削除しますか？")) {
+            localStorage.removeItem('workLogs');
+            logs = [];
+            renderLogs();
+            calculateTotals();
+            location.reload();
+        }
+    }
+</script>
+
+</body>
+</html>

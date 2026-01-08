@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <title>スタッフ評価管理システム</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary: #059669;
+            --primary-dark: #047857;
+            --primary-light: #10b981;
+            --accent: #f59e0b;
+            --danger: #ef4444;
+            --info: #3b82f6;
+            --gray-50: #f9fafb;
+            --gray-100: #f3f4f6;
+            --gray-200: #e5e7eb;
+            --gray-300: #d1d5db;
+            --gray-400: #9ca3af;
+            --gray-500: #6b7280;
+            --gray-600: #4b5563;
+            --gray-700: #374151;
+            --gray-800: #1f2937;
+            --gray-900: #111827;
+            --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            --radius: 12px;
+            --radius-sm: 8px;
+            --transition: all 0.2s ease;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 50%, #f0fdfa 100%);
+            min-height: 100vh;
+            color: var(--gray-800);
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--gray-900) 0%, var(--gray-800) 100%);
+            color: white;
+            padding: 20px 32px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: var(--shadow-lg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 22px;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .header-title::before {
+            content: "📊";
+            font-size: 28px;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 24px;
+        }
+
+        .stat-badge {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-badge strong {
+            color: var(--primary-light);
+            font-size: 16px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        .tab-nav {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            background: white;
+            padding: 6px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            width: fit-content;
+        }
+
+        .tab-btn {
+            padding: 12px 28px;
+            border: none;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            background: transparent;
+            color: var(--gray-500);
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tab-btn:hover {
+            background: var(--gray-100);
+            color: var(--gray-700);
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            box-shadow: var(--shadow);
+        }
+
+        .card {
+            background: white;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 24px;
+            margin-bottom: 24px;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card.hidden {
+            display: none;
+        }
+
+        .action-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--gray-200);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 18px;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: var(--transition);
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+        }
+
+        .btn-info {
+            background: linear-gradient(135deg, var(--info) 0%, #2563eb 100%);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, var(--accent) 0%, #d97706 100%);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: var(--gray-600);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 6px;
+        }
+
+        .btn-outline {
+            background: white;
+            border: 1.5px solid var(--gray-300);
+            color: var(--gray-600);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: var(--gray-50);
+        }
+
+        .help-text {
+            font-size: 12px;
+            color: var(--gray-500);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 13px;
+        }
+
+        thead {
+            background: var(--gray-50);
+        }
+
+        th {
+            padding: 14px 12px;
+            text-align: left;
+            font-weight: 600;
+            color: var(--gray-600);
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid var(--gray-200);
+        }
+
+        th.sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: var(--transition);
+        }
+
+        th.sortable:hover {
+            background: var(--gray-100);
+            color: var(--primary);
+        }
+
+        th.sortable::after {
+            content: '';
+            display: inline-block;
+            margin-left: 6px;
+            opacity: 0.4;
+        }
+
+        th.sortable.asc::after {
+            content: '▲';
+            color: var(--primary);
+            opacity: 1;
+        }
+
+        th.sortable.desc::after {
+            content: '▼';
+            color: var(--primary);
+            opacity: 1;
+        }
+
+        td {
+            padding: 14px 12px;
+            border-bottom: 1px solid var(--gray-100);
+            vertical-align: middle;
+        }
+
+        tbody tr {
+            transition: var(--transition);
+        }
+
+        tbody tr:hover {
+            background: linear-gradient(90deg, #f0fdf4 0%, transparent 100%);
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        td.editable {
+            cursor: pointer;
+            position: relative;
+        }
+
+        td.editable:hover {
+            background: #ecfdf5 !important;
+        }
+
+        td.editable:hover::after {
+            content: "✏️";
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 11px;
+            opacity: 0.6;
+        }
+
+        .inline-input {
+            width: 100%;
+            padding: 8px;
+            font-size: 13px;
+            border: 2px solid var(--primary);
+            border-radius: 6px;
+            outline: none;
+            background: white;
+        }
+
+        .score-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 700;
+            min-width: 48px;
+            background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+            color: #065f46;
+        }
+
+        .search-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .form-field label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            margin-bottom: 6px;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1.5px solid var(--gray-300);
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            transition: var(--transition);
+            background: white;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .search-actions {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .results-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: var(--gray-600);
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: var(--gray-50);
+            border-radius: var(--radius-sm);
+        }
+
+        .results-info strong {
+            color: var(--primary);
+            font-size: 18px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease;
+        }
+
+        .modal-content {
+            background: white;
+            margin: 2% auto;
+            padding: 0;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-xl);
+            width: 95%;
+            max-width: 1000px;
+            max-height: 94vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 20px 28px;
+            background: linear-gradient(135deg, var(--gray-900) 0%, var(--gray-800) 100%);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-close {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            font-size: 20px;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: rotate(90deg);
+        }
+
+        .modal-body {
+            padding: 28px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .modal-footer {
+            padding: 20px 28px;
+            background: var(--gray-50);
+            border-top: 1px solid var(--gray-200);
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--gray-600);
+            margin-bottom: 6px;
+        }
+
+        .required::after {
+            content: " *";
+            color: var(--danger);
+            font-weight: 700;
+        }
+
+        .section-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--gray-800);
+            margin: 24px 0 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--gray-200);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .history-section {
+            background: var(--gray-50);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .history-header h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--gray-700);
+        }
+
+        .chip-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .history-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 14px;
+            border-radius: 24px;
+            background: white;
+            border: 1.5px solid var(--gray-200);
+            font-size: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            color: var(--gray-600);
+        }
+
+        .history-chip:hover {
+            border-color: var(--primary);
+            background: #f0fdf4;
+        }
+
+        .history-chip.active {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        .history-chip .chip-score {
+            background: rgba(0, 0, 0, 0.08);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 700;
+        }
+
+        .history-chip.active .chip-score {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--gray-400);
+        }
+
+        .empty-state::before {
+            content: "📋";
+            font-size: 48px;
+            display: block;
+            margin-bottom: 16px;
+        }
+
+        @media (max-width: 768px) {
+            header {
+                flex-direction: column;
+                gap: 16px;
+                text-align: center;
+            }
+
+            .header-stats {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .modal-content {
+                margin: 0;
+                max-height: 100vh;
+                border-radius: 0;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="header-title">スタッフ評価管理システム</div>
+        <div class="header-stats">
+            <div class="stat-badge">👥 スタッフ <strong id="stat-staff">0</strong>名</div>
+            <div class="stat-badge">📝 評価 <strong id="stat-eval">0</strong>件</div>
+        </div>
+    </header>
+
+    <div class="container">
+        <div class="tab-nav">
+            <button class="tab-btn active" id="tab-db">📋 データベース管理</button>
+            <button class="tab-btn" id="tab-search">🔍 評価検索</button>
+        </div>
+
+        <div class="card" id="db-section">
+            <div class="action-bar">
+                <button class="btn btn-primary" id="add-staff-btn">➕ スタッフ追加</button>
+                <button class="btn btn-info" id="import-btn">📥 CSVインポート</button>
+                <button class="btn btn-warning" id="export-btn">📤 CSVエクスポート</button>
+                <button class="btn btn-secondary" id="backup-json-btn">💾 バックアップ</button>
+                <button class="btn btn-outline" id="restore-json-btn">📂 復元</button>
+                <button class="btn btn-danger" id="cleanup-invalid-btn">🧹 不正データ削除</button>
+                <button class="btn btn-danger" id="clear-db-btn">🗑️ 全データクリア</button>
+            </div>
+            <p class="help-text">💡 項目名クリックで並び替え、セルダブルクリックで直接編集できます</p>
+            <table id="db-table">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-key="id" width="8%">ID</th>
+                        <th class="sortable" data-key="name" width="14%">名前</th>
+                        <th class="sortable" data-key="department" width="14%">所属</th>
+                        <th class="sortable" data-key="position" width="10%">職位</th>
+                        <th class="sortable" data-key="period" width="12%">評価期間</th>
+                        <th class="sortable" data-key="evaluator" width="10%">評価者</th>
+                        <th class="sortable" data-key="totalScore" width="10%">総合評価</th>
+                        <th width="12%">操作</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <div class="card hidden" id="search-section">
+            <div class="search-form">
+                <div class="form-field">
+                    <label>名前</label>
+                    <input type="text" id="search-name" placeholder="部分一致で検索">
+                </div>
+                <div class="form-field">
+                    <label>所属</label>
+                    <input type="text" id="search-dept" placeholder="例：横浜支店">
+                </div>
+                <div class="form-field">
+                    <label>評価者</label>
+                    <select id="search-evaluator">
+                        <option value="">すべて</option>
+                        <option value="上長">上長</option>
+                        <option value="本人">本人</option>
+                    </select>
+                </div>
+                <div class="form-field">
+                    <label>総合評価（最小）</label>
+                    <input type="number" id="search-min-score" min="0" max="5" step="0.05" placeholder="例：1.5">
+                </div>
+                <div class="search-actions">
+                    <button class="btn btn-primary" id="btn-search">🔍 検索</button>
+                    <button class="btn btn-outline" id="btn-reset-search">リセット</button>
+                    <button class="btn btn-warning" id="btn-export-search">📤 結果CSV</button>
+                </div>
+            </div>
+            <div class="results-info" id="search-summary">🔍 検索結果: <strong>0</strong>件</div>
+            <table id="search-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>名前</th>
+                        <th>所属</th>
+                        <th>職位</th>
+                        <th>評価期間</th>
+                        <th>評価者</th>
+                        <th>総合評価</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="staff-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="staff-modal-title">👤 スタッフ編集</h2>
+                <button class="modal-close" id="staff-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="form-group"><label class="required">社員番号</label><input type="text" id="staff-id"></div>
+                    <div class="form-group"><label class="required">名前</label><input type="text" id="staff-name"></div>
+                    <div class="form-group"><label class="required">所属</label><input type="text" id="staff-dept"></div>
+                    <div class="form-group"><label class="required">職位</label><input type="text" id="staff-pos"></div>
+                </div>
+                <div class="history-section">
+                    <div class="history-header">
+                        <h3>📅 評価履歴</h3>
+                        <button class="btn btn-sm btn-primary" id="btn-new-eval">＋ 新規評価</button>
+                    </div>
+                    <div class="chip-container" id="history-chips-container"></div>
+                </div>
+                <div class="section-title">✏️ 評価データ（編集中）</div>
+                <div class="form-grid">
+                    <div class="form-group"><label class="required">評価期間</label><input type="text" id="eval-period"
+                            placeholder="例：25年6月"></div>
+                    <div class="form-group"><label class="required">評価者</label><select id="eval-evaluator">
+                            <option value="上長">上長</option>
+                            <option value="本人">本人</option>
+                        </select></div>
+                    <div class="form-group"><label class="required">総合評価</label><input type="number" id="eval-total"
+                            min="0" max="5" step="0.05" placeholder="例：1.8"></div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group"><label>電話・FAX対応</label><input type="number" id="eval-phone" min="0" max="5"
+                            step="0.05"></div>
+                    <div class="form-group"><label>商品知識</label><input type="number" id="eval-knowledge" min="0" max="5"
+                            step="0.05"></div>
+                    <div class="form-group"><label>入力作業</label><input type="number" id="eval-input" min="0" max="5"
+                            step="0.05"></div>
+                    <div class="form-group"><label>チーム協力</label><input type="number" id="eval-team" min="0" max="5"
+                            step="0.05"></div>
+                </div>
+                <div class="form-group"><label>コメント</label><textarea id="eval-comment"
+                        placeholder="評価コメントを入力"></textarea></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="btn-delete-current-eval" style="margin-right:auto;display:none;">🗑️
+                    この評価を削除</button>
+                <button class="btn btn-outline" id="staff-modal-cancel">キャンセル</button>
+                <button class="btn btn-primary" id="staff-modal-save">💾 保存</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="detail-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📊 スタッフ詳細情報</h2>
+                <button class="modal-close" id="detail-modal-close">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-grid">
+                    <div class="form-group"><label>ID</label>
+                        <div id="detail-id" style="font-weight:600;font-size:16px;"></div>
+                    </div>
+                    <div class="form-group"><label>名前</label>
+                        <div id="detail-name" style="font-weight:600;font-size:16px;"></div>
+                    </div>
+                    <div class="form-group"><label>所属</label>
+                        <div id="detail-dept" style="font-weight:600;font-size:16px;"></div>
+                    </div>
+                    <div class="form-group"><label>職位</label>
+                        <div id="detail-pos" style="font-weight:600;font-size:16px;"></div>
+                    </div>
+                </div>
+                <div class="section-title">📋 評価履歴</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>評価期間</th>
+                            <th>評価者</th>
+                            <th>総合</th>
+                            <th>電話</th>
+                            <th>知識</th>
+                            <th>入力</th>
+                            <th>協力</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detail-history-body"></tbody>
+                </table>
+                <div class="section-title">📈 評価推移グラフ</div>
+                <canvas id="score-chart" width="900" height="400"
+                    style="max-width:100%;border-radius:8px;background:#fafafa;"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="csv-file" accept=".csv" style="display:none">
+    <input type="file" id="json-file" accept=".json" style="display:none">
+
+    <script>
+        (function () {
+            const NEW_STORAGE_KEY = 'staffEvalDB_v3';
+            const OLD_STORAGE_KEY = 'staffEvaluationData';
+            let currentSort = { key: null, order: 'asc' };
+            function $(id) { return document.getElementById(id); }
+
+            function loadDB() {
+                try {
+                    const rawNew = localStorage.getItem(NEW_STORAGE_KEY);
+                    if (rawNew) {
+                        const data = JSON.parse(rawNew);
+                        if (Array.isArray(data)) {
+                            data.forEach(s => { if (!Array.isArray(s.evaluations)) s.evaluations = []; });
+                            return data;
+                        }
+                    }
+                    const rawOld = localStorage.getItem(OLD_STORAGE_KEY);
+                    if (rawOld) {
+                        const oldData = JSON.parse(rawOld);
+                        if (Array.isArray(oldData)) {
+                            const converted = oldData.map(s => ({
+                                id: String(s.id), name: s.name, department: s.department, position: s.position,
+                                evaluations: (s.evaluations || []).map(e => ({
+                                    period: e.period, evaluator: e.type, totalScore: e.totalScore,
+                                    phoneFax: e.scores ? e.scores[0] : null, knowledge: e.scores ? e.scores[1] : null,
+                                    inputWork: e.scores ? e.scores[2] : null, teamWork: e.scores ? e.scores[3] : null, comment: e.comment || ''
+                                }))
+                            }));
+                            localStorage.setItem(NEW_STORAGE_KEY, JSON.stringify(converted));
+                            return converted;
+                        }
+                    }
+                    return [];
+                } catch (e) { console.error(e); return []; }
+            }
+            function saveDB() { localStorage.setItem(NEW_STORAGE_KEY, JSON.stringify(db)); }
+            let db = loadDB();
+
+            function toNumPeriod(p) { const m = (p || '').match(/(\d+)年(\d+)月/); return m ? parseInt(m[1], 10) * 100 + parseInt(m[2], 10) : 0; }
+            function getStaffById(id) { return db.find(s => String(s.id) === String(id)); }
+            function ensureStaff(id, name, dept, pos) {
+                let s = getStaffById(id);
+                if (!s) { s = { id: String(id), name: name || '', department: dept || '', position: pos || '', evaluations: [] }; db.push(s); }
+                else { if (name) s.name = name; if (dept) s.department = dept; if (pos) s.position = pos; }
+                return s;
+            }
+
+            function flatten() {
+                const rows = [];
+                db.forEach(s => {
+                    if (!s.evaluations.length) {
+                        rows.push({ id: s.id, name: s.name, department: s.department, position: s.position, period: '', evaluator: '', totalScore: null, phoneFax: null, knowledge: null, inputWork: null, teamWork: null, comment: '' });
+                    } else {
+                        s.evaluations.slice().sort((a, b) => toNumPeriod(b.period) - toNumPeriod(a.period)).forEach(ev => {
+                            rows.push({ id: s.id, name: s.name, department: s.department, position: s.position, period: ev.period || '', evaluator: ev.evaluator || '', totalScore: ev.totalScore, phoneFax: ev.phoneFax, knowledge: ev.knowledge, inputWork: ev.inputWork, teamWork: ev.teamWork, comment: ev.comment || '' });
+                        });
+                    }
+                });
+                return rows;
+            }
+
+            function refreshStats() {
+                const staffCount = db.length; let evalCount = 0;
+                db.forEach(s => evalCount += (s.evaluations || []).length);
+                $('stat-staff').textContent = staffCount;
+                $('stat-eval').textContent = evalCount;
+            }
+
+            function renderDBTable() {
+                const tbody = $('db-table').querySelector('tbody'); tbody.innerHTML = '';
+                let rows = flatten();
+                if (currentSort.key) {
+                    rows.sort((a, b) => {
+                        let vA = a[currentSort.key], vB = b[currentSort.key];
+                        if (currentSort.key === 'id') { vA = parseInt(vA, 10) || 0; vB = parseInt(vB, 10) || 0; }
+                        else if (currentSort.key === 'period') { vA = toNumPeriod(vA); vB = toNumPeriod(vB); }
+                        else if (currentSort.key === 'totalScore') { vA = (vA == null) ? -1 : vA; vB = (vB == null) ? -1 : vB; }
+                        else { vA = String(vA || '').toLowerCase(); vB = String(vB || '').toLowerCase(); }
+                        let c = 0; if (vA > vB) c = 1; else if (vA < vB) c = -1;
+                        return currentSort.order === 'desc' ? c * -1 : c;
+                    });
+                }
+                document.querySelectorAll('#db-table th.sortable').forEach(th => {
+                    th.classList.remove('asc', 'desc');
+                    if (th.dataset.key === currentSort.key) th.classList.add(currentSort.order);
+                });
+                rows.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${escapeHtml(row.id)}</td>
+        <td class="editable" data-id="${escapeAttr(row.id)}" data-field="name">${escapeHtml(row.name)}</td>
+        <td class="editable" data-id="${escapeAttr(row.id)}" data-field="department">${escapeHtml(row.department)}</td>
+        <td class="editable" data-id="${escapeAttr(row.id)}" data-field="position">${escapeHtml(row.position)}</td>
+        <td class="editable" data-id="${escapeAttr(row.id)}" data-field="period" data-eval="${escapeAttr(row.evaluator)}">${escapeHtml(row.period)}</td>
+        <td class="editable" data-id="${escapeAttr(row.id)}" data-field="evaluator" data-period="${escapeAttr(row.period)}">${escapeHtml(row.evaluator)}</td>
+        <td class="editable" data-id="${escapeAttr(row.id)}" data-field="totalScore" data-period="${escapeAttr(row.period)}" data-eval="${escapeAttr(row.evaluator)}">${row.totalScore != null ? `<span class="score-badge">${row.totalScore.toFixed(2)}</span>` : '-'}</td>
+        <td><button class="btn btn-sm btn-info" data-id="${escapeAttr(row.id)}">編集</button> <button class="btn btn-sm btn-danger" data-id="${escapeAttr(row.id)}" data-period="${escapeAttr(row.period)}" data-eval="${escapeAttr(row.evaluator)}">削除</button></td>`;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function setupInlineEdit() {
+                $('db-table').querySelector('tbody').addEventListener('dblclick', function (e) {
+                    const td = e.target.closest('td.editable'); if (!td) return;
+                    if (td.querySelector('input') || td.querySelector('select')) return;
+                    const field = td.getAttribute('data-field'), id = td.getAttribute('data-id'), originalValue = td.textContent.trim();
+                    const staff = getStaffById(id); if (!staff) return;
+                    let input;
+                    if (field === 'evaluator') {
+                        input = document.createElement('select'); input.className = 'inline-input';
+                        ['上長', '本人'].forEach(opt => { const o = document.createElement('option'); o.value = opt; o.text = opt; if (opt === originalValue) o.selected = true; input.appendChild(o); });
+                    } else {
+                        input = document.createElement('input'); input.className = 'inline-input';
+                        input.value = (field === 'totalScore' && originalValue === '-') ? '' : originalValue;
+                        if (field === 'totalScore') { input.type = 'number'; input.step = '0.05'; } else { input.type = 'text'; }
+                    }
+                    td.innerHTML = ''; td.appendChild(input); input.focus();
+                    function finishEdit(save) {
+                        if (!save) { refreshStats(); renderDBTable(); doSearch(); return; }
+                        const newValue = input.value.trim();
+                        if (newValue === originalValue) { finishEdit(false); return; }
+                        if (['name', 'department', 'position'].includes(field)) { staff[field] = newValue; }
+                        else {
+                            const period = td.getAttribute('data-period'), evaluator = td.getAttribute('data-eval');
+                            const targetPeriod = (field === 'period') ? originalValue : period;
+                            let ev = staff.evaluations.find(e => e.period === targetPeriod && e.evaluator === (field === 'evaluator' ? originalValue : evaluator));
+                            if (ev) {
+                                if (field === 'totalScore') { const num = parseFloat(newValue); if (!isNaN(num)) ev.totalScore = num; }
+                                else if (field === 'period') { ev.period = newValue; }
+                                else if (field === 'evaluator') { ev.evaluator = newValue; }
+                            }
+                        }
+                        saveDB(); refreshStats(); renderDBTable(); doSearch();
+                    }
+                    input.addEventListener('blur', () => finishEdit(true));
+                    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } else if (e.key === 'Escape') { finishEdit(false); } });
+                });
+            }
+
+            function escapeHtml(str) { return String(str == null ? '' : str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
+            function escapeAttr(str) { return escapeHtml(str).replace(/"/g, '&quot;'); }
+
+            function doSearch() {
+                const name = $('search-name').value.trim(), dept = $('search-dept').value.trim(), ev = $('search-evaluator').value, min = parseFloat($('search-min-score').value);
+                const rows = flatten().filter(r => {
+                    if (name && !String(r.name).includes(name)) return false;
+                    if (dept && !String(r.department).includes(dept)) return false;
+                    if (ev && r.evaluator !== ev) return false;
+                    if (!isNaN(min) && (r.totalScore == null || r.totalScore < min)) return false;
+                    return true;
+                });
+                const tbody = $('search-table').querySelector('tbody'); tbody.innerHTML = '';
+                rows.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${escapeHtml(row.id)}</td><td>${escapeHtml(row.name)}</td><td>${escapeHtml(row.department)}</td><td>${escapeHtml(row.position)}</td><td>${escapeHtml(row.period)}</td><td>${escapeHtml(row.evaluator)}</td><td>${row.totalScore != null ? `<span class="score-badge">${row.totalScore.toFixed(2)}</span>` : '-'}</td><td><button class="btn btn-sm btn-primary btn-detail" data-id="${escapeAttr(row.id)}">詳細</button></td>`;
+                    tbody.appendChild(tr);
+                });
+                $('search-summary').innerHTML = `🔍 検索結果: <strong>${rows.length}</strong>件`;
+            }
+
+            let editingStaffId = null;
+            function openStaffModal(staff) {
+                editingStaffId = staff ? staff.id : null;
+                $('staff-modal-title').textContent = staff ? '👤 スタッフ編集' : '➕ スタッフ追加';
+                $('staff-id').value = staff ? staff.id : '';
+                $('staff-name').value = staff ? (staff.name || '') : '';
+                $('staff-dept').value = staff ? (staff.department || '') : '';
+                $('staff-pos').value = staff ? (staff.position || '') : '';
+                renderHistoryChips(staff); clearEvalForm();
+                if (staff && staff.evaluations.length > 0) {
+                    const latest = staff.evaluations.slice().sort((a, b) => toNumPeriod(b.period) - toNumPeriod(a.period))[0];
+                    fillEvalForm(latest); highlightChip(latest.period, latest.evaluator);
+                }
+                $('staff-modal').style.display = 'block';
+            }
+            function closeStaffModal() { $('staff-modal').style.display = 'none'; }
+
+            function renderHistoryChips(staff) {
+                const container = $('history-chips-container'); container.innerHTML = '';
+                if (!staff || !staff.evaluations.length) { container.innerHTML = '<span style="font-size:12px;color:#9ca3af;">履歴なし</span>'; return; }
+                const evals = staff.evaluations.slice().sort((a, b) => toNumPeriod(b.period) - toNumPeriod(a.period));
+                evals.forEach(ev => {
+                    const chip = document.createElement('div'); chip.className = 'history-chip'; chip.dataset.period = ev.period; chip.dataset.eval = ev.evaluator;
+                    const scoreDisp = (ev.totalScore != null) ? ev.totalScore.toFixed(2) : '-';
+                    chip.innerHTML = `<span>${escapeHtml(ev.period)}</span><span>${escapeHtml(ev.evaluator)}</span><span class="chip-score">${scoreDisp}</span>`;
+                    chip.addEventListener('click', () => { fillEvalForm(ev); highlightChip(ev.period, ev.evaluator); });
+                    container.appendChild(chip);
+                });
+            }
+            function highlightChip(period, evaluator) {
+                document.querySelectorAll('.history-chip').forEach(c => {
+                    if (c.dataset.period === period && c.dataset.eval === evaluator) c.classList.add('active'); else c.classList.remove('active');
+                });
+                $('btn-delete-current-eval').style.display = 'block';
+            }
+            function clearChipHighlight() { document.querySelectorAll('.history-chip').forEach(c => c.classList.remove('active')); $('btn-delete-current-eval').style.display = 'none'; }
+            function fillEvalForm(ev) {
+                $('eval-period').value = ev.period || ''; $('eval-evaluator').value = ev.evaluator || '上長';
+                $('eval-total').value = (ev.totalScore != null) ? ev.totalScore : ''; $('eval-phone').value = (ev.phoneFax != null) ? ev.phoneFax : '';
+                $('eval-knowledge').value = (ev.knowledge != null) ? ev.knowledge : ''; $('eval-input').value = (ev.inputWork != null) ? ev.inputWork : '';
+                $('eval-team').value = (ev.teamWork != null) ? ev.teamWork : ''; $('eval-comment').value = ev.comment || '';
+            }
+            function clearEvalForm() {
+                $('eval-period').value = ''; $('eval-evaluator').value = '上長'; $('eval-total').value = '';
+                $('eval-phone').value = ''; $('eval-knowledge').value = ''; $('eval-input').value = ''; $('eval-team').value = ''; $('eval-comment').value = '';
+                clearChipHighlight();
+            }
+            function saveStaffFromModal() {
+                const id = $('staff-id').value.trim(), name = $('staff-name').value.trim(), dept = $('staff-dept').value.trim(), pos = $('staff-pos').value.trim();
+                if (!id || !name || !dept || !pos) { alert('社員番号・名前・所属・職位は必須です。'); return; }
+                const staff = ensureStaff(id, name, dept, pos);
+                const period = $('eval-period').value.trim(), evaluator = $('eval-evaluator').value, total = $('eval-total').value.trim();
+                if (period && evaluator) {
+                    const t = parseFloat(total); if (isNaN(t)) { alert('総合評価は数値で入力してください。'); return; }
+                    const phone = parseOrNull($('eval-phone').value), know = parseOrNull($('eval-knowledge').value);
+                    const input = parseOrNull($('eval-input').value), team = parseOrNull($('eval-team').value);
+                    const comment = $('eval-comment').value.trim();
+                    let ev = staff.evaluations.find(e => e.period === period && e.evaluator === evaluator);
+                    if (!ev) { ev = { period, evaluator }; staff.evaluations.push(ev); }
+                    ev.totalScore = t; ev.phoneFax = phone; ev.knowledge = know; ev.inputWork = input; ev.teamWork = team; ev.comment = comment;
+                }
+                saveDB(); refreshStats(); renderDBTable(); doSearch(); closeStaffModal();
+            }
+            function parseOrNull(v) { v = String(v || '').trim(); if (!v) return null; const n = parseFloat(v); return isNaN(n) ? null : n; }
+
+            function openDetailModal(staff) {
+                if (!staff) return;
+                $('detail-id').textContent = staff.id; $('detail-name').textContent = staff.name || '';
+                $('detail-dept').textContent = staff.department || ''; $('detail-pos').textContent = staff.position || '';
+                const tbody = $('detail-history-body'); tbody.innerHTML = '';
+                const evals = (staff.evaluations || []).slice().sort((a, b) => toNumPeriod(b.period) - toNumPeriod(a.period));
+                evals.forEach(ev => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${escapeHtml(ev.period)}</td><td>${escapeHtml(ev.evaluator)}</td><td>${ev.totalScore != null ? ev.totalScore.toFixed(2) : '-'}</td><td>${ev.phoneFax != null ? ev.phoneFax.toFixed(2) : '-'}</td><td>${ev.knowledge != null ? ev.knowledge.toFixed(2) : '-'}</td><td>${ev.inputWork != null ? ev.inputWork.toFixed(2) : '-'}</td><td>${ev.teamWork != null ? ev.teamWork.toFixed(2) : '-'}</td>`;
+                    tbody.appendChild(tr);
+                });
+                renderScoreChart(evals); $('detail-modal').style.display = 'block';
+            }
+            function closeDetailModal() { $('detail-modal').style.display = 'none'; }
+
+            function renderScoreChart(evals) {
+                const canvas = $('score-chart'); if (!canvas) return; const ctx = canvas.getContext('2d'); ctx.clearRect(0, 0, canvas.width, canvas.height);
+                if (!evals || !evals.length) { ctx.fillStyle = '#9ca3af'; ctx.font = '14px sans-serif'; ctx.fillText('評価データがありません', 20, canvas.height / 2); return; }
+                const sorted = evals.slice().sort((a, b) => toNumPeriod(a.period) - toNumPeriod(b.period));
+                const labels = sorted.map(e => (e.period || '') + '（' + (e.evaluator || '') + '）');
+                const data = sorted.map(e => typeof e.totalScore === 'number' ? e.totalScore : 0);
+                const padding = { left: 70, right: 30, top: 50, bottom: 130 };
+                const w = canvas.width - padding.left - padding.right, h = canvas.height - padding.top - padding.bottom;
+                const maxVal = Math.max(5, Math.max.apply(null, data)), minVal = 0;
+                ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(padding.left, padding.top); ctx.lineTo(padding.left, padding.top + h); ctx.lineTo(padding.left + w, padding.top + h); ctx.stroke();
+                ctx.fillStyle = '#6b7280'; ctx.font = '12px sans-serif';
+                for (let v = minVal; v <= maxVal; v += 0.5) {
+                    const y = padding.top + h - ((v - minVal) / (maxVal - minVal)) * h;
+                    ctx.strokeStyle = (v === Math.round(v)) ? '#e5e7eb' : '#f3f4f6'; ctx.beginPath(); ctx.moveTo(padding.left, y); ctx.lineTo(padding.left + w, y); ctx.stroke();
+                    if (v === Math.round(v)) { ctx.fillStyle = '#6b7280'; ctx.fillText(v.toFixed(0), padding.left - 25, y + 4); }
+                }
+                const n = data.length, dx = n > 1 ? w / (n - 1) : 0;
+                const gradient = ctx.createLinearGradient(0, padding.top, 0, padding.top + h); gradient.addColorStop(0, '#059669'); gradient.addColorStop(1, '#10b981');
+                ctx.strokeStyle = gradient; ctx.lineWidth = 3; ctx.beginPath();
+                data.forEach((v, i) => { const x = padding.left + dx * i, y = padding.top + h - ((v - minVal) / (maxVal - minVal)) * h; if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+                ctx.stroke();
+                data.forEach((v, i) => { const x = padding.left + dx * i, y = padding.top + h - ((v - minVal) / (maxVal - minVal)) * h; ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill(); });
+                ctx.save(); ctx.fillStyle = '#374151'; ctx.font = '11px sans-serif'; ctx.textAlign = 'right';
+                labels.forEach((label, i) => { const x = padding.left + dx * i, y = padding.top + h + 45; ctx.save(); ctx.translate(x, y); ctx.rotate(-Math.PI / 4); ctx.fillText(label, 0, 0); ctx.restore(); });
+                ctx.restore(); ctx.fillStyle = '#111827'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('📈 総合評価の推移', padding.left, padding.top - 20);
+            }
+
+            function csvEscape(str) { const s = String(str == null ? '' : str); if (/[",\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"'; return s; }
+            function exportCSV(rows) {
+                const header = ['社員番号', '名前', '所属', '職位', '評価期間', '評価者', '総合評価', '電話・FAX対応', '商品知識', '入力作業', 'チーム協力', 'コメント'];
+                const lines = [header.join(',')];
+                rows.forEach(r => { lines.push([csvEscape(r.id), csvEscape(r.name), csvEscape(r.department), csvEscape(r.position), csvEscape(r.period), csvEscape(r.evaluator), r.totalScore != null ? csvEscape(r.totalScore.toFixed(2)) : '', r.phoneFax != null ? csvEscape(r.phoneFax.toFixed(2)) : '', r.knowledge != null ? csvEscape(r.knowledge.toFixed(2)) : '', r.inputWork != null ? csvEscape(r.inputWork.toFixed(2)) : '', r.teamWork != null ? csvEscape(r.teamWork.toFixed(2)) : '', csvEscape(r.comment || '')].join(',')); });
+                const csv = lines.join('\r\n'), blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }), url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = 'staff-evaluation.csv'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+            }
+            function importCSV(text) {
+                const lines = text.replace(/\r\n/g, '\n').split('\n').filter(l => l.trim()); if (!lines.length) return; lines.shift();
+                const reSplit = /,(?=(?:(?:[^"]*"){2})*[^"]*$)/;
+                lines.forEach(line => {
+                    const cells = line.split(reSplit).map(c => { c = c.trim(); if (c.startsWith('"') && c.endsWith('"')) c = c.slice(1, -1).replace(/""/g, '"'); return c; });
+                    if (!cells.length) return; const [id, name, dept, pos, period, evaluator, total, phone, know, input, team, comment] = cells; if (!id) return;
+                    const staff = ensureStaff(id, name, dept, pos);
+                    if (period && evaluator) { let ev = staff.evaluations.find(e => e.period === period && e.evaluator === evaluator); if (!ev) { ev = { period, evaluator }; staff.evaluations.push(ev); } ev.totalScore = parseOrNull(total); ev.phoneFax = parseOrNull(phone); ev.knowledge = parseOrNull(know); ev.inputWork = parseOrNull(input); ev.teamWork = parseOrNull(team); ev.comment = comment || ''; }
+                });
+                saveDB(); refreshStats(); renderDBTable(); doSearch(); alert('CSVインポートが完了しました。');
+            }
+            function exportJSON() { const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' }), url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'staff-eval-backup.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }
+            function importJSON(text) { try { const data = JSON.parse(text); if (!Array.isArray(data)) { alert('JSON形式が不正です。'); return; } data.forEach(s => { if (!Array.isArray(s.evaluations)) s.evaluations = []; }); db = data; saveDB(); refreshStats(); renderDBTable(); doSearch(); alert('JSON復元が完了しました。'); } catch (e) { console.error(e); alert('JSONの読み込みに失敗しました。'); } }
+            function cleanupInvalid() { const before = db.length, cleaned = db.filter(s => { if (!s) return false; const id = s.id; if (id === null || id === undefined) return false; const n = parseInt(id, 10); if (!Number.isFinite(n) || n <= 0) return false; return true; }), removed = before - cleaned.length; if (removed <= 0) { alert('不正なデータは見つかりませんでした。'); return; } db = cleaned; saveDB(); refreshStats(); renderDBTable(); doSearch(); alert('不正なデータを' + removed + '件削除しました。'); }
+            function clearDB() { if (!confirm('全データを削除します。よろしいですか？')) return; db = []; saveDB(); refreshStats(); renderDBTable(); doSearch(); }
+
+            function init() {
+                refreshStats(); renderDBTable(); doSearch(); setupInlineEdit();
+                document.querySelectorAll('#db-table th.sortable').forEach(th => { th.addEventListener('click', () => { const key = th.dataset.key; if (currentSort.key === key) currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc'; else { currentSort.key = key; currentSort.order = 'asc'; } renderDBTable(); }); });
+                $('tab-db').addEventListener('click', () => { $('tab-db').classList.add('active'); $('tab-search').classList.remove('active'); $('db-section').classList.remove('hidden'); $('search-section').classList.add('hidden'); });
+                $('tab-search').addEventListener('click', () => { $('tab-search').classList.add('active'); $('tab-db').classList.remove('active'); $('search-section').classList.remove('hidden'); $('db-section').classList.add('hidden'); });
+                $('add-staff-btn').addEventListener('click', () => openStaffModal(null));
+                $('staff-modal-close').addEventListener('click', closeStaffModal);
+                $('staff-modal-cancel').addEventListener('click', closeStaffModal);
+                $('staff-modal-save').addEventListener('click', saveStaffFromModal);
+                $('detail-modal-close').addEventListener('click', closeDetailModal);
+                $('db-table').addEventListener('click', e => { const t = e.target; if (t.classList.contains('btn-info')) { const id = t.getAttribute('data-id'), staff = getStaffById(id); openStaffModal(staff || { id, name: '', department: '', position: '', evaluations: [] }); } else if (t.classList.contains('btn-danger')) { const id = t.getAttribute('data-id'), period = t.getAttribute('data-period') || '', evaluator = t.getAttribute('data-eval') || '', staff = getStaffById(id); if (!staff) return; if (!period) { if (!confirm('このスタッフを全削除しますか？')) return; db = db.filter(s => String(s.id) !== String(id)); } else { if (!confirm('この評価データを削除しますか？')) return; staff.evaluations = staff.evaluations.filter(e => !(e.period === period && e.evaluator === evaluator)); } saveDB(); refreshStats(); renderDBTable(); doSearch(); } });
+                $('btn-new-eval').addEventListener('click', () => clearEvalForm());
+                $('btn-delete-current-eval').addEventListener('click', () => { const staffId = $('staff-id').value, staff = getStaffById(staffId), period = $('eval-period').value, evaluator = $('eval-evaluator').value; if (!staff) return; if (!confirm(`評価データ（${period} / ${evaluator}）を削除しますか？`)) return; staff.evaluations = staff.evaluations.filter(e => !(e.period === period && e.evaluator === evaluator)); saveDB(); renderHistoryChips(staff); clearEvalForm(); refreshStats(); renderDBTable(); doSearch(); });
+                $('search-table').addEventListener('click', e => { const t = e.target; if (!t.classList.contains('btn-detail')) return; const id = t.getAttribute('data-id'), staff = getStaffById(id); openDetailModal(staff); });
+                $('btn-search').addEventListener('click', doSearch);
+                $('btn-reset-search').addEventListener('click', () => { $('search-name').value = ''; $('search-dept').value = ''; $('search-evaluator').value = ''; $('search-min-score').value = ''; doSearch(); });
+                $('import-btn').addEventListener('click', () => { $('csv-file').click(); });
+                $('csv-file').addEventListener('change', e => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = ev => { importCSV(ev.target.result); }; reader.readAsText(file, 'utf-8'); e.target.value = ''; });
+                $('export-btn').addEventListener('click', () => exportCSV(flatten()));
+                $('btn-export-search').addEventListener('click', () => { const name = $('search-name').value.trim(), dept = $('search-dept').value.trim(), ev = $('search-evaluator').value, min = parseFloat($('search-min-score').value); const rows = flatten().filter(r => { if (name && !String(r.name).includes(name)) return false; if (dept && !String(r.department).includes(dept)) return false; if (ev && r.evaluator !== ev) return false; if (!isNaN(min) && (r.totalScore == null || r.totalScore < min)) return false; return true; }); exportCSV(rows); });
+                $('backup-json-btn').addEventListener('click', exportJSON);
+                $('restore-json-btn').addEventListener('click', () => { $('json-file').click(); });
+                $('json-file').addEventListener('change', e => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = ev => { importJSON(ev.target.result); }; reader.readAsText(file, 'utf-8'); e.target.value = ''; });
+                $('cleanup-invalid-btn').addEventListener('click', cleanupInvalid);
+                $('clear-db-btn').addEventListener('click', clearDB);
+            }
+            document.addEventListener('DOMContentLoaded', init);
+        })();
+    </script>
+</body>
+
+</html>

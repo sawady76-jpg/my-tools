@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>電話受電メモ作成</title>
+<style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #f0f4f8; color: #333; padding: 20px; }
+    .container { max-width: 500px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-top: 5px solid #007bff; }
+    h2 { text-align: center; color: #007bff; margin-bottom: 20px; font-size: 1.4rem; }
+    
+    .input-group { margin-bottom: 15px; }
+    label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.9em; color: #555; }
+    .badge-required { background: #ff4d4d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; vertical-align: middle; margin-left: 5px; }
+    
+    input[type="text"], input[type="tel"], select, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 16px; box-sizing: border-box; transition: border-color 0.3s; }
+    input:focus, textarea:focus, select:focus { border-color: #007bff; outline: none; }
+    textarea { height: 80px; resize: vertical; }
+    
+    /* アクション選択ボタン（ラジオボタンをボタン風に） */
+    .action-group { display: flex; gap: 10px; flex-wrap: wrap; }
+    .action-group label { flex: 1; min-width: 140px; cursor: pointer; position: relative; }
+    .action-group input[type="radio"] { display: none; }
+    .action-btn { display: block; text-align: center; padding: 10px; border: 1px solid #ddd; border-radius: 6px; background: #f9f9f9; font-weight: normal; transition: all 0.2s; }
+    
+    .action-group input[type="radio"]:checked + .action-btn { background-color: #e7f1ff; border-color: #007bff; color: #007bff; font-weight: bold; }
+
+    /* プレビューエリア */
+    .preview-box { background-color: #333; color: #fff; padding: 15px; border-radius: 6px; margin-top: 20px; position: relative; }
+    .preview-title { font-size: 0.8em; color: #aaa; margin-bottom: 5px; }
+    #resultText { width: 100%; height: 180px; background: transparent; border: none; color: #fff; font-family: monospace; font-size: 14px; resize: none; overflow: auto; }
+    
+    /* コピーボタン */
+    .btn-copy { width: 100%; background-color: #007bff; color: white; border: none; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 6px; cursor: pointer; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+    .btn-copy:hover { background-color: #0056b3; }
+    .btn-copy:active { transform: translateY(2px); }
+
+    /* トースト通知 */
+    #toast { visibility: hidden; min-width: 250px; margin-left: -125px; background-color: #333; color: #fff; text-align: center; border-radius: 2px; padding: 16px; position: fixed; z-index: 1; left: 50%; bottom: 30px; font-size: 17px; }
+    #toast.show { visibility: visible; -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+    @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+    @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📞 受電メモ作成</h2>
+
+    <div class="input-group">
+        <label>受電日時</label>
+        <input type="text" id="dateTime" oninput="updatePreview()">
+    </div>
+
+    <div class="input-group">
+        <label>相手の会社名・氏名 <span class="badge-required">必須</span></label>
+        <input type="text" id="clientName" placeholder="例：〇〇商事 田中様" oninput="updatePreview()">
+    </div>
+
+    <div class="input-group">
+        <label>相手の電話番号</label>
+        <input type="tel" id="phoneNumber" placeholder="折り返しが必要な場合に入力" oninput="updatePreview()">
+    </div>
+
+    <div class="input-group">
+        <label>用件・伝言内容</label>
+        <textarea id="messageBody" placeholder="例：見積書の件で確認したい点があるそうです。" oninput="updatePreview()"></textarea>
+    </div>
+
+    <div class="input-group">
+        <label>対応依頼（アクション）</label>
+        <div class="action-group">
+            <label>
+                <input type="radio" name="actionType" value="折り返しお願いします" checked onchange="updatePreview()">
+                <span class="action-btn">📞 折り返し要</span>
+            </label>
+            <label>
+                <input type="radio" name="actionType" value="伝言のみ（折り返し不要）" onchange="updatePreview()">
+                <span class="action-btn">✉️ 伝言のみ</span>
+            </label>
+            <label>
+                <input type="radio" name="actionType" value="再度電話あります" onchange="updatePreview()">
+                <span class="action-btn">🔄 また掛かってきます</span>
+            </label>
+        </div>
+    </div>
+
+    <div class="preview-box">
+        <div class="preview-title">プレビュー（これをコピーします）</div>
+        <textarea id="resultText" readonly></textarea>
+    </div>
+
+    <button class="btn-copy" onclick="copyToClipboard()">
+        <span>📋 テキストをコピーする</span>
+    </button>
+</div>
+
+<div id="toast">コピーしました！チャットに貼り付けてください。</div>
+
+<script>
+    // 初期化：現在日時をセット
+    window.onload = function() {
+        const now = new Date();
+        const str = `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+        document.getElementById('dateTime').value = str;
+        updatePreview();
+    };
+
+    function updatePreview() {
+        // 入力値の取得
+        const dateTime = document.getElementById('dateTime').value;
+        const client = document.getElementById('clientName').value || '（相手名未入力）';
+        const phone = document.getElementById('phoneNumber').value;
+        const msg = document.getElementById('messageBody').value || '特になし';
+        
+        // ラジオボタンの値取得
+        let action = '';
+        const radios = document.getElementsByName('actionType');
+        for(let i = 0; i < radios.length; i++){
+            if(radios[i].checked){
+                action = radios[i].value;
+            }
+        }
+
+        // テキスト生成（チャットツールで見やすいように整形）
+        // 電話番号がある場合のみ行を追加
+        const phoneLine = phone ? `■連絡先：${phone}\n` : '';
+
+        const result = 
+`【電話メモ】
+■日時　：${dateTime}
+■相手　：${client}
+${phoneLine}
+■用件
+${msg}
+
+-------------------------
+★対応：${action}`;
+
+        document.getElementById('resultText').value = result;
+    }
+
+    function copyToClipboard() {
+        const copyText = document.getElementById("resultText");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        
+        navigator.clipboard.writeText(copyText.value).then(() => {
+            showToast();
+        });
+    }
+
+    function showToast() {
+        const x = document.getElementById("toast");
+        x.className = "show";
+        setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+    }
+</script>
+
+</body>
+</html>

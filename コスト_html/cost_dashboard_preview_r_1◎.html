@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cost Dashboard – r6 (Normalize + Analyze One-Page)</title>
+<style>
+  :root{--bg:#0b1220;--panel:#111827;--line:#374151;--txt:#e5e7eb;--muted:#94a3b8;--accent:#22d3ee}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic UI","Yu Gothic",sans-serif}
+  .wrap{max-width:1280px;margin:18px auto;padding:0 14px;display:grid;gap:14px;grid-template-columns:400px 1fr}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+  h1{font-size:16px;margin:0 0 8px}
+  h2{font-size:14px;margin:6px 0;color:var(--muted)}
+  label{display:inline-flex;align-items:center;gap:6px;margin-right:8px}
+  input,button,select,textarea{background:#0b1220;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px}
+  textarea{width:100%;min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .btn{cursor:pointer}
+  .btn.primary{border-color:#164e63;background:#0b1220}
+  .btn.primary:hover{box-shadow:0 0 0 1px #164e63}
+  .pill{font-size:12px;padding:2px 6px;border-radius:999px;border:1px solid var(--line)}
+  .kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .kpi .box{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:10px}
+  .kpi .title{font-size:12px;color:var(--muted)}
+  .kpi .val{font-size:20px;font-variant-numeric:tabular-nums}
+  .kpi .sub{font-size:12px;color:var(--muted);margin-top:4px}
+  .note{font-size:12px;color:var(--muted)}
+  .table-wrap{overflow:auto}
+  table{border-collapse:separate;border-spacing:0;width:100%}
+  thead th{position:sticky;top:0;background:#0b1220;border-bottom:1px solid var(--line);padding:8px;text-align:left;z-index:5;cursor:pointer}
+  tbody td{padding:8px;border-bottom:1px solid rgba(148,163,184,.15)}
+  .right{text-align:right}
+  .tests{margin-top:10px;border-top:1px dashed var(--line);padding-top:8px}
+  .tests pre{background:#0b1220;border:1px solid var(--line);border-radius:10px;padding:8px;white-space:pre-wrap}
+  .ok{color:#10b981}
+  .err{color:#ef4444}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- Left: Normalizer + Inputs -->
+  <section class="card">
+    <h1>① 前処理（正規化）</h1>
+    <div class="row">
+      <label>対象年月 <input id="ym" placeholder="Aug-25" style="width:120px"></label>
+      <label><input type="checkbox" id="preferTelWhenZero"> 件数CSVの電話が0/空なら電話CSVで補完</label>
+    </div>
+    <h2>生の 残業CSV</h2>
+    <textarea id="rawOT" placeholder="氏名, 年月, 実働時間, 残業時間 ..."></textarea>
+    <h2>生の DSmart件数CSV</h2>
+    <textarea id="rawCNT" placeholder="(名前/氏名), (任意:年月), 電話受信件数, 受注, 受発注, 発注, 見積 ..."></textarea>
+    <h2>生の 電話受信件数CSV</h2>
+    <textarea id="rawTEL" placeholder="名前, 拠点, 受発注, 内外線計 or 日付列(YYYY/M/D) ..."></textarea>
+    <div class="row" style="margin-top:6px">
+      <button id="btnNormalize" class="btn primary">正規化して出力</button>
+      <button id="btnCopyToDash" class="btn">→ ②へ転送</button>
+      <button id="btnSaveRaw" class="btn">生データ保存</button>
+      <button id="btnLoadRaw" class="btn">生データ読込</button>
+    </div>
+    <h2>正規化された 残業CSV（OT）</h2>
+    <textarea id="csvOT"></textarea>
+    <h2>正規化された DSmart件数CSV（CNT）</h2>
+    <textarea id="csvCNT"></textarea>
+    <h2>正規化された 電話受信件数CSV（TEL）</h2>
+    <textarea id="csvTEL"></textarea>
+    <div class="note" id="msgNorm"></div>
+
+    <h1 style="margin-top:16px">共通パラメータ</h1>
+    <div class="row">
+      <label>月給（平均・円） <input id="avgMonthly" type="number" placeholder="300000" style="width:120px"></label>
+      <label>所定労働時間（月・h） <input id="stdHours" type="number" placeholder="160" style="width:100px"></label>
+      <label>みなし残業（月・h） <input id="deemedOT" type="number" placeholder="20" value="20" style="width:100px"></label>
+    </div>
+  </section>
+
+  <!-- Right: Dashboard -->
+  <section class="card">
+    <h1>② サマリー & 分析</h1>
+    <div class="kpi" style="margin-bottom:6px">
+      <div class="box"><div class="title">全社平均 1件単価</div><div class="val" id="k_avgUnit">-</div></div>
+      <div class="box"><div class="title">総労務コスト（月）</div><div class="val" id="k_totalCost">-</div></div>
+      <div class="box"><div class="title">残業由来コスト比率</div><div class="val" id="k_otShare">-</div></div>
+      <div class="box"><div class="title">総処理件数（月）</div><div class="val" id="k_totalCnt">-</div><div class="sub" id="k_totalCntSub"></div></div>
+    </div>
+    <div class="note">＜計算ロジック＞ 全社平均1件単価＝総労務コスト÷総処理件数 ／ 総労務コスト＝Σ(各人の実働h×時給＋残業割増) ／ 残業由来比率＝Σ残業割増÷総労務コスト。 残業時間率＝残業h÷実働h。 総処理件数＝電話＋非電話（受注＋受発注＋発注＋見積）。 時給＝月給÷所定労働時間。 みなし残業は超過分のみ割増加算（25%）。</div>
+
+    <h1 style="margin-top:12px">④ 個人別一覧（クリックで列ソート）</h1>
+    <div class="table-wrap">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th class="sortable" data-key="name">氏名</th>
+            <th class="sortable" data-key="ym">年月</th>
+            <th class="sortable right" data-key="totalCount">総処理件数</th>
+            <th class="sortable right" data-key="tel">電話</th>
+            <th class="sortable right" data-key="nonTel">非電話</th>
+            <th class="sortable right" data-key="workHours">実働h</th>
+            <th class="sortable right" data-key="otHours">残業h</th>
+            <th class="sortable right" data-key="totalCost">総コスト</th>
+            <th class="sortable right" data-key="unitCost">1件単価</th>
+            <th class="sortable right" data-key="otShare">残業由来コスト比率</th>
+            <th class="sortable right" data-key="otRate">残業時間率</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button id="btnImport" class="btn primary">インポート（集計）</button>
+      <button id="btnExport" class="btn">個人別一覧をCSV出力</button>
+      <button id="btnSave" class="btn">保存</button>
+      <button id="btnLoad" class="btn">保存を読み込み</button>
+      <button id="btnClear" class="btn">クリア</button>
+      <button id="btnRunTests" class="pill">自己テスト</button>
+    </div>
+    <div class="tests"><pre id="testlog">（ここに結果が表示されます）</pre></div>
+    <div class="note" id="msgDash"></div>
+  </section>
+</div>
+
+<script>
+// ===== Utilities =====
+function num(v){ var n = Number(String(v==null?"":v).replace(/[ ,，]/g, "")); return isFinite(n)? n: 0; }
+function yen(n){ return "¥"+Math.round(n).toLocaleString("ja-JP"); }
+function pct(x){ return (x*100).toFixed(1)+"%"; }
+function msg(id, s){ var el=document.getElementById(id); if(el) el.textContent=s; }
+function esc(s){ return String(s).replace(/[&<>\"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+
+// name normalizer（共有）
+function normalizeName(raw){
+  if(!raw) return "";
+  var s = String(raw).normalize("NFKC");
+  s = s.replace(/^[【\[][^】\]]+[】\]]/, "");
+  s = s.replace(/[（(].*?[)）]/g, "");
+  s = s.replace(/[\u0020\u00A0\u3000\t]/g, "");
+  var mapPairs = [["﨑","崎"],["𠮷","吉"],["髙","高"],["濵","浜"],["邊","辺"],["邉","辺"],["閙","閑"],["栁","柳"],["德","徳"],["圡","土"],["嶋","島"],["齋","斎"],["遙","遥"],["峯","峰"],["內","内"],["實","実"],["廣","広"],["樂","楽"]];
+  var map = new Map(mapPairs);
+  s = Array.from(s).map(function(ch){ return map.get(ch)||ch; }).join("");
+  s = s.replace(/[・･\-‒–—―·．\.]/g, "");
+  return s;
+}
+
+// ----- CSV helpers -----
+function splitCSVLine(line){ var out=[],cur="",q=false; for(var i=0;i<line.length;i++){ var c=line[i]; if(q){ if(c==='"'){ if(line[i+1]==='"'){cur+='"'; i++;} else { q=false; } } else { cur+=c; } } else { if(c===','){ out.push(cur); cur=""; } else if(c==='"'){ q=true; } else { cur+=c; } } } out.push(cur); return out.map(function(x){ return x.trim(); }); }
+function smartSplit(line){ if(line.indexOf(',')!==-1) return splitCSVLine(line); if(line.indexOf('\t')!==-1) return line.split('\t').map(function(s){ return s.trim(); }); return line.trim().split(/\s{2,}|\s/).filter(Boolean); }
+function parseTable(text){ var lines = String(text||"").replace(/\r\n/g,"\n").split("\n").filter(function(l){return l.trim()!=='';}); var rows = lines.map(smartSplit); var maxc = rows.reduce(function(m,r){return Math.max(m,r.length);},0); return rows.map(function(r){ while(r.length<maxc) r.push(""); return r; }); }
+function toCSV(rows){ return rows.map(function(r){ return r.map(function(x){ var s=String(x==null?"":x); return /[",\n\r]/.test(s)? '"'+s.replace(/"/g,'""')+'"' : s; }).join(','); }).join('\n'); }
+function indexOfHeader(head, candidates){ for(var i=0;i<candidates.length;i++){ var key=candidates[i]; var idx=head.findIndex(function(h){ return h.replace(/\s/g,"")===key; }); if(idx!==-1) return idx; } return -1; }
+
+// ===== Normalizer =====
+function buildTelMapFromRaw(telText){ if(!telText||!telText.trim()) return new Map(); var rows=parseTable(telText.trim()); var head=rows.shift().map(function(h){return h.replace(/\s/g,"");}); var nameCol=indexOfHeader(head,["名前","氏名"]); var ukeCol=indexOfHeader(head,["受発注"]); var totalCol=indexOfHeader(head,["内外線計"]); var dateCols=head.map(function(h,i){return /^\d{4}\/\d{1,2}\/\d{1,2}$/.test(h)?i:null;}).filter(function(i){return i!=null;}); var map=new Map(); rows.forEach(function(r){ if(ukeCol!==-1){ var v=String(r[ukeCol]||""); if(v.indexOf("受発注")==-1) return; } var nm=normalizeName(r[nameCol]||""); if(!nm) return; var tot=0; if(totalCol!==-1 && String(r[totalCol]||"").trim()!=='') tot=num(r[totalCol]); else if(dateCols.length) tot=dateCols.reduce(function(a,i){return a+num(r[i]);},0); map.set(nm,(map.get(nm)||0)+tot); }); return map; }
+function normalizeOT(otText){ var rows=parseTable(otText.trim()); if(rows.length===0) return [];
+  var head=rows.shift().map(function(h){ return h.replace(/\s/g,""); });
+  var colName=indexOfHeader(head,["氏名","名前"]); var colYm=indexOfHeader(head,["年月"]); var colWork=indexOfHeader(head,["実働時間"]);
+  var colOT=indexOfHeader(head,["残業時間","法定時間外労働時間","時間外労働時間"]); var out=[];
+  rows.forEach(function(r){ var name=normalizeName(r[colName]||""); if(!name) return; out.push({ name:name, ym:(r[colYm]||"").trim(), workH:num(r[colWork]), otH:num(r[colOT]) }); }); return out; }
+function normalizeCNT(cntText, ym, telMap, preferTelWhenZero){ var rows=parseTable(cntText.trim()); if(rows.length===0) return [];
+  var head=rows.shift().map(function(h){ return h.replace(/\s/g,""); });
+  var nameCol=indexOfHeader(head,["氏名","名前"]); var ymCol=indexOfHeader(head,["年月"]); var tgtCol=indexOfHeader(head,["対象"]);
+  var cols={ tel:indexOfHeader(head,["電話受信件数"]), j:indexOfHeader(head,["受注処理件数"]), oj:indexOfHeader(head,["受発注処理件数"]), h:indexOfHeader(head,["発注処理件数"]), q:indexOfHeader(head,["見積処理件数"]) };
+  var out=[]; rows.forEach(function(r){ var name=normalizeName(r[nameCol]||""); if(!name) return; var flag=(tgtCol!==-1? String(r[tgtCol]||"").trim():"1"); if(flag && flag!=='1') return; var rowYm=(ymCol!==-1 && String(r[ymCol]||"").trim())? String(r[ymCol]).trim(): ym; var explicitTel = cols.tel!==-1? num(r[cols.tel]) : 0; var tel = preferTelWhenZero? (explicitTel? explicitTel : (telMap.get(name)||0)) : (explicitTel>0? explicitTel : (telMap.get(name)||0)); var j=cols.j!==-1?num(r[cols.j]):0; var oj=cols.oj!==-1?num(r[cols.oj]):0; var h=cols.h!==-1?num(r[cols.h]):0; var q=cols.q!==-1?num(r[cols.q]):0; out.push({ name:name, ym:rowYm, tel:tel, j:j, oj:oj, h:h, q:q }); }); return out; }
+
+function runNormalize(){ try{ var ym=document.getElementById('ym').value.trim(); if(!ym){ msg('msgNorm','対象年月を入力してください'); return; }
+  var preferTel=document.getElementById('preferTelWhenZero').checked; var telMap=buildTelMapFromRaw(document.getElementById('rawTEL').value); var otRows=normalizeOT(document.getElementById('rawOT').value); var cntRows=normalizeCNT(document.getElementById('rawCNT').value, ym, telMap, preferTel);
+  // 出力CSVに整形
+  var otCSV = toCSV([["氏名","年月","実働時間","残業時間"]].concat(otRows.map(function(r){ return [r.name,r.ym,r.workH,r.otH]; })));
+  var cntCSV = toCSV([["氏名","年月","電話受信件数","受注処理件数","受発注処理件数","発注処理件数","見積処理件数"]].concat(cntRows.map(function(r){ return [r.name,r.ym,r.tel,r.j,r.oj,r.h,r.q]; })));
+  var telCSV = toCSV([["氏名","合計通話件数"]].concat(Array.from(telMap.entries()).map(function(p){ return [p[0],p[1]]; })));
+  document.getElementById('csvOT').value = otCSV; document.getElementById('csvCNT').value = cntCSV; document.getElementById('csvTEL').value = telCSV; msg('msgNorm','正規化しました: OT '+otRows.length+' / CNT '+cntRows.length+' 名');
+ }catch(e){ console.error(e); msg('msgNorm','エラー: '+(e.message||String(e))); }
+}
+
+// 転送
+function copyToDashboard(){ document.getElementById('csvOT').scrollIntoView({behavior:'smooth'}); msg('msgDash','前処理の結果を ② でそのまま利用できます。「インポート（集計）」を押してください。'); }
+
+// 生データ保存/読込
+function saveRaw(){ var data={ ym:document.getElementById('ym').value, preferTel:document.getElementById('preferTelWhenZero').checked, rawOT:document.getElementById('rawOT').value, rawCNT:document.getElementById('rawCNT').value, rawTEL:document.getElementById('rawTEL').value, avgMonthly:document.getElementById('avgMonthly').value, stdHours:document.getElementById('stdHours').value, deemedOT:document.getElementById('deemedOT').value, csvOT:document.getElementById('csvOT').value, csvCNT:document.getElementById('csvCNT').value, csvTEL:document.getElementById('csvTEL').value };
+  localStorage.setItem('costdash.r6', JSON.stringify(data)); msg('msgNorm','保存しました'); }
+function loadRaw(){ var s=localStorage.getItem('costdash.r6'); if(!s){ msg('msgNorm','保存データがありません'); return;} try{ var d=JSON.parse(s); ['ym','avgMonthly','stdHours','deemedOT','rawOT','rawCNT','rawTEL','csvOT','csvCNT','csvTEL'].forEach(function(id){ if(d[id]!=null) document.getElementById(id).value=d[id]; }); document.getElementById('preferTelWhenZero').checked=!!d.preferTel; msg('msgNorm','読み込みました'); }catch(e){ msg('msgNorm','読み込みエラー'); }
+}
+
+// ===== Dashboard (compute + render) =====
+var currentRows=[];
+function computeRows(otRows, cntRows, hourly){ var map = new Map(); function keyOf(n,y){ return n+"@@"+y; }
+  cntRows.forEach(function(c){ var k=keyOf(c.name,c.ym); map.set(k,{ name:c.name, ym:c.ym, tel:0, nonTel:0, workHours:0, otHours:0, totalCost:0, unitCost:0, otShare:0, otRate:0, totalCount:0 }); });
+  cntRows.forEach(function(c){ var k=keyOf(c.name,c.ym); var r=map.get(k); r.tel += Number(c.tel)||0; r.nonTel += (Number(c.j)||0)+(Number(c.oj)||0)+(Number(c.h)||0)+(Number(c.q)||0); });
+  otRows.forEach(function(o){ var k=keyOf(o.name,o.ym); var r = map.get(k) || { name:o.name, ym:o.ym, tel:0, nonTel:0, workHours:0, otHours:0, totalCost:0, unitCost:0, otShare:0, otRate:0, totalCount:0 }; r.workHours += Number(o.workH)||0; r.otHours += Number(o.otH)||0; map.set(k,r); });
+  var premium=1.25; var pay=(hourly&&hourly>0)?hourly:1500; var deemed=num(document.getElementById('deemedOT').value)||0; var rows=[];
+  map.forEach(function(r){ r.tel=Number(r.tel)||0; r.nonTel=Number(r.nonTel)||0; r.workHours=Number(r.workHours)||0; r.otHours=Number(r.otHours)||0; var base=r.workHours*pay; var otAdd=Math.max(0,(r.otHours-deemed))*pay*(premium-1); var total=base+otAdd; var totalCount=r.tel+r.nonTel; rows.push({ name:r.name, ym:r.ym, tel:r.tel, nonTel:r.nonTel, workHours:r.workHours, otHours:r.otHours, totalCost:total, unitCost: totalCount? total/totalCount:0, otShare: total? (otAdd/total):0, otRate: r.workHours? (r.otHours/r.workHours):0, totalCount: totalCount }); });
+  rows.sort(function(a,b){ return a.name.localeCompare(b.name,'ja'); }); return rows;
+}
+
+function render(rows){ currentRows = rows.slice(); var totalCntSum=0,totalCostSum=0,sumTel=0,sumNon=0,otShareAvg=0; rows.forEach(function(r){ totalCntSum+=r.totalCount||0; totalCostSum+=r.totalCost||0; sumTel+=r.tel||0; sumNon+=r.nonTel||0; otShareAvg+=r.otShare||0; }); var avgUnit= totalCntSum>0? totalCostSum/totalCntSum:0; var otShare = rows.length? otShareAvg/rows.length:0; document.getElementById('k_avgUnit').textContent = yen(avgUnit); document.getElementById('k_totalCost').textContent = yen(totalCostSum); document.getElementById('k_otShare').textContent = pct(otShare); document.getElementById('k_totalCnt').textContent = totalCntSum.toLocaleString('ja-JP'); document.getElementById('k_totalCntSub').textContent = "内訳：電話 " + sumTel.toLocaleString('ja-JP') + " / 非電話 " + sumNon.toLocaleString('ja-JP');
+  var tbody=document.getElementById('tbody'); tbody.innerHTML = rows.map(function(r){ return '<tr>'+
+    '<td>'+esc(r.name)+'</td>'+
+    '<td>'+esc(r.ym)+'</td>'+
+    '<td class="right">'+(r.totalCount||0)+'</td>'+
+    '<td class="right">'+(r.tel||0)+'</td>'+
+    '<td class="right">'+(r.nonTel||0)+'</td>'+
+    '<td class="right">'+(r.workHours||0).toFixed(1)+'</td>'+
+    '<td class="right">'+(r.otHours||0).toFixed(1)+'</td>'+
+    '<td class="right">'+yen(r.totalCost||0)+'</td>'+
+    '<td class="right">'+yen(r.unitCost||0)+'</td>'+
+    '<td class="right">'+pct(r.otShare||0)+'</td>'+
+    '<td class="right">'+pct(r.otRate||0)+'</td>'+
+  '</tr>'; }).join('');
+}
+
+// ===== Import / Export / Save / Load =====
+function parseNormalizedCSV(text){ var t=parseTable(text); if(!t.length) return {head:[],rows:[]}; var head=t.shift(); return {head:head,rows:t}; }
+function importFromTextareas(){ try{
+  var ym=document.getElementById('ym').value.trim(); if(!ym){ msg('msgDash','対象年月を入力してください'); return; }
+  var otT=parseNormalizedCSV(document.getElementById('csvOT').value); var cntT=parseNormalizedCSV(document.getElementById('csvCNT').value); // TELは情報系
+  var otRows = otT.rows.map(function(r){ return { name:normalizeName(r[0]), ym:String(r[1]||ym), workH:num(r[2]), otH:num(r[3]) }; });
+  var cntRows = cntT.rows.map(function(r){ return { name:normalizeName(r[0]), ym:String(r[1]||ym), tel:num(r[2]), j:num(r[3]), oj:num(r[4]), h:num(r[5]), q:num(r[6]) }; });
+  var avgMonthly=num(document.getElementById('avgMonthly').value); var stdHours=num(document.getElementById('stdHours').value); var hourly=(avgMonthly>0&&stdHours>0)?(avgMonthly/stdHours):1500; var rows=computeRows(otRows,cntRows,hourly); render(rows); msg('msgDash','OK: '+rows.length+' 名を集計');
+ }catch(e){ console.error(e); msg('msgDash','エラー: '+(e.message||String(e))); }
+}
+
+function exportRows(){ var header=['氏名','年月','総処理件数','電話','非電話','実働h','残業h','総コスト','1件単価','残業由来コスト比率','残業時間率']; var lines=currentRows.map(function(r){ return [r.name,r.ym,r.totalCount,r.tel,r.nonTel,r.workHours.toFixed(1),r.otHours.toFixed(1),Math.round(r.totalCost),Math.round(r.unitCost),r.otShare.toFixed(4),r.otRate.toFixed(4)]; }); var csv=toCSV([header].concat(lines)); var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download='個人別一覧_'+ new Date().toISOString().slice(0,10)+'.csv'; a.click(); setTimeout(function(){URL.revokeObjectURL(url);},1000); }
+
+function saveAll(){ var data={ ym:document.getElementById('ym').value, preferTel:document.getElementById('preferTelWhenZero').checked, avgMonthly:document.getElementById('avgMonthly').value, stdHours:document.getElementById('stdHours').value, deemedOT:document.getElementById('deemedOT').value, rawOT:document.getElementById('rawOT').value, rawCNT:document.getElementById('rawCNT').value, rawTEL:document.getElementById('rawTEL').value, csvOT:document.getElementById('csvOT').value, csvCNT:document.getElementById('csvCNT').value, csvTEL:document.getElementById('csvTEL').value };
+  localStorage.setItem('costdash.r6.all', JSON.stringify(data)); msg('msgDash','保存しました'); }
+function loadAll(){ var s=localStorage.getItem('costdash.r6.all'); if(!s){ msg('msgDash','保存データがありません'); return; } try{ var d=JSON.parse(s); ['ym','avgMonthly','stdHours','deemedOT','rawOT','rawCNT','rawTEL','csvOT','csvCNT','csvTEL'].forEach(function(id){ if(d[id]!=null) document.getElementById(id).value=d[id]; }); document.getElementById('preferTelWhenZero').checked=!!d.preferTel; msg('msgDash','読み込みました'); }catch(e){ msg('msgDash','読み込みエラー'); }
+}
+function clearAll(){ ['rawOT','rawCNT','rawTEL','csvOT','csvCNT','csvTEL'].forEach(function(id){ var el=document.getElementById(id); if(el) el.value=''; }); document.getElementById('tbody').innerHTML=''; ['k_avgUnit','k_totalCost','k_otShare','k_totalCnt','k_totalCntSub','msgNorm','msgDash'].forEach(function(id){ var el=document.getElementById(id); if(el) el.textContent=''; }); currentRows=[]; }
+
+// ===== Sort =====
+(function(){ var sortState={key:'name',dir:1}; function sortBy(key){ sortState.dir=(sortState.key===key)?-sortState.dir:1; sortState.key=key; var rows=currentRows.slice(); rows.sort(function(a,b){ var va=a[key], vb=b[key]; var na=(typeof va==='number')||!isNaN(Number(va)); var nb=(typeof vb==='number')||!isNaN(Number(vb)); if(na||nb){ return ((Number(va) || 0) - (Number(vb) || 0)) * sortState.dir; } return String(va||'').localeCompare(String(vb||''),'ja')*sortState.dir; }); render(rows); }
+  document.addEventListener('click', function(e){ var t=e.target && e.target.nodeType===1 ? e.target : (e.target && e.target.parentElement); if(!t||!t.closest) return; var th=t.closest('th.sortable'); if(th){ sortBy(th.getAttribute('data-key')); } }); })();
+
+// ===== Self tests =====
+function logTest(s){ var el=document.getElementById('testlog'); el.textContent += (el.textContent? '\n':'') + s; }
+function assertEq(name,a,b){ if(a===b){ logTest('✔ '+name+': OK'); } else { logTest('✘ '+name+': NG expected '+JSON.stringify(b)+' got '+JSON.stringify(a)); } }
+function runTests(){ document.getElementById('testlog').textContent='';
+  // normalizeName
+  assertEq('normalizeName 山﨑→山崎', normalizeName('山﨑太郎').indexOf('山崎')===0, true);
+  assertEq('normalizeName 空白除去', normalizeName('吉田 玲'), '吉田玲');
+  // TEL map sum（テンプレートリテラルで改行を安全に表現）
+  var telMap=buildTelMapFromRaw(`名前,受発注,2025/8/1,2025/8/2\n川崎瞳,受発注,3,2`);
+  assertEq('TEL合計', telMap.get(normalizeName('川崎 瞳')), 5);
+  // compute basic
+  var rows=computeRows([{name:'A',ym:'Aug-25',workH:10,otH:2}], [{name:'A',ym:'Aug-25',tel:1,j:2,oj:0,h:0,q:0}], 1500);
+  assertEq('件数合計', rows[0].totalCount, 3);
+  assertEq('残業時間率', Math.round(rows[0].otRate*1000)/1000, 0.2);
+  // sort numeric ascending / descending
+  currentRows=[
+    {name:'X',ym:'Sep-25',totalCount:1307,tel:0,nonTel:1307,workHours:0,otHours:0,totalCost:0,unitCost:0,otShare:0,otRate:0},
+    {name:'Y',ym:'Sep-25',totalCount:0,tel:0,nonTel:0,workHours:0,otHours:0,totalCost:0,unitCost:0,otShare:0,otRate:0},
+    {name:'Z',ym:'Sep-25',totalCount:811,tel:0,nonTel:811,workHours:0,otHours:0,totalCost:0,unitCost:0,otShare:0,otRate:0}
+  ];
+  render(currentRows);
+  document.querySelector('th[data-key="totalCount"]').click();
+  assertEq('数値ソート(昇順) 先頭=0', currentRows[0].totalCount, 0);
+  document.querySelector('th[data-key="totalCount"]').click();
+  assertEq('数値ソート(降順) 先頭=1307', currentRows[0].totalCount, 1307);
+  // 追加テスト: タブ区切り・全角空白混在のsplit
+  var trows=parseTable('A\tB\n1\t2');
+  assertEq('タブ区切り解析', trows[1][1], '2');
+  // 追加テスト: 名前ゆらぎ（髙→高）
+  assertEq('normalizeName 髙澤→高澤', normalizeName('髙澤'), '高澤');
+  logTest('--- 完了 ---');
+}
+
+// ===== Wire UI =====
+window.addEventListener('DOMContentLoaded', function(){
+  // Normalizer
+  document.getElementById('btnNormalize').addEventListener('click', runNormalize);
+  document.getElementById('btnCopyToDash').addEventListener('click', copyToDashboard);
+  document.getElementById('btnSaveRaw').addEventListener('click', saveRaw);
+  document.getElementById('btnLoadRaw').addEventListener('click', loadRaw);
+  // Dashboard
+  document.getElementById('btnImport').addEventListener('click', importFromTextareas);
+  document.getElementById('btnExport').addEventListener('click', exportRows);
+  document.getElementById('btnSave').addEventListener('click', saveAll);
+  document.getElementById('btnLoad').addEventListener('click', loadAll);
+  document.getElementById('btnClear').addEventListener('click', clearAll);
+  var t=document.getElementById('btnRunTests'); if(t) t.addEventListener('click', runTests);
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>定価×掛け率 一括計算メーカー</title>
+<style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f9; color: #333; padding: 20px; }
+    /* コンテナの最大幅を少し広げました */
+    .container { max-width: 1200px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border-top: 6px solid #007bff; }
+    h2 { text-align: center; color: #007bff; margin-bottom: 20px; font-size: 1.6rem; letter-spacing: 1px; }
+
+    /* 設定エリア */
+    .settings-panel { background: #eef5fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #dae1e7; }
+    
+    .row { display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; }
+    .col { flex: 1; min-width: 150px; }
+    
+    label { font-weight: bold; display: block; margin-bottom: 5px; color: #555; font-size: 0.9em; }
+    
+    input[type="number"], select { width: 100%; padding: 10px; border: 2px solid #cbd5e0; border-radius: 6px; font-size: 18px; outline: none; box-sizing: border-box; transition: 0.3s; }
+    input[type="number"]:focus, select:focus { border-color: #007bff; background: #fff; }
+
+    /* プリセットボタン */
+    .preset-group { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 5px; }
+    .btn-preset { background: #fff; border: 1px solid #cbd5e0; padding: 6px 12px; border-radius: 20px; font-size: 0.85em; cursor: pointer; color: #555; transition: 0.2s; }
+    .btn-preset:hover { background: #007bff; color: white; border-color: #007bff; }
+    .btn-preset.active { background: #007bff; color: white; border-color: #007bff; font-weight: bold; }
+
+    /* スイッチ（税込など） */
+    .toggle-label { display: flex; align-items: center; cursor: pointer; gap: 8px; user-select: none; font-weight: bold; color: #333; }
+    .toggle-label input { width: 20px; height: 20px; accent-color: #007bff; }
+
+    /* メインエリア */
+    .main-area { display: flex; gap: 20px; align-items: stretch; margin-top: 10px; }
+    .box-half { flex: 1; display: flex; flex-direction: column; }
+    
+    .box-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+    .count-badge { font-size: 0.8em; background: #eee; padding: 2px 8px; border-radius: 4px; color: #666; }
+    
+    /* ▼▼▼ ここを修正しました（画面の75%まで広げる） ▼▼▼ */
+    textarea { 
+        flex: 1; 
+        width: 100%; 
+        height: 75vh; /* 画面高さの75% */
+        min-height: 600px; /* 最低でも600pxは確保 */
+        padding: 15px; 
+        border: 2px solid #e0e0e0; 
+        border-radius: 8px; 
+        font-size: 16px; 
+        font-family: monospace; 
+        box-sizing: border-box; 
+        resize: vertical; 
+        white-space: pre; 
+        overflow: auto; 
+        line-height: 1.6; 
+    }
+    textarea:focus { border-color: #007bff; outline: none; }
+    
+    #inputArea { background-color: #fafafa; }
+    #outputArea { background-color: #f0fff4; border-color: #c3e6cb; color: #155724; font-weight: bold; }
+
+    /* コピーボタン */
+    .btn-copy { margin-top: 15px; width: 100%; background-color: #28a745; color: white; border: none; padding: 15px; font-size: 18px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: background 0.3s; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .btn-copy:hover { background-color: #218838; transform: translateY(-1px); }
+    .btn-copy:active { transform: translateY(1px); }
+
+    /* 矢印 */
+    .arrow-icon { display: flex; align-items: center; color: #aaa; font-size: 24px; }
+
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🧮 定価×掛け率 計算機</h2>
+
+    <div class="settings-panel">
+        <div class="row">
+            <div class="col">
+                <label>掛け率（％）</label>
+                <input type="number" id="multiplier" value="70" step="0.1" oninput="handleInputMultiplier()">
+                <div class="preset-group">
+                    <button class="btn-preset" onclick="setMultiplier(50)">50%</button>
+                    <button class="btn-preset" onclick="setMultiplier(55)">55%</button>
+                    <button class="btn-preset" onclick="setMultiplier(60)">60%</button>
+                    <button class="btn-preset" onclick="setMultiplier(65)">65%</button>
+                    <button class="btn-preset" onclick="setMultiplier(70)">70%</button>
+                </div>
+            </div>
+            <div class="col">
+                <label>端数処理</label>
+                <select id="roundingMode" onchange="calculate()">
+                    <option value="floor" selected>切り捨て (推奨)</option>
+                    <option value="round">四捨五入</option>
+                    <option value="ceil">切り上げ</option>
+                </select>
+                <div style="margin-top:15px;">
+                    <label class="toggle-label">
+                        <input type="checkbox" id="checkTax" onchange="calculate()">
+                        <span>税込価格にする (×1.10)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main-area">
+        <div class="box-half">
+            <div class="box-header">
+                <label>【入力】定価リスト (Excelから貼付)</label>
+                <span class="count-badge" id="countInput">0行</span>
+            </div>
+            <textarea id="inputArea" placeholder="例：&#13;定価&#13;10,000&#13;15800&#13;23,500" oninput="calculate()"></textarea>
+            <div style="font-size:0.8em; color:#888; margin-top:5px;">※文字の行はそのまま空欄になります</div>
+        </div>
+
+        <div class="arrow-icon">➡</div>
+
+        <div class="box-half">
+            <div class="box-header">
+                <label>【結果】計算後価格</label>
+                <span class="count-badge" id="countOutput">0行</span>
+            </div>
+            <textarea id="outputArea" readonly></textarea>
+        </div>
+    </div>
+
+    <button class="btn-copy" onclick="copyToClipboard()">📋 結果をコピーする</button>
+</div>
+
+<script>
+    function setMultiplier(val) {
+        document.getElementById('multiplier').value = val;
+        handleInputMultiplier();
+    }
+
+    function handleInputMultiplier() {
+        const val = document.getElementById('multiplier').value;
+        document.querySelectorAll('.btn-preset').forEach(btn => {
+            if (btn.textContent.replace('%','') == val) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        calculate();
+    }
+
+    function calculate() {
+        const inputText = document.getElementById('inputArea').value;
+        const multiplierStr = document.getElementById('multiplier').value;
+        const roundingMode = document.getElementById('roundingMode').value;
+        const isTax = document.getElementById('checkTax').checked;
+
+        let multiplier = parseFloat(multiplierStr);
+        if (isNaN(multiplier)) multiplier = 0;
+
+        const lines = inputText.split('\n');
+        
+        document.getElementById('countInput').textContent = lines.length + "行";
+        document.getElementById('countOutput').textContent = lines.length + "行";
+
+        const resultLines = lines.map(line => {
+            let cleanLine = line.replace(/[^\d.]/g, '');
+            if (cleanLine === "") return "";
+            let price = parseFloat(cleanLine);
+            if (isNaN(price)) return "";
+
+            let finalPrice = price * (multiplier / 100);
+
+            if (isTax) {
+                finalPrice = finalPrice * 1.10;
+            }
+
+            if (roundingMode === 'floor') {
+                finalPrice = Math.floor(finalPrice);
+            } else if (roundingMode === 'round') {
+                finalPrice = Math.round(finalPrice);
+            } else if (roundingMode === 'ceil') {
+                finalPrice = Math.ceil(finalPrice);
+            }
+
+            return finalPrice.toLocaleString();
+        });
+
+        document.getElementById('outputArea').value = resultLines.join('\n');
+    }
+
+    function copyToClipboard() {
+        const copyText = document.getElementById("outputArea");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999);
+        navigator.clipboard.writeText(copyText.value).then(() => {
+            alert("コピー完了！\nExcelに貼り付けてください。\n(行数が合っているか確認してください)");
+        });
+    }
+
+    window.onload = function() {
+        handleInputMultiplier();
+    };
+</script>
+
+</body>
+</html>
