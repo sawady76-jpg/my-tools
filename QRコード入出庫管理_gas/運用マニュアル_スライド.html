@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QR在庫管理アプリ 現場運用マニュアル</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        .slide {
+            background: white;
+            max-width: 1200px;
+            margin: 0 auto;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(90deg, #0066cc 0%, #0099ff 100%);
+            color: white;
+            padding: 20px 30px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+        .content {
+            padding: 25px 30px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+        .section {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 18px;
+            border-left: 5px solid #0066cc;
+        }
+        .section.correction {
+            border-left-color: #e74c3c;
+            grid-column: 1 / -1;
+        }
+        .section.message {
+            border-left-color: #27ae60;
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #e8f5e9 0%, #f1f8e9 100%);
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #0066cc;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .section.correction .section-title {
+            color: #e74c3c;
+        }
+        .section.message .section-title {
+            color: #27ae60;
+        }
+        .icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: white;
+        }
+        .icon.blue { background: #0066cc; }
+        .icon.red { background: #e74c3c; }
+        .icon.green { background: #27ae60; }
+        .step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 10px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        .step-number {
+            background: #0066cc;
+            color: white;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+        .step-content {
+            flex: 1;
+        }
+        .step-content strong {
+            color: #0066cc;
+        }
+        .note {
+            background: #fff3cd;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            margin-top: 8px;
+            border-left: 3px solid #ffc107;
+        }
+        .correction-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .pattern-box {
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .pattern-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: #e74c3c;
+            margin-bottom: 6px;
+            padding-bottom: 6px;
+            border-bottom: 2px dashed #ffd5d5;
+        }
+        .pattern-example {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+        .pattern-solution {
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .pattern-solution .arrow {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .highlight {
+            background: #ffe0e0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .message-content {
+            display: flex;
+            gap: 20px;
+        }
+        .message-item {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 13px;
+            line-height: 1.6;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+        .message-item::before {
+            content: "✓";
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background: #27ae60;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 20px;
+            font-size: 11px;
+            margin-right: 8px;
+        }
+        .no-delete-badge {
+            display: inline-block;
+            background: #e74c3c;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .slide {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="slide">
+        <div class="header">
+            <h1>QR在庫管理アプリ 現場運用マニュアル</h1>
+        </div>
+
+        <div class="content">
+            <!-- 基本操作 -->
+            <div class="section">
+                <div class="section-title">
+                    <span class="icon blue">1</span>
+                    基本操作
+                </div>
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <div class="step-content">
+                        <strong>準備</strong>：アプリを開き「倉庫（拠点）」と「自分の名前」を選択
+                    </div>
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <div class="step-content">
+                        <strong>スキャン</strong>：「スキャン開始」を押し、棚のQRコードをカメラで読み取る
+                    </div>
+                </div>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <div class="step-content">
+                        <strong>登録</strong>：在庫数を確認し、動かす数量を入力→「入庫」または「出庫」を押す
+                    </div>
+                </div>
+                <div class="note">
+                    ※QRが読めない場合は、検索窓から「商品名」や「品番」で検索可能
+                </div>
+            </div>
+
+            <!-- 操作フロー図 -->
+            <div class="section">
+                <div class="section-title">
+                    <span class="icon blue">▶</span>
+                    操作フロー
+                </div>
+                <div style="text-align: center; padding: 15px 0;">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap;">
+                        <div style="background: #e3f2fd; padding: 10px 15px; border-radius: 8px; font-size: 12px; font-weight: bold;">
+                            📱 アプリ起動
+                        </div>
+                        <div style="color: #0066cc; font-size: 18px;">→</div>
+                        <div style="background: #e3f2fd; padding: 10px 15px; border-radius: 8px; font-size: 12px; font-weight: bold;">
+                            👤 拠点・名前選択
+                        </div>
+                        <div style="color: #0066cc; font-size: 18px;">→</div>
+                        <div style="background: #e3f2fd; padding: 10px 15px; border-radius: 8px; font-size: 12px; font-weight: bold;">
+                            📷 QRスキャン
+                        </div>
+                        <div style="color: #0066cc; font-size: 18px;">→</div>
+                        <div style="background: #e3f2fd; padding: 10px 15px; border-radius: 8px; font-size: 12px; font-weight: bold;">
+                            🔢 数量入力
+                        </div>
+                        <div style="color: #0066cc; font-size: 18px;">→</div>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <div style="background: #4caf50; color: white; padding: 8px 15px; border-radius: 8px; font-size: 12px; font-weight: bold;">
+                                入庫（増やす）
+                            </div>
+                            <div style="background: #ff9800; color: white; padding: 8px 15px; border-radius: 8px; font-size: 12px; font-weight: bold;">
+                                出庫（減らす）
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 訂正ルール -->
+            <div class="section correction">
+                <div class="section-title">
+                    <span class="icon red">!</span>
+                    間違えたときの訂正ルール
+                    <span class="no-delete-badge">削除ボタンなし</span>
+                </div>
+                <div class="correction-grid">
+                    <div class="pattern-box">
+                        <div class="pattern-title">パターンA：数量を間違えた</div>
+                        <div class="pattern-example">例：5個なのに50個で入庫してしまった</div>
+                        <div class="pattern-solution">
+                            <span class="arrow">→</span> 間違えた数（<span class="highlight">50個</span>）で「出庫」を押す<br>
+                            <span class="arrow">→</span> ±0に戻ったら、正しい数（5個）で入庫し直す
+                        </div>
+                    </div>
+                    <div class="pattern-box">
+                        <div class="pattern-title">パターンB：ボタンを間違えた</div>
+                        <div class="pattern-example">例：出庫するつもりが入庫してしまった</div>
+                        <div class="pattern-solution">
+                            <span class="arrow">→</span> 同じ数で「<span class="highlight">出庫</span>」を押す<br>
+                            <span class="arrow">→</span> ±0に戻ったら、正しいボタンを押し直す
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 現場へのメッセージ -->
+            <div class="section message">
+                <div class="section-title">
+                    <span class="icon green">★</span>
+                    現場へのメッセージ
+                </div>
+                <div class="message-content">
+                    <div class="message-item">
+                        新しい仕事が増えるわけではない。<strong>「月末の在庫ズレ調査」という一番面倒な時間をなくす</strong>ためのツール。
+                    </div>
+                    <div class="message-item">
+                        名古屋営業所での成功事例（都度記録で差異ゼロ）を、<strong>スマホで楽に実現</strong>することを目指す。
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
