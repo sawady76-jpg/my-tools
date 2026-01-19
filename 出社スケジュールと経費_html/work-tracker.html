@@ -1752,6 +1752,45 @@
 
         // コスト比較計算
         function calcCostCompare() {
+            const tokyoCost = parseInt(document.getElementById('costTokyo').value) || 2540;
+            const hotelCost = parseInt(document.getElementById('costHotel').value) || 12000;
+
+            // 案①：当日移動
+            // 月出社 + 水出社 + 木石岡→東京 + 仙台1泊
+            const cost1_mon = tokyoCost * 2;  // 往復
+            const cost1_wed = tokyoCost * 2;  // 往復
+            const cost1_thu = tokyoCost;      // 片道（石岡→東京）
+            const cost1_hotel = hotelCost;    // 1泊
+            const cost1_total = cost1_mon + cost1_wed + cost1_thu + cost1_hotel;
+
+            // 案②：前乗り
+            // 月出社 + 水片道 + 仙台2泊
+            const cost2_mon = tokyoCost * 2;  // 往復
+            const cost2_wed = tokyoCost;      // 片道
+            const cost2_hotel = hotelCost * 2; // 2泊
+            const cost2_total = cost2_mon + cost2_wed + cost2_hotel;
+
+            document.getElementById('costCompareResult').style.display = 'grid';
+            document.getElementById('costDiff').style.display = 'block';
+
+            document.getElementById('cost1Total').textContent = `¥${cost1_total.toLocaleString()}`;
+            document.getElementById('cost1Breakdown').innerHTML = `
+                月出社: ¥${cost1_mon.toLocaleString()}<br>
+                水出社: ¥${cost1_wed.toLocaleString()}<br>
+                木移動: ¥${cost1_thu.toLocaleString()}<br>
+                宿泊1泊: ¥${cost1_hotel.toLocaleString()}
+            `;
+
+            document.getElementById('cost2Total').textContent = `¥${cost2_total.toLocaleString()}`;
+            document.getElementById('cost2Breakdown').innerHTML = `
+                月出社: ¥${cost2_mon.toLocaleString()}<br>
+                水片道: ¥${cost2_wed.toLocaleString()}<br>
+                宿泊2泊: ¥${cost2_hotel.toLocaleString()}
+            `;
+
+            const diff = cost2_total - cost1_total;
+            document.getElementById('costDiffValue').textContent = `+¥${diff.toLocaleString()}`;
+        }
 
         // データ取り込み機能
         function importFromClipboard() {
@@ -1903,45 +1942,6 @@
                 document.getElementById('importData').value = '';
                 document.getElementById('importPreview').style.display = 'none';
             }
-        }
-            const tokyoCost = parseInt(document.getElementById('costTokyo').value) || 2540;
-            const hotelCost = parseInt(document.getElementById('costHotel').value) || 12000;
-
-            // 案①：当日移動
-            // 月出社 + 水出社 + 木石岡→東京 + 仙台1泊
-            const cost1_mon = tokyoCost * 2;  // 往復
-            const cost1_wed = tokyoCost * 2;  // 往復
-            const cost1_thu = tokyoCost;      // 片道（石岡→東京）
-            const cost1_hotel = hotelCost;    // 1泊
-            const cost1_total = cost1_mon + cost1_wed + cost1_thu + cost1_hotel;
-
-            // 案②：前乗り
-            // 月出社 + 水片道 + 仙台2泊
-            const cost2_mon = tokyoCost * 2;  // 往復
-            const cost2_wed = tokyoCost;      // 片道
-            const cost2_hotel = hotelCost * 2; // 2泊
-            const cost2_total = cost2_mon + cost2_wed + cost2_hotel;
-
-            document.getElementById('costCompareResult').style.display = 'grid';
-            document.getElementById('costDiff').style.display = 'block';
-
-            document.getElementById('cost1Total').textContent = `¥${cost1_total.toLocaleString()}`;
-            document.getElementById('cost1Breakdown').innerHTML = `
-                月出社: ¥${cost1_mon.toLocaleString()}<br>
-                水出社: ¥${cost1_wed.toLocaleString()}<br>
-                木移動: ¥${cost1_thu.toLocaleString()}<br>
-                宿泊1泊: ¥${cost1_hotel.toLocaleString()}
-            `;
-
-            document.getElementById('cost2Total').textContent = `¥${cost2_total.toLocaleString()}`;
-            document.getElementById('cost2Breakdown').innerHTML = `
-                月出社: ¥${cost2_mon.toLocaleString()}<br>
-                水片道: ¥${cost2_wed.toLocaleString()}<br>
-                宿泊2泊: ¥${cost2_hotel.toLocaleString()}
-            `;
-
-            const diff = cost2_total - cost1_total;
-            document.getElementById('costDiffValue').textContent = `+¥${diff.toLocaleString()}`;
         }
     </script>
 </body>
