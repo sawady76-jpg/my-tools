@@ -608,6 +608,76 @@
             }
         }
 
+        /* ドラッグ&ドロップ */
+        .calendar-day[draggable="true"] {
+            cursor: move;
+        }
+
+        .calendar-day.dragging {
+            opacity: 0.4;
+            cursor: grabbing;
+        }
+
+        .calendar-day.drag-over {
+            border: 2px dashed var(--accent-blue);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .calendar-day.drag-over-copy {
+            border: 2px dashed var(--accent-green);
+            background: rgba(16, 185, 129, 0.1);
+        }
+
+        .calendar-day.drag-over-copy::after {
+            content: '+';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+            color: var(--accent-green);
+            font-weight: 700;
+            pointer-events: none;
+        }
+
+        /* コンテキストメニュー */
+        .context-menu {
+            display: none;
+            position: fixed;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 4px;
+            z-index: 2000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            min-width: 200px;
+        }
+
+        .context-menu.active {
+            display: block;
+        }
+
+        .context-menu-item {
+            padding: 10px 16px;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .context-menu-item:hover {
+            background: var(--bg-hover);
+        }
+
+        .context-menu-divider {
+            height: 1px;
+            background: var(--border);
+            margin: 4px 8px;
+        }
+
         /* 凡例 */
         .legend {
             display: flex;
@@ -938,11 +1008,34 @@
         </div>
     </div>
 
+    <!-- 右クリックコンテキストメニュー -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" onclick="copyToNextDay()">
+            📋 翌日にコピー
+        </div>
+        <div class="context-menu-item" onclick="copyToNextWeek()">
+            📅 翌週にコピー
+        </div>
+        <div class="context-menu-item" onclick="copyToMultipleDays()">
+            📆 複数日にコピー...
+        </div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" onclick="editFromContextMenu()">
+            ✏️ 編集
+        </div>
+        <div class="context-menu-item" onclick="deleteFromContextMenu()">
+            🗑️ 削除
+        </div>
+    </div>
+
     <script>
         // グローバル状態
         let currentYear = 2026;
         let currentMonth = 1;
         let selectedDate = null;
+        let draggedDate = null;
+        let contextMenuDate = null;
+        let isCopyMode = false;
 
         // 2026年の祝日データ
         const holidays2026 = {
@@ -1002,12 +1095,12 @@
         // イベントリスナー設定
         function setupEventListeners() {
             document.getElementById('workType').addEventListener('change', (e) => {
-                document.getElementById('tripDestGroup').style.display = 
+                document.getElementById('tripDestGroup').style.display =
                     e.target.value === 'trip' ? 'block' : 'none';
             });
 
             document.getElementById('modalWorkType').addEventListener('change', (e) => {
-                document.getElementById('modalTripDestGroup').style.display = 
+                document.getElementById('modalTripDestGroup').style.display =
                     e.target.value === 'trip' ? 'block' : 'none';
             });
 
@@ -1015,6 +1108,26 @@
             document.getElementById('dayModal').addEventListener('click', (e) => {
                 if (e.target.classList.contains('modal-overlay')) {
                     closeModal();
+                }
+            });
+
+            // コンテキストメニューを閉じる
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.context-menu')) {
+                    closeContextMenu();
+                }
+            });
+
+            // キーボードイベント（Alt/Optionキー検出）
+            document.addEventListener('keydown', (e) => {
+                if (e.altKey && draggedDate) {
+                    isCopyMode = true;
+                }
+            });
+
+            document.addEventListener('keyup', (e) => {
+                if (!e.altKey) {
+                    isCopyMode = false;
                 }
             });
         }
@@ -1112,7 +1225,32 @@
                     ${dayData ? `<span class="type-badge">${getTypeLabel(dayData.type)}</span>` : ''}
                 `;
 
-                cell.onclick = () => openDayModal(dateStr, day);
+                // ドラッグ&ドロップ設定
+                if (dayData) {
+                    cell.draggable = true;
+                    cell.addEventListener('dragstart', (e) => handleDragStart(e, dateStr));
+                    cell.addEventListener('dragend', handleDragEnd);
+                }
+
+                cell.addEventListener('dragover', handleDragOver);
+                cell.addEventListener('dragleave', handleDragLeave);
+                cell.addEventListener('drop', (e) => handleDrop(e, dateStr));
+
+                // 左クリック（編集モーダル）
+                cell.addEventListener('click', (e) => {
+                    if (e.button === 0 && !e.ctrlKey && !e.metaKey) {
+                        openDayModal(dateStr, day);
+                    }
+                });
+
+                // 右クリック（コンテキストメニュー）
+                cell.addEventListener('contextmenu', (e) => {
+                    if (dayData) {
+                        e.preventDefault();
+                        showContextMenu(e, dateStr);
+                    }
+                });
+
                 grid.appendChild(cell);
             }
         }
@@ -1443,8 +1581,216 @@
             document.getElementById('flowResult').style.display = 'none';
         }
 
+        // ドラッグ&ドロップ機能
+        function handleDragStart(e, dateStr) {
+            draggedDate = dateStr;
+            isCopyMode = e.altKey;
+            e.target.classList.add('dragging');
+            e.dataTransfer.effectAllowed = isCopyMode ? 'copy' : 'move';
+            e.dataTransfer.setData('text/plain', dateStr);
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging');
+            draggedDate = null;
+            isCopyMode = false;
+            // すべてのdrag-overクラスを削除
+            document.querySelectorAll('.drag-over, .drag-over-copy').forEach(el => {
+                el.classList.remove('drag-over', 'drag-over-copy');
+            });
+        }
+
+        function handleDragOver(e) {
+            if (!draggedDate) return;
+            e.preventDefault();
+
+            // Altキーの状態を常にチェック
+            isCopyMode = e.altKey;
+            e.dataTransfer.dropEffect = isCopyMode ? 'copy' : 'move';
+
+            const cell = e.currentTarget;
+            cell.classList.remove('drag-over', 'drag-over-copy');
+            cell.classList.add(isCopyMode ? 'drag-over-copy' : 'drag-over');
+        }
+
+        function handleDragLeave(e) {
+            const cell = e.currentTarget;
+            cell.classList.remove('drag-over', 'drag-over-copy');
+        }
+
+        function handleDrop(e, targetDateStr) {
+            e.preventDefault();
+            if (!draggedDate || draggedDate === targetDateStr) return;
+
+            const sourceData = data.workDays[draggedDate];
+            if (!sourceData) return;
+
+            if (isCopyMode || e.altKey) {
+                // コピー
+                data.workDays[targetDateStr] = { ...sourceData };
+            } else {
+                // 移動
+                data.workDays[targetDateStr] = sourceData;
+                delete data.workDays[draggedDate];
+            }
+
+            saveData();
+            renderAll();
+
+            // クリーンアップ
+            document.querySelectorAll('.drag-over, .drag-over-copy').forEach(el => {
+                el.classList.remove('drag-over', 'drag-over-copy');
+            });
+        }
+
+        // 右クリックメニュー機能
+        function showContextMenu(e, dateStr) {
+            e.preventDefault();
+            contextMenuDate = dateStr;
+
+            const menu = document.getElementById('contextMenu');
+            menu.style.left = `${e.pageX}px`;
+            menu.style.top = `${e.pageY}px`;
+            menu.classList.add('active');
+        }
+
+        function closeContextMenu() {
+            document.getElementById('contextMenu').classList.remove('active');
+            contextMenuDate = null;
+        }
+
+        function copyToNextDay() {
+            if (!contextMenuDate) return;
+
+            const sourceData = data.workDays[contextMenuDate];
+            if (!sourceData) return;
+
+            const date = new Date(contextMenuDate);
+            date.setDate(date.getDate() + 1);
+            const targetDateStr = date.toISOString().split('T')[0];
+
+            data.workDays[targetDateStr] = { ...sourceData };
+            saveData();
+            renderAll();
+            closeContextMenu();
+
+            alert(`翌日（${formatDate(targetDateStr)}）にコピーしました`);
+        }
+
+        function copyToNextWeek() {
+            if (!contextMenuDate) return;
+
+            const sourceData = data.workDays[contextMenuDate];
+            if (!sourceData) return;
+
+            const date = new Date(contextMenuDate);
+            date.setDate(date.getDate() + 7);
+            const targetDateStr = date.toISOString().split('T')[0];
+
+            data.workDays[targetDateStr] = { ...sourceData };
+            saveData();
+            renderAll();
+            closeContextMenu();
+
+            alert(`翌週（${formatDate(targetDateStr)}）にコピーしました`);
+        }
+
+        function copyToMultipleDays() {
+            if (!contextMenuDate) return;
+
+            const sourceData = data.workDays[contextMenuDate];
+            if (!sourceData) return;
+
+            const days = prompt('何日分コピーしますか？（例：5）');
+            const numDays = parseInt(days);
+
+            if (!numDays || numDays < 1 || numDays > 31) {
+                alert('1〜31の数値を入力してください');
+                return;
+            }
+
+            const startDate = new Date(contextMenuDate);
+            let copiedCount = 0;
+
+            for (let i = 1; i <= numDays; i++) {
+                const targetDate = new Date(startDate);
+                targetDate.setDate(targetDate.getDate() + i);
+                const targetDateStr = targetDate.toISOString().split('T')[0];
+
+                data.workDays[targetDateStr] = { ...sourceData };
+                copiedCount++;
+            }
+
+            saveData();
+            renderAll();
+            closeContextMenu();
+
+            alert(`${copiedCount}日分コピーしました`);
+        }
+
+        function editFromContextMenu() {
+            if (!contextMenuDate) return;
+
+            const date = new Date(contextMenuDate);
+            const day = date.getDate();
+
+            closeContextMenu();
+            openDayModal(contextMenuDate, day);
+        }
+
+        function deleteFromContextMenu() {
+            if (!contextMenuDate) return;
+
+            if (confirm('この日の勤務データを削除しますか？')) {
+                delete data.workDays[contextMenuDate];
+                saveData();
+                renderAll();
+            }
+
+            closeContextMenu();
+        }
+
         // コスト比較計算
         function calcCostCompare() {
+            const tokyoCost = parseInt(document.getElementById('costTokyo').value) || 2540;
+            const hotelCost = parseInt(document.getElementById('costHotel').value) || 12000;
+
+            // 案①：当日移動
+            // 月出社 + 水出社 + 木石岡→東京 + 仙台1泊
+            const cost1_mon = tokyoCost * 2;  // 往復
+            const cost1_wed = tokyoCost * 2;  // 往復
+            const cost1_thu = tokyoCost;      // 片道（石岡→東京）
+            const cost1_hotel = hotelCost;    // 1泊
+            const cost1_total = cost1_mon + cost1_wed + cost1_thu + cost1_hotel;
+
+            // 案②：前乗り
+            // 月出社 + 水片道 + 仙台2泊
+            const cost2_mon = tokyoCost * 2;  // 往復
+            const cost2_wed = tokyoCost;      // 片道
+            const cost2_hotel = hotelCost * 2; // 2泊
+            const cost2_total = cost2_mon + cost2_wed + cost2_hotel;
+
+            document.getElementById('costCompareResult').style.display = 'grid';
+            document.getElementById('costDiff').style.display = 'block';
+
+            document.getElementById('cost1Total').textContent = `¥${cost1_total.toLocaleString()}`;
+            document.getElementById('cost1Breakdown').innerHTML = `
+                月出社: ¥${cost1_mon.toLocaleString()}<br>
+                水出社: ¥${cost1_wed.toLocaleString()}<br>
+                木移動: ¥${cost1_thu.toLocaleString()}<br>
+                宿泊1泊: ¥${cost1_hotel.toLocaleString()}
+            `;
+
+            document.getElementById('cost2Total').textContent = `¥${cost2_total.toLocaleString()}`;
+            document.getElementById('cost2Breakdown').innerHTML = `
+                月出社: ¥${cost2_mon.toLocaleString()}<br>
+                水片道: ¥${cost2_wed.toLocaleString()}<br>
+                宿泊2泊: ¥${cost2_hotel.toLocaleString()}
+            `;
+
+            const diff = cost2_total - cost1_total;
+            document.getElementById('costDiffValue').textContent = `+¥${diff.toLocaleString()}`;
+        }
 
         // データ取り込み機能
         function importFromClipboard() {
@@ -1596,45 +1942,6 @@
                 document.getElementById('importData').value = '';
                 document.getElementById('importPreview').style.display = 'none';
             }
-        }
-            const tokyoCost = parseInt(document.getElementById('costTokyo').value) || 2540;
-            const hotelCost = parseInt(document.getElementById('costHotel').value) || 12000;
-
-            // 案①：当日移動
-            // 月出社 + 水出社 + 木石岡→東京 + 仙台1泊
-            const cost1_mon = tokyoCost * 2;  // 往復
-            const cost1_wed = tokyoCost * 2;  // 往復
-            const cost1_thu = tokyoCost;      // 片道（石岡→東京）
-            const cost1_hotel = hotelCost;    // 1泊
-            const cost1_total = cost1_mon + cost1_wed + cost1_thu + cost1_hotel;
-
-            // 案②：前乗り
-            // 月出社 + 水片道 + 仙台2泊
-            const cost2_mon = tokyoCost * 2;  // 往復
-            const cost2_wed = tokyoCost;      // 片道
-            const cost2_hotel = hotelCost * 2; // 2泊
-            const cost2_total = cost2_mon + cost2_wed + cost2_hotel;
-
-            document.getElementById('costCompareResult').style.display = 'grid';
-            document.getElementById('costDiff').style.display = 'block';
-
-            document.getElementById('cost1Total').textContent = `¥${cost1_total.toLocaleString()}`;
-            document.getElementById('cost1Breakdown').innerHTML = `
-                月出社: ¥${cost1_mon.toLocaleString()}<br>
-                水出社: ¥${cost1_wed.toLocaleString()}<br>
-                木移動: ¥${cost1_thu.toLocaleString()}<br>
-                宿泊1泊: ¥${cost1_hotel.toLocaleString()}
-            `;
-
-            document.getElementById('cost2Total').textContent = `¥${cost2_total.toLocaleString()}`;
-            document.getElementById('cost2Breakdown').innerHTML = `
-                月出社: ¥${cost2_mon.toLocaleString()}<br>
-                水片道: ¥${cost2_wed.toLocaleString()}<br>
-                宿泊2泊: ¥${cost2_hotel.toLocaleString()}
-            `;
-
-            const diff = cost2_total - cost1_total;
-            document.getElementById('costDiffValue').textContent = `+¥${diff.toLocaleString()}`;
         }
     </script>
 </body>
