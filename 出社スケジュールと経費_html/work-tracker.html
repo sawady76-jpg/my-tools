@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>勤務・出張管理ツール</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0f1419;
+            --bg-secondary: #1a1f26;
+            --bg-card: #242b33;
+            --bg-hover: #2d353f;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-orange: #f59e0b;
+            --accent-purple: #8b5cf6;
+            --accent-red: #ef4444;
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        h1::before {
+            content: '📊';
+        }
+
+        .month-selector {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .month-selector button {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            transition: all 0.2s;
+        }
+
+        .month-selector button:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-blue);
+        }
+
+        .month-selector span {
+            font-size: 1.1rem;
+            font-weight: 500;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            color: var(--text-secondary);
+        }
+
+        .tab:hover {
+            background: var(--bg-hover);
+        }
+
+        .tab.active {
+            background: var(--accent-blue);
+            border-color: var(--accent-blue);
+            color: white;
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        /* サマリーカード */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .summary-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .summary-card .label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .summary-card .value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .summary-card .unit {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-left: 4px;
+        }
+
+        .summary-card.blue .value { color: var(--accent-blue); }
+        .summary-card.green .value { color: var(--accent-green); }
+        .summary-card.orange .value { color: var(--accent-orange); }
+        .summary-card.purple .value { color: var(--accent-purple); }
+        .summary-card.red .value { color: var(--accent-red); }
+
+        /* カレンダー */
+        .calendar {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+
+        .calendar-header {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+            margin-bottom: 8px;
+        }
+
+        .calendar-header span {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            padding: 8px;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+
+        .calendar-day {
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+            position: relative;
+            min-height: 50px;
+        }
+
+        .calendar-day:hover {
+            background: var(--bg-hover);
+        }
+
+        .calendar-day.empty {
+            cursor: default;
+        }
+
+        .calendar-day.today {
+            border: 2px solid var(--accent-blue);
+        }
+
+        .calendar-day .date {
+            font-weight: 500;
+        }
+
+        .calendar-day .type-badge {
+            font-size: 0.6rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            margin-top: 2px;
+        }
+
+        .calendar-day.office { background: rgba(59, 130, 246, 0.2); }
+        .calendar-day.office .type-badge { background: var(--accent-blue); }
+
+        .calendar-day.remote { background: rgba(16, 185, 129, 0.2); }
+        .calendar-day.remote .type-badge { background: var(--accent-green); }
+
+        .calendar-day.trip { background: rgba(245, 158, 11, 0.2); }
+        .calendar-day.trip .type-badge { background: var(--accent-orange); }
+
+        .calendar-day.paid-leave { background: rgba(139, 92, 246, 0.2); }
+        .calendar-day.paid-leave .type-badge { background: var(--accent-purple); }
+
+        .calendar-day.saturday .date { color: #60a5fa; }
+        .calendar-day.sunday .date { color: #f87171; }
+        .calendar-day.holiday .date { color: #f87171; }
+        .calendar-day.holiday::after {
+            content: '祝';
+            position: absolute;
+            top: 2px;
+            right: 4px;
+            font-size: 0.5rem;
+            color: #f87171;
+        }
+
+        /* フォーム */
+        .form-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .form-section h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .form-group input,
+        .form-group select {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 12px;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+            font-family: inherit;
+        }
+
+        .btn-primary {
+            background: var(--accent-blue);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+        }
+
+        .btn-danger {
+            background: var(--accent-red);
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+
+        /* 履歴リスト */
+        .history-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .history-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .history-item:hover {
+            border-color: var(--accent-blue);
+            background: var(--bg-hover);
+        }
+
+        /* 経費テーブル */
+        .expense-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 16px;
+        }
+
+        .expense-table th,
+        .expense-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .expense-table th {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .expense-table td {
+            font-size: 0.9rem;
+        }
+
+        .expense-table .amount {
+            font-family: 'JetBrains Mono', monospace;
+            text-align: right;
+        }
+
+        .expense-table .delete-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .expense-table .delete-btn:hover {
+            color: var(--accent-red);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        /* 判断フロー */
+        .flow-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .flow-question {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+
+        .flow-options {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .flow-option {
+            padding: 12px 24px;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.95rem;
+        }
+
+        .flow-option:hover {
+            border-color: var(--accent-blue);
+        }
+
+        .flow-option.selected {
+            border-color: var(--accent-blue);
+            background: rgba(59, 130, 246, 0.1);
+        }
+
+        .flow-result {
+            margin-top: 24px;
+            padding: 20px;
+            border-radius: 12px;
+            font-size: 1rem;
+        }
+
+        .flow-result.recommend {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--accent-green);
+        }
+
+        .flow-result.not-recommend {
+            background: rgba(245, 158, 11, 0.1);
+            border: 1px solid var(--accent-orange);
+        }
+
+        .flow-result h3 {
+            font-size: 1.1rem;
+            margin-bottom: 8px;
+        }
+
+        .flow-result.recommend h3 { color: var(--accent-green); }
+        .flow-result.not-recommend h3 { color: var(--accent-orange); }
+
+        /* コスト比較 */
+        .cost-compare {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .cost-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .cost-box h4 {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 12px;
+        }
+
+        .cost-box .total {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-blue);
+        }
+
+        .cost-box .breakdown {
+            margin-top: 12px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .cost-diff {
+            text-align: center;
+            padding: 16px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            margin-top: 16px;
+        }
+
+        .cost-diff .label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .cost-diff .value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--accent-orange);
+        }
+
+        /* モーダル */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal h2 {
+            font-size: 1.1rem;
+            margin-bottom: 20px;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        /* レスポンシブ */
+        @media (max-width: 768px) {
+            .container {
+                padding: 16px;
+            }
+
+            header {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .summary-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .cost-compare {
+                grid-template-columns: 1fr;
+            }
+
+            .calendar-day {
+                font-size: 0.75rem;
+                min-height: 40px;
+            }
+
+            .calendar-day .type-badge {
+                font-size: 0.5rem;
+                padding: 1px 4px;
+            }
+        }
+
+        /* 凡例 */
+        .legend {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            font-size: 0.8rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+        }
+
+        .legend-color.office { background: var(--accent-blue); }
+        .legend-color.remote { background: var(--accent-green); }
+        .legend-color.trip { background: var(--accent-orange); }
+        .legend-color.paid-leave { background: var(--accent-purple); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>勤務・出張管理ツール</h1>
+            <div class="month-selector">
+                <button onclick="changeMonth(-1)">◀</button>
+                <span id="currentMonth">2026年1月</span>
+                <button onclick="changeMonth(1)">▶</button>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('dashboard')">📊 ダッシュボード</div>
+            <div class="tab" onclick="switchTab('input')">✏️ 勤務入力</div>
+            <div class="tab" onclick="switchTab('expense')">💰 経費入力</div>
+            <div class="tab" onclick="switchTab('flow')">🤔 前乗り判断</div>
+        </div>
+
+        <!-- ダッシュボード -->
+        <div id="dashboard" class="panel active">
+            <div class="summary-grid">
+                <div class="summary-card blue">
+                    <div class="label">勤務日数</div>
+                    <div class="value"><span id="sumWorkDays">0</span><span class="unit">日</span></div>
+                </div>
+                <div class="summary-card green">
+                    <div class="label">在宅勤務</div>
+                    <div class="value"><span id="sumRemote">0</span><span class="unit">日</span></div>
+                </div>
+                <div class="summary-card blue">
+                    <div class="label">出社</div>
+                    <div class="value"><span id="sumOffice">0</span><span class="unit">日</span></div>
+                </div>
+                <div class="summary-card orange">
+                    <div class="label">出張</div>
+                    <div class="value"><span id="sumTrip">0</span><span class="unit">日</span></div>
+                </div>
+                <div class="summary-card purple">
+                    <div class="label">有給</div>
+                    <div class="value"><span id="sumPaidLeave">0</span><span class="unit">日</span></div>
+                </div>
+                <div class="summary-card red">
+                    <div class="label">個人立替 合計</div>
+                    <div class="value">¥<span id="sumPersonal">0</span></div>
+                </div>
+                <div class="summary-card purple">
+                    <div class="label">法人カード 合計</div>
+                    <div class="value">¥<span id="sumCorporate">0</span></div>
+                </div>
+            </div>
+
+            <div class="legend">
+                <div class="legend-item"><span class="legend-color office"></span>出社</div>
+                <div class="legend-item"><span class="legend-color remote"></span>在宅</div>
+                <div class="legend-item"><span class="legend-color trip"></span>出張</div>
+                <div class="legend-item"><span class="legend-color paid-leave"></span>有給</div>
+                <div class="legend-item"><span style="color: #60a5fa;">■</span> 土曜</div>
+                <div class="legend-item"><span style="color: #f87171;">■</span> 日曜・祝日</div>
+            </div>
+
+            <div class="calendar">
+                <div class="calendar-header">
+                    <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+                </div>
+                <div id="calendarGrid" class="calendar-grid"></div>
+            </div>
+
+            <div class="form-section">
+                <h2>📝 経費明細</h2>
+                <table class="expense-table">
+                    <thead>
+                        <tr>
+                            <th>日付</th>
+                            <th>種別</th>
+                            <th>支払</th>
+                            <th>内容</th>
+                            <th class="amount">金額</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="expenseTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 勤務入力 -->
+        <div id="input" class="panel">
+            <div class="form-section">
+                <h2>📅 勤務タイプを登録</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>日付</label>
+                        <input type="date" id="workDate">
+                    </div>
+                    <div class="form-group">
+                        <label>勤務タイプ</label>
+                        <select id="workType">
+                            <option value="">選択してください</option>
+                            <option value="office">出社（京橋）</option>
+                            <option value="remote">在宅</option>
+                            <option value="trip">出張</option>
+                            <option value="paid-leave">有給</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" id="tripDestGroup" style="display: none;">
+                    <label>出張先</label>
+                    <input type="text" id="tripDest" placeholder="例：仙台">
+                </div>
+                <button class="btn btn-primary" onclick="saveWorkDay()">登録</button>
+            </div>
+        </div>
+
+        <!-- 経費入力 -->
+        <div id="expense" class="panel">
+            <!-- データ取り込み -->
+            <div class="form-section">
+                <h2>📋 データ取り込み（コピペ）</h2>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                    Googleスプレッドシートからヘッダー行を含めてコピペしてください
+                </p>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>取り込みパターン</label>
+                        <select id="importPattern">
+                            <option value="personal">① 個人立替（交通費・出張手当・宿泊費）</option>
+                            <option value="corporate">② 法人カード（交通費・交際費・宿泊費）</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>データ貼り付け</label>
+                    <textarea id="importData" rows="8" placeholder="ここにスプレッドシートのデータを貼り付け..." style="width: 100%; background: var(--bg-secondary); border: 1px solid var(--border); border-radius: 8px; padding: 12px; color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; resize: vertical;"></textarea>
+                </div>
+                <div style="display: flex; gap: 12px; align-items: center; margin-top: 12px;">
+                    <button class="btn btn-primary" onclick="importFromClipboard()">取り込み実行</button>
+                    <span id="importResult" style="font-size: 0.85rem; color: var(--text-secondary);"></span>
+                </div>
+                <div id="importPreview" style="margin-top: 16px; display: none;">
+                    <h4 style="font-size: 0.9rem; margin-bottom: 8px;">プレビュー（最初の5件）</h4>
+                    <div id="importPreviewContent" style="background: var(--bg-secondary); border-radius: 8px; padding: 12px; font-size: 0.8rem; max-height: 200px; overflow-y: auto;"></div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <h2>✏️ 手動入力</h2>
+                <details style="cursor: pointer;">
+                    <summary style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 16px;">手動で1件ずつ入力する場合はこちら</summary>
+                    
+                    <div style="margin-top: 16px;">
+                        <h3 style="font-size: 0.95rem; margin-bottom: 12px;">🚃 交通費</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>日付</label>
+                                <input type="date" id="transDate">
+                            </div>
+                            <div class="form-group">
+                                <label>ルート</label>
+                                <input type="text" id="transRoute" placeholder="例：石岡 → 東京（特急）">
+                            </div>
+                            <div class="form-group">
+                                <label>金額</label>
+                                <input type="number" id="transAmount" placeholder="例：2540">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="saveTransport()">登録</button>
+                        <div class="history-list" id="transHistory"></div>
+                    </div>
+
+                    <div style="margin-top: 24px;">
+                        <h3 style="font-size: 0.95rem; margin-bottom: 12px;">🏨 宿泊費</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>日付</label>
+                                <input type="date" id="hotelDate">
+                            </div>
+                            <div class="form-group">
+                                <label>宿泊先</label>
+                                <input type="text" id="hotelName" placeholder="例：仙台駅前ホテル">
+                            </div>
+                            <div class="form-group">
+                                <label>金額</label>
+                                <input type="number" id="hotelAmount" placeholder="例：12000">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="saveHotel()">登録</button>
+                        <div class="history-list" id="hotelHistory"></div>
+                    </div>
+
+                    <div style="margin-top: 24px;">
+                        <h3 style="font-size: 0.95rem; margin-bottom: 12px;">💼 出張手当</h3>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>日付</label>
+                                <input type="date" id="allowanceDate">
+                            </div>
+                            <div class="form-group">
+                                <label>金額（一律）</label>
+                                <input type="number" id="allowanceAmount" value="3000" readonly>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" onclick="saveAllowance()">登録</button>
+                    </div>
+                </details>
+            </div>
+        </div>
+
+        <!-- 前乗り判断フロー -->
+        <div id="flow" class="panel">
+            <div class="flow-card">
+                <h2 style="margin-bottom: 24px;">🤔 前乗りすべき？判断フロー</h2>
+                
+                <div id="flowStep1" class="flow-step">
+                    <div class="flow-question">Q1. 出張先はどこ？</div>
+                    <div class="flow-options">
+                        <div class="flow-option" onclick="selectFlow(1, 'tohoku')">東北（仙台など）</div>
+                        <div class="flow-option" onclick="selectFlow(1, 'other')">その他</div>
+                    </div>
+                </div>
+
+                <div id="flowStep2" class="flow-step" style="display: none; margin-top: 24px;">
+                    <div class="flow-question">Q2. 時期は？</div>
+                    <div class="flow-options">
+                        <div class="flow-option" onclick="selectFlow(2, 'winter')">冬季（1〜2月）</div>
+                        <div class="flow-option" onclick="selectFlow(2, 'other')">それ以外</div>
+                    </div>
+                </div>
+
+                <div id="flowStep3" class="flow-step" style="display: none; margin-top: 24px;">
+                    <div class="flow-question">Q3. その週の出社回数は？</div>
+                    <div class="flow-options">
+                        <div class="flow-option" onclick="selectFlow(3, '2plus')">2回以上</div>
+                        <div class="flow-option" onclick="selectFlow(3, '1')">1回</div>
+                        <div class="flow-option" onclick="selectFlow(3, '0')">0回</div>
+                    </div>
+                </div>
+
+                <div id="flowResult" style="display: none;"></div>
+
+                <button class="btn btn-secondary" onclick="resetFlow()" style="margin-top: 20px;">リセット</button>
+            </div>
+
+            <div class="form-section">
+                <h2>💰 コスト比較シミュレーション</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>石岡⇔東京（特急・片道）</label>
+                        <input type="number" id="costTokyo" value="2540">
+                    </div>
+                    <div class="form-group">
+                        <label>宿泊費（1泊）</label>
+                        <input type="number" id="costHotel" value="12000">
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="calcCostCompare()">計算</button>
+
+                <div class="cost-compare" id="costCompareResult" style="display: none;">
+                    <div class="cost-box">
+                        <h4>案① 当日移動</h4>
+                        <div class="total" id="cost1Total">¥0</div>
+                        <div class="breakdown" id="cost1Breakdown"></div>
+                    </div>
+                    <div class="cost-box">
+                        <h4>案② 前乗り</h4>
+                        <div class="total" id="cost2Total">¥0</div>
+                        <div class="breakdown" id="cost2Breakdown"></div>
+                    </div>
+                </div>
+                <div class="cost-diff" id="costDiff" style="display: none;">
+                    <div class="label">差額（前乗りの追加コスト）</div>
+                    <div class="value" id="costDiffValue">+¥0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日付クリック時のモーダル -->
+    <div class="modal-overlay" id="dayModal">
+        <div class="modal">
+            <h2 id="modalTitle">1月1日の編集</h2>
+            <div class="form-group">
+                <label>勤務タイプ</label>
+                <select id="modalWorkType">
+                    <option value="">未設定</option>
+                    <option value="office">出社（京橋）</option>
+                    <option value="remote">在宅</option>
+                    <option value="trip">出張</option>
+                    <option value="paid-leave">有給</option>
+                </select>
+            </div>
+            <div class="form-group" id="modalTripDestGroup" style="display: none;">
+                <label>出張先</label>
+                <input type="text" id="modalTripDest" placeholder="例：仙台">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
+                <button class="btn btn-danger" onclick="deleteWorkDay()">削除</button>
+                <button class="btn btn-primary" onclick="saveModalWorkDay()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // グローバル状態
+        let currentYear = 2026;
+        let currentMonth = 1;
+        let selectedDate = null;
+
+        // 2026年の祝日データ
+        const holidays2026 = {
+            '2026-01-01': '元日',
+            '2026-01-12': '成人の日',
+            '2026-02-11': '建国記念の日',
+            '2026-02-23': '天皇誕生日',
+            '2026-03-20': '春分の日',
+            '2026-04-29': '昭和の日',
+            '2026-05-03': '憲法記念日',
+            '2026-05-04': 'みどりの日',
+            '2026-05-05': 'こどもの日',
+            '2026-05-06': '振替休日',
+            '2026-07-20': '海の日',
+            '2026-08-11': '山の日',
+            '2026-09-21': '敬老の日',
+            '2026-09-22': '国民の休日',
+            '2026-09-23': '秋分の日',
+            '2026-10-12': 'スポーツの日',
+            '2026-11-03': '文化の日',
+            '2026-11-23': '勤労感謝の日'
+        };
+
+        // 祝日判定
+        function isHoliday(dateStr) {
+            return holidays2026[dateStr] || null;
+        }
+
+        // データ構造
+        let data = {
+            workDays: {},    // { "2026-01-15": { type: "office", dest: "" } }
+            expenses: [],    // [{ date, category, desc, amount }]
+            transHistory: [],
+            hotelHistory: []
+        };
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            renderAll();
+            setupEventListeners();
+        });
+
+        // LocalStorageからデータ読み込み
+        function loadData() {
+            const saved = localStorage.getItem('workTrackerData');
+            if (saved) {
+                data = JSON.parse(saved);
+            }
+        }
+
+        // LocalStorageにデータ保存
+        function saveData() {
+            localStorage.setItem('workTrackerData', JSON.stringify(data));
+        }
+
+        // イベントリスナー設定
+        function setupEventListeners() {
+            document.getElementById('workType').addEventListener('change', (e) => {
+                document.getElementById('tripDestGroup').style.display = 
+                    e.target.value === 'trip' ? 'block' : 'none';
+            });
+
+            document.getElementById('modalWorkType').addEventListener('change', (e) => {
+                document.getElementById('modalTripDestGroup').style.display = 
+                    e.target.value === 'trip' ? 'block' : 'none';
+            });
+
+            // モーダル外クリックで閉じる
+            document.getElementById('dayModal').addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal-overlay')) {
+                    closeModal();
+                }
+            });
+        }
+
+        // タブ切り替え
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            
+            document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        // 月変更
+        function changeMonth(delta) {
+            currentMonth += delta;
+            if (currentMonth < 1) {
+                currentMonth = 12;
+                currentYear--;
+            } else if (currentMonth > 12) {
+                currentMonth = 1;
+                currentYear++;
+            }
+            renderAll();
+        }
+
+        // 全体レンダリング
+        function renderAll() {
+            document.getElementById('currentMonth').textContent = `${currentYear}年${currentMonth}月`;
+            renderCalendar();
+            renderSummary();
+            renderExpenseTable();
+            renderHistories();
+            
+            // 日付入力のデフォルト値を今日に
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('workDate').value = today;
+            document.getElementById('transDate').value = today;
+            document.getElementById('hotelDate').value = today;
+            document.getElementById('allowanceDate').value = today;
+        }
+
+        // カレンダーレンダリング
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+
+            const firstDay = new Date(currentYear, currentMonth - 1, 1);
+            const lastDay = new Date(currentYear, currentMonth, 0);
+            const startDayOfWeek = firstDay.getDay();
+            const daysInMonth = lastDay.getDate();
+
+            const today = new Date();
+            const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+            // 空白セル
+            for (let i = 0; i < startDayOfWeek; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'calendar-day empty';
+                grid.appendChild(emptyCell);
+            }
+
+            // 日付セル
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateStr = `${currentYear}-${String(currentMonth).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                const dayData = data.workDays[dateStr];
+                const dateObj = new Date(currentYear, currentMonth - 1, day);
+                const dayOfWeek = dateObj.getDay();
+                const holidayName = isHoliday(dateStr);
+                
+                const cell = document.createElement('div');
+                cell.className = 'calendar-day';
+                
+                if (dateStr === todayStr) {
+                    cell.classList.add('today');
+                }
+                
+                // 土日祝の判定
+                if (dayOfWeek === 0) {
+                    cell.classList.add('sunday');
+                } else if (dayOfWeek === 6) {
+                    cell.classList.add('saturday');
+                }
+                if (holidayName) {
+                    cell.classList.add('holiday');
+                    cell.title = holidayName;
+                }
+                
+                if (dayData) {
+                    cell.classList.add(dayData.type);
+                }
+
+                cell.innerHTML = `
+                    <span class="date">${day}</span>
+                    ${dayData ? `<span class="type-badge">${getTypeLabel(dayData.type)}</span>` : ''}
+                `;
+
+                cell.onclick = () => openDayModal(dateStr, day);
+                grid.appendChild(cell);
+            }
+        }
+
+        // 勤務タイプのラベル取得
+        function getTypeLabel(type) {
+            const labels = {
+                'office': '出社',
+                'remote': '在宅',
+                'trip': '出張',
+                'paid-leave': '有給'
+            };
+            return labels[type] || '';
+        }
+
+        // サマリーレンダリング
+        function renderSummary() {
+            const monthPrefix = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+            
+            let counts = { office: 0, remote: 0, trip: 0, 'paid-leave': 0 };
+            
+            Object.entries(data.workDays).forEach(([date, info]) => {
+                if (date.startsWith(monthPrefix)) {
+                    counts[info.type]++;
+                }
+            });
+
+            const workDays = counts.office + counts.remote + counts.trip;
+            
+            document.getElementById('sumWorkDays').textContent = workDays;
+            document.getElementById('sumRemote').textContent = counts.remote;
+            document.getElementById('sumOffice').textContent = counts.office;
+            document.getElementById('sumTrip').textContent = counts.trip;
+            document.getElementById('sumPaidLeave').textContent = counts['paid-leave'];
+
+            // 経費合計（個人立替・法人カード別）
+            const monthExpenses = data.expenses.filter(e => e.date.startsWith(monthPrefix));
+            
+            const personalTotal = monthExpenses
+                .filter(e => e.paymentType !== '法人カード')
+                .reduce((sum, e) => sum + e.amount, 0);
+            
+            const corporateTotal = monthExpenses
+                .filter(e => e.paymentType === '法人カード')
+                .reduce((sum, e) => sum + e.amount, 0);
+            
+            document.getElementById('sumPersonal').textContent = personalTotal.toLocaleString();
+            document.getElementById('sumCorporate').textContent = corporateTotal.toLocaleString();
+        }
+
+        // 経費テーブルレンダリング
+        function renderExpenseTable() {
+            const monthPrefix = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+            const tbody = document.getElementById('expenseTableBody');
+            
+            const monthExpenses = data.expenses
+                .filter(e => e.date.startsWith(monthPrefix))
+                .sort((a, b) => a.date.localeCompare(b.date));
+
+            if (monthExpenses.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted);">経費データがありません</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = monthExpenses.map((e, i) => `
+                <tr>
+                    <td>${formatDate(e.date)}</td>
+                    <td>${getCategoryLabel(e.category)}</td>
+                    <td><span style="font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; background: ${e.paymentType === '法人カード' ? 'var(--accent-purple)' : 'var(--accent-blue)'};">${e.paymentType || '個人立替'}</span></td>
+                    <td>${e.desc}</td>
+                    <td class="amount">¥${e.amount.toLocaleString()}</td>
+                    <td><button class="delete-btn" onclick="deleteExpense(${data.expenses.indexOf(e)})">✕</button></td>
+                </tr>
+            `).join('');
+        }
+
+        // カテゴリラベル
+        function getCategoryLabel(category) {
+            const labels = {
+                'transport': '🚃 交通費',
+                'hotel': '🏨 宿泊費',
+                'allowance': '💼 出張手当',
+                'entertainment': '🍻 交際費',
+                'other': '📝 その他'
+            };
+            return labels[category] || category;
+        }
+
+        // 日付フォーマット
+        function formatDate(dateStr) {
+            const [y, m, d] = dateStr.split('-');
+            return `${parseInt(m)}/${parseInt(d)}`;
+        }
+
+        // 履歴レンダリング
+        function renderHistories() {
+            const transHistory = document.getElementById('transHistory');
+            const hotelHistory = document.getElementById('hotelHistory');
+
+            transHistory.innerHTML = data.transHistory.map(h => 
+                `<div class="history-item" onclick="fillTransport('${h.route}', ${h.amount})">${h.route} - ¥${h.amount.toLocaleString()}</div>`
+            ).join('');
+
+            hotelHistory.innerHTML = data.hotelHistory.map(h => 
+                `<div class="history-item" onclick="fillHotel('${h.name}', ${h.amount})">${h.name} - ¥${h.amount.toLocaleString()}</div>`
+            ).join('');
+        }
+
+        // 履歴から入力フィールドに反映
+        function fillTransport(route, amount) {
+            document.getElementById('transRoute').value = route;
+            document.getElementById('transAmount').value = amount;
+        }
+
+        function fillHotel(name, amount) {
+            document.getElementById('hotelName').value = name;
+            document.getElementById('hotelAmount').value = amount;
+        }
+
+        // 勤務日保存
+        function saveWorkDay() {
+            const date = document.getElementById('workDate').value;
+            const type = document.getElementById('workType').value;
+            const dest = document.getElementById('tripDest').value;
+
+            if (!date || !type) {
+                alert('日付と勤務タイプを入力してください');
+                return;
+            }
+
+            data.workDays[date] = { type, dest };
+            saveData();
+            renderAll();
+            
+            // フォームリセット
+            document.getElementById('workType').value = '';
+            document.getElementById('tripDest').value = '';
+            document.getElementById('tripDestGroup').style.display = 'none';
+
+            alert('登録しました');
+        }
+
+        // 交通費保存
+        function saveTransport() {
+            const date = document.getElementById('transDate').value;
+            const route = document.getElementById('transRoute').value;
+            const amount = parseInt(document.getElementById('transAmount').value);
+
+            if (!date || !route || !amount) {
+                alert('すべての項目を入力してください');
+                return;
+            }
+
+            data.expenses.push({ date, category: 'transport', desc: route, amount });
+            
+            // 履歴に追加（重複排除、最大10件）
+            const historyKey = `${route}-${amount}`;
+            data.transHistory = data.transHistory.filter(h => `${h.route}-${h.amount}` !== historyKey);
+            data.transHistory.unshift({ route, amount });
+            data.transHistory = data.transHistory.slice(0, 10);
+
+            saveData();
+            renderAll();
+
+            document.getElementById('transRoute').value = '';
+            document.getElementById('transAmount').value = '';
+
+            alert('登録しました');
+        }
+
+        // 宿泊費保存
+        function saveHotel() {
+            const date = document.getElementById('hotelDate').value;
+            const name = document.getElementById('hotelName').value;
+            const amount = parseInt(document.getElementById('hotelAmount').value);
+
+            if (!date || !name || !amount) {
+                alert('すべての項目を入力してください');
+                return;
+            }
+
+            data.expenses.push({ date, category: 'hotel', desc: name, amount });
+            
+            // 履歴に追加
+            const historyKey = `${name}-${amount}`;
+            data.hotelHistory = data.hotelHistory.filter(h => `${h.name}-${h.amount}` !== historyKey);
+            data.hotelHistory.unshift({ name, amount });
+            data.hotelHistory = data.hotelHistory.slice(0, 10);
+
+            saveData();
+            renderAll();
+
+            document.getElementById('hotelName').value = '';
+            document.getElementById('hotelAmount').value = '';
+
+            alert('登録しました');
+        }
+
+        // 出張手当保存
+        function saveAllowance() {
+            const date = document.getElementById('allowanceDate').value;
+            const amount = 3000;
+
+            if (!date) {
+                alert('日付を入力してください');
+                return;
+            }
+
+            data.expenses.push({ date, category: 'allowance', desc: '出張手当', amount });
+            saveData();
+            renderAll();
+
+            alert('登録しました');
+        }
+
+        // 経費削除
+        function deleteExpense(index) {
+            if (confirm('この経費を削除しますか？')) {
+                data.expenses.splice(index, 1);
+                saveData();
+                renderAll();
+            }
+        }
+
+        // モーダル操作
+        function openDayModal(dateStr, day) {
+            selectedDate = dateStr;
+            const dayData = data.workDays[dateStr];
+
+            document.getElementById('modalTitle').textContent = `${currentMonth}月${day}日の編集`;
+            document.getElementById('modalWorkType').value = dayData?.type || '';
+            document.getElementById('modalTripDest').value = dayData?.dest || '';
+            document.getElementById('modalTripDestGroup').style.display = 
+                dayData?.type === 'trip' ? 'block' : 'none';
+
+            document.getElementById('dayModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('dayModal').classList.remove('active');
+            selectedDate = null;
+        }
+
+        function saveModalWorkDay() {
+            const type = document.getElementById('modalWorkType').value;
+            const dest = document.getElementById('modalTripDest').value;
+
+            if (!type) {
+                delete data.workDays[selectedDate];
+            } else {
+                data.workDays[selectedDate] = { type, dest };
+            }
+
+            saveData();
+            renderAll();
+            closeModal();
+        }
+
+        function deleteWorkDay() {
+            if (confirm('この日の勤務データを削除しますか？')) {
+                delete data.workDays[selectedDate];
+                saveData();
+                renderAll();
+                closeModal();
+            }
+        }
+
+        // 判断フロー
+        let flowAnswers = {};
+
+        function selectFlow(step, answer) {
+            flowAnswers[step] = answer;
+            
+            // 選択状態の表示更新
+            document.querySelectorAll(`#flowStep${step} .flow-option`).forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            event.target.classList.add('selected');
+
+            // 次のステップを表示
+            if (step === 1) {
+                document.getElementById('flowStep2').style.display = 'block';
+            } else if (step === 2) {
+                document.getElementById('flowStep3').style.display = 'block';
+            } else if (step === 3) {
+                showFlowResult();
+            }
+        }
+
+        function showFlowResult() {
+            const { 1: dest, 2: season, 3: officeCount } = flowAnswers;
+            
+            let recommend = false;
+            let reason = '';
+
+            // 判断ロジック
+            if (dest === 'tohoku' && season === 'winter') {
+                recommend = true;
+                reason = '冬季の東北出張は遅延リスクが高いため、前乗りを推奨します。';
+            } else if (dest === 'tohoku' && officeCount === '2plus') {
+                recommend = true;
+                reason = '出社2回の要件を満たしており、前乗りの説明がしやすい状況です。';
+            } else if (officeCount === '2plus') {
+                recommend = true;
+                reason = '出社回数が確保できているため、前乗りしても問題ありません。';
+            } else if (dest === 'other' && season === 'other' && officeCount !== '2plus') {
+                recommend = false;
+                reason = '特段のリスク要因がないため、当日移動でも問題ないでしょう。';
+            } else {
+                recommend = false;
+                reason = '状況に応じて判断してください。追加コストと移動負荷を比較しましょう。';
+            }
+
+            const resultDiv = document.getElementById('flowResult');
+            resultDiv.style.display = 'block';
+            resultDiv.className = `flow-result ${recommend ? 'recommend' : 'not-recommend'}`;
+            resultDiv.innerHTML = `
+                <h3>${recommend ? '✅ 前乗り推奨' : '⚠️ 当日移動でOK'}</h3>
+                <p>${reason}</p>
+            `;
+        }
+
+        function resetFlow() {
+            flowAnswers = {};
+            document.querySelectorAll('.flow-option').forEach(opt => opt.classList.remove('selected'));
+            document.getElementById('flowStep2').style.display = 'none';
+            document.getElementById('flowStep3').style.display = 'none';
+            document.getElementById('flowResult').style.display = 'none';
+        }
+
+        // コスト比較計算
+        function calcCostCompare() {
+
+        // データ取り込み機能
+        function importFromClipboard() {
+            const pattern = document.getElementById('importPattern').value;
+            const rawData = document.getElementById('importData').value.trim();
+            
+            if (!rawData) {
+                alert('データを貼り付けてください');
+                return;
+            }
+
+            const lines = rawData.split('\n');
+            if (lines.length < 2) {
+                alert('ヘッダー行とデータ行が必要です');
+                return;
+            }
+
+            // ヘッダー行をパース
+            const headers = lines[0].split('\t').map(h => h.trim());
+            
+            // 必要なカラムのインデックスを取得
+            const dateIdx = headers.findIndex(h => h === '日付');
+            const categoryIdx = headers.findIndex(h => h === '費目');
+            const paymentIdx = headers.findIndex(h => h === '支払種別');
+            const descIdx = headers.findIndex(h => h === '内容・区間');
+            const amountIdx = headers.findIndex(h => h === '金額');
+
+            if (dateIdx === -1 || categoryIdx === -1 || amountIdx === -1) {
+                alert('必要なカラム（日付、費目、金額）が見つかりません');
+                return;
+            }
+
+            // フィルター条件
+            const targetPayment = pattern === 'personal' ? '個人立替' : '法人カード';
+            const targetCategories = pattern === 'personal' 
+                ? ['交通費', '出張手当', '宿泊費']
+                : ['交通費', '交際費', '宿泊費', '会議費'];
+
+            let imported = [];
+            let skipped = 0;
+
+            for (let i = 1; i < lines.length; i++) {
+                const cols = lines[i].split('\t');
+                if (cols.length < Math.max(dateIdx, categoryIdx, paymentIdx, descIdx, amountIdx) + 1) {
+                    skipped++;
+                    continue;
+                }
+
+                const payment = cols[paymentIdx]?.trim();
+                const category = cols[categoryIdx]?.trim();
+
+                // フィルター
+                if (payment !== targetPayment) {
+                    skipped++;
+                    continue;
+                }
+                if (!targetCategories.includes(category)) {
+                    skipped++;
+                    continue;
+                }
+
+                // 日付をパース（2025/11/06 or 2025/1/22 形式）
+                const dateRaw = cols[dateIdx]?.trim();
+                const dateParts = dateRaw.split('/');
+                if (dateParts.length !== 3) {
+                    skipped++;
+                    continue;
+                }
+                const year = dateParts[0];
+                const month = dateParts[1].padStart(2, '0');
+                const day = dateParts[2].padStart(2, '0');
+                const dateStr = `${year}-${month}-${day}`;
+
+                // 金額をパース
+                const amount = parseInt(cols[amountIdx]?.trim()) || 0;
+                if (amount <= 0) {
+                    skipped++;
+                    continue;
+                }
+
+                // 内容
+                const desc = cols[descIdx]?.trim() || '';
+
+                // カテゴリーをアプリ内の形式に変換
+                let appCategory;
+                if (category === '交通費') appCategory = 'transport';
+                else if (category === '宿泊費') appCategory = 'hotel';
+                else if (category === '出張手当') appCategory = 'allowance';
+                else if (category === '交際費' || category === '会議費') appCategory = 'entertainment';
+                else appCategory = 'other';
+
+                // 支払種別を追加
+                const paymentType = pattern === 'personal' ? '個人立替' : '法人カード';
+
+                imported.push({
+                    date: dateStr,
+                    category: appCategory,
+                    desc: desc,
+                    amount: amount,
+                    paymentType: paymentType
+                });
+            }
+
+            if (imported.length === 0) {
+                document.getElementById('importResult').textContent = `取り込み対象が0件でした（スキップ: ${skipped}件）`;
+                document.getElementById('importResult').style.color = 'var(--accent-orange)';
+                return;
+            }
+
+            // プレビュー表示
+            const preview = imported.slice(0, 5).map(e => 
+                `${e.date} | ${getCategoryLabel(e.category)} | ${e.desc} | ¥${e.amount.toLocaleString()}`
+            ).join('<br>');
+            
+            document.getElementById('importPreview').style.display = 'block';
+            document.getElementById('importPreviewContent').innerHTML = preview + 
+                (imported.length > 5 ? `<br>... 他 ${imported.length - 5}件` : '');
+
+            // 確認ダイアログ
+            if (confirm(`${imported.length}件のデータを取り込みます。よろしいですか？\n（スキップ: ${skipped}件）`)) {
+                // 重複チェック用のキー生成
+                const existingKeys = new Set(
+                    data.expenses.map(e => `${e.date}-${e.category}-${e.amount}-${e.desc}`)
+                );
+
+                let addedCount = 0;
+                let duplicateCount = 0;
+
+                imported.forEach(e => {
+                    const key = `${e.date}-${e.category}-${e.amount}-${e.desc}`;
+                    if (existingKeys.has(key)) {
+                        duplicateCount++;
+                    } else {
+                        data.expenses.push(e);
+                        existingKeys.add(key);
+                        addedCount++;
+                    }
+                });
+
+                saveData();
+                renderAll();
+
+                let resultMsg = `✅ ${addedCount}件を取り込みました`;
+                if (duplicateCount > 0) {
+                    resultMsg += `（重複スキップ: ${duplicateCount}件）`;
+                }
+                document.getElementById('importResult').textContent = resultMsg;
+                document.getElementById('importResult').style.color = 'var(--accent-green)';
+                document.getElementById('importData').value = '';
+                document.getElementById('importPreview').style.display = 'none';
+            }
+        }
+            const tokyoCost = parseInt(document.getElementById('costTokyo').value) || 2540;
+            const hotelCost = parseInt(document.getElementById('costHotel').value) || 12000;
+
+            // 案①：当日移動
+            // 月出社 + 水出社 + 木石岡→東京 + 仙台1泊
+            const cost1_mon = tokyoCost * 2;  // 往復
+            const cost1_wed = tokyoCost * 2;  // 往復
+            const cost1_thu = tokyoCost;      // 片道（石岡→東京）
+            const cost1_hotel = hotelCost;    // 1泊
+            const cost1_total = cost1_mon + cost1_wed + cost1_thu + cost1_hotel;
+
+            // 案②：前乗り
+            // 月出社 + 水片道 + 仙台2泊
+            const cost2_mon = tokyoCost * 2;  // 往復
+            const cost2_wed = tokyoCost;      // 片道
+            const cost2_hotel = hotelCost * 2; // 2泊
+            const cost2_total = cost2_mon + cost2_wed + cost2_hotel;
+
+            document.getElementById('costCompareResult').style.display = 'grid';
+            document.getElementById('costDiff').style.display = 'block';
+
+            document.getElementById('cost1Total').textContent = `¥${cost1_total.toLocaleString()}`;
+            document.getElementById('cost1Breakdown').innerHTML = `
+                月出社: ¥${cost1_mon.toLocaleString()}<br>
+                水出社: ¥${cost1_wed.toLocaleString()}<br>
+                木移動: ¥${cost1_thu.toLocaleString()}<br>
+                宿泊1泊: ¥${cost1_hotel.toLocaleString()}
+            `;
+
+            document.getElementById('cost2Total').textContent = `¥${cost2_total.toLocaleString()}`;
+            document.getElementById('cost2Breakdown').innerHTML = `
+                月出社: ¥${cost2_mon.toLocaleString()}<br>
+                水片道: ¥${cost2_wed.toLocaleString()}<br>
+                宿泊2泊: ¥${cost2_hotel.toLocaleString()}
+            `;
+
+            const diff = cost2_total - cost1_total;
+            document.getElementById('costDiffValue').textContent = `+¥${diff.toLocaleString()}`;
+        }
+    </script>
+</body>
+</html>
