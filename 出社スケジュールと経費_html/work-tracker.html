@@ -295,6 +295,15 @@
         .calendar-day.paid-leave-pm .type-badge { background: #a78bfa; }
         .calendar-day.paid-leave-hour { background: rgba(139, 92, 246, 0.1); }
         .calendar-day.paid-leave-hour .type-badge { background: #c4b5fd; color: #1f2937; }
+        /* 午前/午後別（split）の表示 */
+        .calendar-day.split { 
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 50%, rgba(245, 158, 11, 0.2) 50%); 
+        }
+        .calendar-day.split .type-badge.split-badge { 
+            background: linear-gradient(90deg, var(--accent-blue) 50%, var(--accent-orange) 50%);
+            font-size: 0.6rem;
+            padding: 2px 6px;
+        }
         .calendar-day.saturday .date { color: #60a5fa; }
         .calendar-day.sunday .date { color: #f87171; }
         .calendar-day.holiday .date { color: #f87171; }
@@ -1282,27 +1291,73 @@
     <div class="modal-overlay" id="dayModal">
         <div class="modal">
             <h2 id="modalTitle">1月1日の編集</h2>
-            <div class="form-group">
-                <label>勤務タイプ</label>
-                <select id="modalWorkType">
-                    <option value="">未設定</option>
-                    <option value="office">出社(京橋)</option>
-                    <option value="remote">在宅</option>
-                    <option value="trip">出張</option>
-                    <option value="paid-leave">有給（全休）</option>
-                    <option value="paid-leave-am">有給（AM休）</option>
-                    <option value="paid-leave-pm">有給（PM休）</option>
-                    <option value="paid-leave-hour">有給（時間休）</option>
-                </select>
+            
+            <!-- シンプルモード / 詳細モードの切り替え -->
+            <div style="margin-bottom: 16px;">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 0.9rem;">
+                    <input type="checkbox" id="modalDetailMode" onchange="toggleModalDetailMode()" style="width: 18px; height: 18px;">
+                    午前/午後を別々に設定する
+                </label>
             </div>
-            <div class="form-group" id="modalTripDestGroup" style="display: none;">
-                <label>出張先</label>
-                <input type="text" id="modalTripDest" placeholder="例:仙台">
+            
+            <!-- シンプルモード（従来通り） -->
+            <div id="modalSimpleMode">
+                <div class="form-group">
+                    <label>勤務タイプ</label>
+                    <select id="modalWorkType">
+                        <option value="">未設定</option>
+                        <option value="office">出社(京橋)</option>
+                        <option value="remote">在宅</option>
+                        <option value="trip">出張</option>
+                        <option value="paid-leave">有給（全休）</option>
+                        <option value="paid-leave-am">有給（AM休）</option>
+                        <option value="paid-leave-pm">有給（PM休）</option>
+                        <option value="paid-leave-hour">有給（時間休）</option>
+                    </select>
+                </div>
+                <div class="form-group" id="modalTripDestGroup" style="display: none;">
+                    <label>出張先</label>
+                    <input type="text" id="modalTripDest" placeholder="例:仙台">
+                </div>
+                <div class="form-group" id="modalHourLeaveGroup" style="display: none;">
+                    <label>時間休の時間数</label>
+                    <input type="number" id="modalHourLeave" placeholder="例:2" min="1" max="7" style="width: 80px;"> 時間
+                </div>
             </div>
-            <div class="form-group" id="modalHourLeaveGroup" style="display: none;">
-                <label>時間休の時間数</label>
-                <input type="number" id="modalHourLeave" placeholder="例:2" min="1" max="7" style="width: 80px;"> 時間
+            
+            <!-- 詳細モード（午前/午後別） -->
+            <div id="modalDetailModeSection" style="display: none;">
+                <div class="form-group">
+                    <label>🌅 午前</label>
+                    <select id="modalAmType">
+                        <option value="">未設定</option>
+                        <option value="office">出社(京橋)</option>
+                        <option value="remote">在宅</option>
+                        <option value="trip">出張</option>
+                        <option value="paid-leave-am">有給（AM休）</option>
+                    </select>
+                </div>
+                <div class="form-group" id="modalAmTripDestGroup" style="display: none;">
+                    <label>午前の出張先</label>
+                    <input type="text" id="modalAmTripDest" placeholder="例:埼玉支店">
+                </div>
+                
+                <div class="form-group" style="margin-top: 16px;">
+                    <label>🌇 午後</label>
+                    <select id="modalPmType">
+                        <option value="">未設定</option>
+                        <option value="office">出社(京橋)</option>
+                        <option value="remote">在宅</option>
+                        <option value="trip">出張</option>
+                        <option value="paid-leave-pm">有給（PM休）</option>
+                    </select>
+                </div>
+                <div class="form-group" id="modalPmTripDestGroup" style="display: none;">
+                    <label>午後の出張先</label>
+                    <input type="text" id="modalPmTripDest" placeholder="例:東京支店">
+                </div>
             </div>
+            
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
                 <button class="btn btn-danger" onclick="deleteWorkDay()">削除</button>
@@ -1466,6 +1521,30 @@
         
         // 法人カード締め期間のオフセット（0=今月16日〜翌月15日）
         let corporatePeriodOffset = 0;
+        
+        // 2025年の祝日データ
+        const holidays2025 = {
+            '2025-01-01': '元日',
+            '2025-01-13': '成人の日',
+            '2025-02-11': '建国記念の日',
+            '2025-02-23': '天皇誕生日',
+            '2025-02-24': '振替休日',
+            '2025-03-20': '春分の日',
+            '2025-04-29': '昭和の日',
+            '2025-05-03': '憲法記念日',
+            '2025-05-04': 'みどりの日',
+            '2025-05-05': 'こどもの日',
+            '2025-05-06': '振替休日',
+            '2025-07-21': '海の日',
+            '2025-08-11': '山の日',
+            '2025-09-15': '敬老の日',
+            '2025-09-23': '秋分の日',
+            '2025-10-13': 'スポーツの日',
+            '2025-11-03': '文化の日',
+            '2025-11-23': '勤労感謝の日',
+            '2025-11-24': '振替休日'
+        };
+        
         // 2026年の祝日データ
         const holidays2026 = {
             '2026-01-01': '元日',
@@ -1487,9 +1566,10 @@
             '2026-11-03': '文化の日',
             '2026-11-23': '勤労感謝の日'
         };
+        
         // 祝日判定
         function isHoliday(dateStr) {
-            return holidays2026[dateStr] || null;
+            return holidays2025[dateStr] || holidays2026[dateStr] || null;
         }
         // データ構造
         let data = {
@@ -1658,6 +1738,9 @@
                 document.getElementById('modalHourLeaveGroup').style.display =
                     val === 'paid-leave-hour' ? 'block' : 'none';
             });
+            // 午前/午後の出張先表示切り替え
+            document.getElementById('modalAmType').addEventListener('change', updateAmPmTripDestVisibility);
+            document.getElementById('modalPmType').addEventListener('change', updateAmPmTripDestVisibility);
             // モーダル外クリックで閉じる
             document.getElementById('dayModal').addEventListener('click', (e) => {
                 if (e.target.classList.contains('modal-overlay')) {
@@ -1777,7 +1860,11 @@
                 }
                 
                 if (dayData) {
-                    cell.classList.add(dayData.type);
+                    if (dayData.type === 'split') {
+                        cell.classList.add('split');
+                    } else {
+                        cell.classList.add(dayData.type);
+                    }
                 }
                 
                 // この日のイベントを取得
@@ -1786,10 +1873,37 @@
                     ? `<span class="event-badge" title="${dayEvents.map(e => e.name).join(', ')}">${dayEvents[0].name.substring(0, 6)}${dayEvents.length > 1 ? '...' : ''}</span>`
                     : '';
                 
+                // 表示内容を生成
+                let badgeHtml = '';
+                let destHtml = '';
+                
+                if (dayData) {
+                    if (dayData.type === 'split') {
+                        // 午前/午後別表示
+                        const amLabel = dayData.amType ? getTypeLabel(dayData.amType) : '';
+                        const pmLabel = dayData.pmType ? getTypeLabel(dayData.pmType) : '';
+                        badgeHtml = `<span class="type-badge split-badge">${amLabel}/${pmLabel}</span>`;
+                        
+                        // 出張先があれば表示
+                        const dests = [];
+                        if (dayData.amDest) dests.push(dayData.amDest);
+                        if (dayData.pmDest) dests.push(dayData.pmDest);
+                        if (dests.length > 0) {
+                            destHtml = `<span class="dest-label">${dests.join('→')}</span>`;
+                        }
+                    } else {
+                        // 従来の表示
+                        badgeHtml = `<span class="type-badge">${getTypeLabel(dayData.type)}${dayData.type === 'paid-leave-hour' && dayData.hours ? `(${dayData.hours}h)` : ''}</span>`;
+                        if (dayData.dest) {
+                            destHtml = `<span class="dest-label">${dayData.dest}</span>`;
+                        }
+                    }
+                }
+                
                 cell.innerHTML = `
                     <span class="date">${day}</span>
-                    ${dayData ? `<span class="type-badge">${getTypeLabel(dayData.type)}${dayData.type === 'paid-leave-hour' && dayData.hours ? `(${dayData.hours}h)` : ''}</span>` : ''}
-                    ${dayData && dayData.dest ? `<span class="dest-label">${dayData.dest}</span>` : ''}
+                    ${badgeHtml}
+                    ${destHtml}
                     ${eventHtml}
                 `;
                 // ドラッグ&ドロップ設定
@@ -1843,10 +1957,23 @@
             
             Object.entries(data.workDays).forEach(([date, info]) => {
                 if (date.startsWith(monthPrefix)) {
-                    if (info.type === 'office') counts.office++;
-                    else if (info.type === 'remote') counts.remote++;
-                    else if (info.type === 'trip') counts.trip++;
-                    else if (isPaidLeaveType(info.type)) counts.paidLeave++;
+                    if (info.type === 'split') {
+                        // 午前/午後別の場合、各タイプを0.5日としてカウント
+                        if (info.amType === 'office') counts.office += 0.5;
+                        else if (info.amType === 'remote') counts.remote += 0.5;
+                        else if (info.amType === 'trip') counts.trip += 0.5;
+                        else if (isPaidLeaveType(info.amType)) counts.paidLeave += 0.5;
+                        
+                        if (info.pmType === 'office') counts.office += 0.5;
+                        else if (info.pmType === 'remote') counts.remote += 0.5;
+                        else if (info.pmType === 'trip') counts.trip += 0.5;
+                        else if (isPaidLeaveType(info.pmType)) counts.paidLeave += 0.5;
+                    } else {
+                        if (info.type === 'office') counts.office++;
+                        else if (info.type === 'remote') counts.remote++;
+                        else if (info.type === 'trip') counts.trip++;
+                        else if (isPaidLeaveType(info.type)) counts.paidLeave++;
+                    }
                 }
             });
             const workDays = counts.office + counts.remote + counts.trip;
@@ -2233,39 +2360,102 @@
             selectedDate = dateStr;
             const dayData = data.workDays[dateStr];
             document.getElementById('modalTitle').textContent = `${currentMonth}月${day}日の編集`;
-            document.getElementById('modalWorkType').value = dayData?.type || '';
-            document.getElementById('modalTripDest').value = dayData?.dest || '';
-            document.getElementById('modalHourLeave').value = dayData?.hours || '';
-            document.getElementById('modalTripDestGroup').style.display = 
-                dayData?.type === 'trip' ? 'block' : 'none';
-            document.getElementById('modalHourLeaveGroup').style.display = 
-                dayData?.type === 'paid-leave-hour' ? 'block' : 'none';
+            
+            // 詳細モード（午前/午後別）かどうかを判定
+            const isDetailMode = dayData?.amType || dayData?.pmType;
+            document.getElementById('modalDetailMode').checked = isDetailMode;
+            toggleModalDetailMode();
+            
+            if (isDetailMode) {
+                // 詳細モードの値をセット
+                document.getElementById('modalAmType').value = dayData?.amType || '';
+                document.getElementById('modalAmTripDest').value = dayData?.amDest || '';
+                document.getElementById('modalPmType').value = dayData?.pmType || '';
+                document.getElementById('modalPmTripDest').value = dayData?.pmDest || '';
+                updateAmPmTripDestVisibility();
+            } else {
+                // シンプルモードの値をセット
+                document.getElementById('modalWorkType').value = dayData?.type || '';
+                document.getElementById('modalTripDest').value = dayData?.dest || '';
+                document.getElementById('modalHourLeave').value = dayData?.hours || '';
+                document.getElementById('modalTripDestGroup').style.display = 
+                    dayData?.type === 'trip' ? 'block' : 'none';
+                document.getElementById('modalHourLeaveGroup').style.display = 
+                    dayData?.type === 'paid-leave-hour' ? 'block' : 'none';
+            }
+            
             document.getElementById('dayModal').classList.add('active');
         }
+        
+        function toggleModalDetailMode() {
+            const isDetail = document.getElementById('modalDetailMode').checked;
+            document.getElementById('modalSimpleMode').style.display = isDetail ? 'none' : 'block';
+            document.getElementById('modalDetailModeSection').style.display = isDetail ? 'block' : 'none';
+        }
+        
+        function updateAmPmTripDestVisibility() {
+            document.getElementById('modalAmTripDestGroup').style.display = 
+                document.getElementById('modalAmType').value === 'trip' ? 'block' : 'none';
+            document.getElementById('modalPmTripDestGroup').style.display = 
+                document.getElementById('modalPmType').value === 'trip' ? 'block' : 'none';
+        }
+        
         function closeModal() {
             document.getElementById('dayModal').classList.remove('active');
             selectedDate = null;
         }
+        
         function saveModalWorkDay() {
-            const type = document.getElementById('modalWorkType').value;
-            const dest = document.getElementById('modalTripDest').value;
-            const hours = document.getElementById('modalHourLeave').value;
-            if (!type) {
-                delete data.workDays[selectedDate];
+            const isDetailMode = document.getElementById('modalDetailMode').checked;
+            
+            if (isDetailMode) {
+                // 詳細モード（午前/午後別）
+                const amType = document.getElementById('modalAmType').value;
+                const amDest = document.getElementById('modalAmTripDest').value;
+                const pmType = document.getElementById('modalPmType').value;
+                const pmDest = document.getElementById('modalPmTripDest').value;
+                
+                if (!amType && !pmType) {
+                    delete data.workDays[selectedDate];
+                } else {
+                    const workDayData = { 
+                        type: 'split',  // 分割勤務を示すフラグ
+                        amType: amType || '',
+                        pmType: pmType || ''
+                    };
+                    if (amType === 'trip' && amDest) {
+                        workDayData.amDest = amDest;
+                    }
+                    if (pmType === 'trip' && pmDest) {
+                        workDayData.pmDest = pmDest;
+                    }
+                    data.workDays[selectedDate] = workDayData;
+                }
             } else {
-                const workDayData = { type };
-                if (type === 'trip' && dest) {
-                    workDayData.dest = dest;
+                // シンプルモード
+                const type = document.getElementById('modalWorkType').value;
+                const dest = document.getElementById('modalTripDest').value;
+                const hours = document.getElementById('modalHourLeave').value;
+                
+                if (!type) {
+                    delete data.workDays[selectedDate];
+                } else {
+                    const workDayData = { type };
+                    if (type === 'trip' && dest) {
+                        workDayData.dest = dest;
+                    }
+                    if (type === 'paid-leave-hour' && hours) {
+                        workDayData.hours = parseInt(hours);
+                    }
+                    data.workDays[selectedDate] = workDayData;
                 }
-                if (type === 'paid-leave-hour' && hours) {
-                    workDayData.hours = parseInt(hours);
-                }
-                data.workDays[selectedDate] = workDayData;
             }
+            
             saveData();
             renderAll();
             closeModal();
         }
+        
         function deleteWorkDay() {
             if (confirm('この日の勤務データを削除しますか?')) {
                 delete data.workDays[selectedDate];
