@@ -692,6 +692,68 @@
         .legend-color.remote { background: var(--accent-green); }
         .legend-color.trip { background: var(--accent-orange); }
         .legend-color.paid-leave { background: var(--accent-purple); }
+        
+        /* 法人カード締め期間セクション */
+        .corporate-card-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+        .corporate-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 12px;
+        }
+        .period-nav-btn {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .period-nav-btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-purple);
+        }
+        .period-info {
+            text-align: center;
+            min-width: 150px;
+        }
+        .period-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+        .period-range {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--accent-purple);
+        }
+        .corporate-card-amount {
+            text-align: center;
+        }
+        .corporate-card-amount .amount-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-purple);
+        }
+        .corporate-card-amount .amount-count {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-left: 8px;
+        }
     </style>
 </head>
 <body>
@@ -738,9 +800,21 @@
                     <div class="label">個人立替 合計</div>
                     <div class="value">¥<span id="sumPersonal">0</span></div>
                 </div>
-                <div class="summary-card purple">
-                    <div class="label">法人カード 合計</div>
-                    <div class="value">¥<span id="sumCorporate">0</span></div>
+            </div>
+            
+            <!-- 法人カード締め期間別表示 -->
+            <div class="corporate-card-section">
+                <div class="corporate-card-header">
+                    <button class="period-nav-btn" onclick="changeCorporatePeriod(-1)">◀</button>
+                    <div class="period-info">
+                        <div class="period-label">💳 法人カード</div>
+                        <div class="period-range" id="corporatePeriodRange">1/16 〜 2/15</div>
+                    </div>
+                    <button class="period-nav-btn" onclick="changeCorporatePeriod(1)">▶</button>
+                </div>
+                <div class="corporate-card-amount">
+                    <span class="amount-value">¥<span id="sumCorporatePeriod">0</span></span>
+                    <span class="amount-count">（<span id="sumCorporateCount">0</span>件）</span>
                 </div>
             </div>
             <div class="legend">
@@ -1358,6 +1432,9 @@
             event: { key: 'date', order: 'asc' },
             hotel: { key: 'checkin', order: 'desc' }
         };
+        
+        // 法人カード締め期間のオフセット（0=今月16日〜翌月15日）
+        let corporatePeriodOffset = 0;
         // 2026年の祝日データ
         const holidays2026 = {
             '2026-01-01': '元日',
@@ -1629,19 +1706,65 @@
             document.getElementById('sumOffice').textContent = counts.office;
             document.getElementById('sumTrip').textContent = counts.trip;
             document.getElementById('sumPaidLeave').textContent = counts.paidLeave;
-            // 経費合計(個人立替・法人カード別)
+            // 経費合計(個人立替)
             const monthExpenses = data.expenses.filter(e => e.date.startsWith(monthPrefix));
             
             const personalTotal = monthExpenses
                 .filter(e => e.paymentType !== '法人カード')
                 .reduce((sum, e) => sum + e.amount, 0);
             
-            const corporateTotal = monthExpenses
-                .filter(e => e.paymentType === '法人カード')
-                .reduce((sum, e) => sum + e.amount, 0);
-            
             document.getElementById('sumPersonal').textContent = personalTotal.toLocaleString();
-            document.getElementById('sumCorporate').textContent = corporateTotal.toLocaleString();
+            
+            // 法人カード締め期間別表示を更新
+            renderCorporatePeriod();
+        }
+        
+        // 法人カード締め期間別表示
+        function renderCorporatePeriod() {
+            // 締め期間を計算（オフセット付き）
+            let targetYear = currentYear;
+            let targetMonth = currentMonth + corporatePeriodOffset;
+            
+            // 月の調整
+            while (targetMonth > 12) {
+                targetMonth -= 12;
+                targetYear++;
+            }
+            while (targetMonth < 1) {
+                targetMonth += 12;
+                targetYear--;
+            }
+            
+            // 開始日: 当月16日
+            const startDate = `${targetYear}-${String(targetMonth).padStart(2, '0')}-16`;
+            
+            // 終了日: 翌月15日
+            let endMonth = targetMonth + 1;
+            let endYear = targetYear;
+            if (endMonth > 12) {
+                endMonth = 1;
+                endYear++;
+            }
+            const endDate = `${endYear}-${String(endMonth).padStart(2, '0')}-15`;
+            
+            // 期間ラベル
+            const periodLabel = `${targetMonth}/16 〜 ${endMonth}/15`;
+            document.getElementById('corporatePeriodRange').textContent = periodLabel;
+            
+            // 法人カードの経費を集計
+            const corporateExpenses = data.expenses.filter(e => {
+                return e.paymentType === '法人カード' && e.date >= startDate && e.date <= endDate;
+            });
+            
+            const total = corporateExpenses.reduce((sum, e) => sum + e.amount, 0);
+            document.getElementById('sumCorporatePeriod').textContent = total.toLocaleString();
+            document.getElementById('sumCorporateCount').textContent = corporateExpenses.length;
+        }
+        
+        // 法人カード締め期間を変更
+        function changeCorporatePeriod(delta) {
+            corporatePeriodOffset += delta;
+            renderCorporatePeriod();
         }
         // 経費テーブルレンダリング（締め日対応版）
         function renderExpenseTable() {
