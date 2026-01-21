@@ -82,6 +82,31 @@
             min-width: 120px;
             text-align: center;
         }
+        /* 同期ステータス */
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .sync-status:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-blue);
+        }
+        .sync-status .spinning {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
         .tabs {
             display: flex;
             gap: 8px;
@@ -760,10 +785,16 @@
     <div class="container">
         <header>
             <h1>勤務・出張管理ツール</h1>
-            <div class="month-selector">
-                <button onclick="changeMonth(-1)">◀</button>
-                <span id="currentMonth">2026年1月</span>
-                <button onclick="changeMonth(1)">▶</button>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <div id="syncStatus" class="sync-status" onclick="manualSync()" title="クリックで手動同期">
+                    <span id="syncIcon">☁️</span>
+                    <span id="syncText">接続中...</span>
+                </div>
+                <div class="month-selector">
+                    <button onclick="changeMonth(-1)">◀</button>
+                    <span id="currentMonth">2026年1月</span>
+                    <button onclick="changeMonth(1)">▶</button>
+                </div>
             </div>
         </header>
         <div class="tabs">
@@ -1475,12 +1506,20 @@
             renderAll();
             setupEventListeners();
         });
-        // LocalStorageからデータ読み込み
+        
+        // Google Apps Script APIのURL
+        const GAS_URL = 'https://script.google.com/macros/s/AKfycbyXPUu9Azv4YwU-N0YLaEuaNv9MvorQKDzn6TvkdGzCnGba_v_A1gNcj-2K8qU05vdaxA/exec';
+        
+        // 同期状態
+        let isSyncing = false;
+        let lastSyncTime = null;
+        
+        // データ読み込み（ローカル → クラウドの順）
         function loadData() {
+            // まずローカルから読み込み
             const saved = localStorage.getItem('workTrackerData');
             if (saved) {
                 const loaded = JSON.parse(saved);
-                // 既存データに新しいプロパティを追加（後方互換性）
                 data = {
                     workDays: loaded.workDays || {},
                     expenses: loaded.expenses || [],
@@ -1490,10 +1529,121 @@
                     hotelStays: loaded.hotelStays || []
                 };
             }
+            // クラウドからも読み込み（非同期）
+            loadFromCloud();
         }
-        // LocalStorageにデータ保存
+        
+        // クラウドからデータ読み込み
+        async function loadFromCloud() {
+            try {
+                updateSyncStatus('syncing', '同期中...');
+                const response = await fetch(`${GAS_URL}?action=load`);
+                const result = await response.json();
+                
+                if (result.success && result.data && result.data !== '{}') {
+                    const cloudData = JSON.parse(result.data);
+                    
+                    // クラウドデータをマージ（クラウドを優先）
+                    data = {
+                        workDays: cloudData.workDays || data.workDays || {},
+                        expenses: cloudData.expenses || data.expenses || [],
+                        transHistory: cloudData.transHistory || data.transHistory || [],
+                        hotelHistory: cloudData.hotelHistory || data.hotelHistory || [],
+                        events: cloudData.events || data.events || [],
+                        hotelStays: cloudData.hotelStays || data.hotelStays || []
+                    };
+                    
+                    // ローカルにも保存
+                    localStorage.setItem('workTrackerData', JSON.stringify(data));
+                    renderAll();
+                    lastSyncTime = new Date();
+                    updateSyncStatus('success', '同期完了');
+                } else {
+                    // クラウドにデータがない場合、ローカルをアップロード
+                    if (localStorage.getItem('workTrackerData')) {
+                        await saveToCloud();
+                    }
+                    updateSyncStatus('success', '同期完了');
+                }
+            } catch (error) {
+                console.error('Cloud load error:', error);
+                updateSyncStatus('error', 'オフラインモード');
+            }
+        }
+        
+        // データ保存（ローカル＆クラウド）
         function saveData() {
+            // ローカルに保存
             localStorage.setItem('workTrackerData', JSON.stringify(data));
+            // クラウドにも保存（デバウンス）
+            debouncedSaveToCloud();
+        }
+        
+        // クラウドへ保存（デバウンス用）
+        let saveTimeout = null;
+        function debouncedSaveToCloud() {
+            if (saveTimeout) clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => {
+                saveToCloud();
+            }, 2000); // 2秒後に保存
+        }
+        
+        // クラウドへデータ保存
+        async function saveToCloud() {
+            if (isSyncing) return;
+            isSyncing = true;
+            
+            try {
+                updateSyncStatus('syncing', '保存中...');
+                const formData = new URLSearchParams();
+                formData.append('action', 'save');
+                formData.append('data', JSON.stringify(data));
+                
+                const response = await fetch(GAS_URL, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    lastSyncTime = new Date();
+                    updateSyncStatus('success', '保存完了');
+                } else {
+                    updateSyncStatus('error', '保存失敗');
+                }
+            } catch (error) {
+                console.error('Cloud save error:', error);
+                updateSyncStatus('error', '保存失敗');
+            } finally {
+                isSyncing = false;
+            }
+        }
+        
+        // 手動同期
+        async function manualSync() {
+            await loadFromCloud();
+        }
+        
+        // 同期ステータス表示更新
+        function updateSyncStatus(status, message) {
+            const statusEl = document.getElementById('syncStatus');
+            const iconEl = document.getElementById('syncIcon');
+            const textEl = document.getElementById('syncText');
+            
+            if (!statusEl) return;
+            
+            textEl.textContent = message;
+            
+            if (status === 'syncing') {
+                iconEl.textContent = '🔄';
+                iconEl.classList.add('spinning');
+            } else if (status === 'success') {
+                iconEl.textContent = '☁️';
+                iconEl.classList.remove('spinning');
+            } else if (status === 'error') {
+                iconEl.textContent = '⚠️';
+                iconEl.classList.remove('spinning');
+            }
         }
         // イベントリスナー設定
         function setupEventListeners() {
