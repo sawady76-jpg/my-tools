@@ -1,14 +1,99 @@
-// ===== CRM Application - Main JavaScript =====
+/**
+ * @fileoverview Customer Relationship Management (CRM) Application
+ *
+ * A comprehensive CRM system for managing customer data and interaction history.
+ * Features include customer CRUD operations, contact history tracking,
+ * advanced filtering, search functionality, and dashboard analytics.
+ *
+ * Data is persisted in browser localStorage with keys:
+ * - 'crm_customers': Array of customer objects
+ * - 'crm_history': Array of history/interaction objects
+ *
+ * @author CRM Development Team
+ * @version 1.0.0
+ */
 
-// ===== Data Management =====
+/**
+ * @typedef {Object} Customer
+ * @property {string} id - Unique identifier for the customer
+ * @property {string} name - Customer's full name
+ * @property {string} nameKana - Customer's name in katakana (フリガナ)
+ * @property {string} companyName - Company name
+ * @property {string} department - Department name
+ * @property {string} position - Job position/title
+ * @property {string} phone - Primary phone number
+ * @property {string} mobile - Mobile phone number
+ * @property {string} email - Email address
+ * @property {string} address - Full address
+ * @property {('active'|'pending'|'inactive')} status - Customer status
+ * @property {('S'|'A'|'B'|'C')} rank - Customer rank/priority
+ * @property {string} notes - Additional notes about the customer
+ * @property {string} createdAt - ISO 8601 timestamp of creation
+ * @property {string} updatedAt - ISO 8601 timestamp of last update
+ */
+
+/**
+ * @typedef {Object} History
+ * @property {string} id - Unique identifier for the history record
+ * @property {string} customerId - ID of the associated customer
+ * @property {string} date - ISO 8601 timestamp of the interaction
+ * @property {('phone'|'email'|'visit'|'meeting'|'other')} type - Type of interaction
+ * @property {string} subject - Brief subject/title of the interaction
+ * @property {string} content - Detailed content of the interaction
+ * @property {string} result - Results or next actions from the interaction
+ * @property {string} createdAt - ISO 8601 timestamp of record creation
+ */
+
+/**
+ * Main CRM Application Class
+ *
+ * Manages all customer relationship data, UI interactions, and business logic.
+ * Implements a single-page application with multiple views (dashboard, customers, history).
+ * All data operations are performed in-memory and persisted to localStorage.
+ *
+ * @class
+ * @example
+ * // Application is automatically initialized on DOMContentLoaded
+ * document.addEventListener('DOMContentLoaded', () => {
+ *     window.crmApp = new CRMApp();
+ * });
+ */
 class CRMApp {
+    /**
+     * Initializes the CRM application with default state
+     *
+     * @constructor
+     */
     constructor() {
+        /**
+         * Array of all customer records
+         * @type {Customer[]}
+         */
         this.customers = [];
+
+        /**
+         * Array of all interaction history records
+         * @type {History[]}
+         */
         this.history = [];
+
+        /**
+         * ID of the currently selected/viewed customer
+         * @type {string|null}
+         */
         this.currentCustomerId = null;
+
         this.init();
     }
 
+    /**
+     * Initializes the application by loading data and setting up the UI
+     *
+     * Called automatically by the constructor. Loads data from localStorage,
+     * binds all event listeners, and renders all views with initial data.
+     *
+     * @private
+     */
     init() {
         this.loadData();
         this.bindEvents();
@@ -19,10 +104,20 @@ class CRMApp {
     }
 
     // ===== LocalStorage =====
+
+    /**
+     * Loads customer and history data from browser localStorage
+     *
+     * Attempts to load persisted data from localStorage keys 'crm_customers'
+     * and 'crm_history'. If data exists, it's parsed and loaded into memory.
+     * If no data exists, arrays remain empty.
+     *
+     * @private
+     */
     loadData() {
         const savedCustomers = localStorage.getItem('crm_customers');
         const savedHistory = localStorage.getItem('crm_history');
-        
+
         if (savedCustomers) {
             this.customers = JSON.parse(savedCustomers);
         }
@@ -31,12 +126,29 @@ class CRMApp {
         }
     }
 
+    /**
+     * Persists current customer and history data to browser localStorage
+     *
+     * Serializes current in-memory data and saves to localStorage.
+     * Called after any data modification operation (create, update, delete).
+     *
+     * @private
+     */
     saveData() {
         localStorage.setItem('crm_customers', JSON.stringify(this.customers));
         localStorage.setItem('crm_history', JSON.stringify(this.history));
     }
 
     // ===== Event Bindings =====
+
+    /**
+     * Binds all event listeners for UI interactions
+     *
+     * Sets up event listeners for navigation, search, modal controls,
+     * form submissions, and filter changes. Called once during initialization.
+     *
+     * @private
+     */
     bindEvents() {
         // Navigation
         document.querySelectorAll('.nav-item').forEach(item => {
@@ -149,6 +261,16 @@ class CRMApp {
     }
 
     // ===== Navigation =====
+
+    /**
+     * Switches between different views (dashboard, customers, history)
+     *
+     * Updates navigation item and view active states based on the selected view.
+     * Only one view is visible at a time.
+     *
+     * @param {string} viewName - Name of the view to display ('dashboard', 'customers', 'history')
+     * @private
+     */
     switchView(viewName) {
         document.querySelectorAll('.nav-item').forEach(item => {
             item.classList.toggle('active', item.dataset.view === viewName);
@@ -159,9 +281,20 @@ class CRMApp {
     }
 
     // ===== Search =====
+
+    /**
+     * Handles global search functionality across different views
+     *
+     * Applies search query to the currently active view. Search is performed
+     * on relevant fields depending on the view (customer names, emails, phone
+     * numbers for customers view; subjects, content for history view).
+     *
+     * @param {string} query - Search query string (case-insensitive)
+     * @private
+     */
     handleSearch(query) {
         const currentView = document.querySelector('.view.active').id;
-        
+
         if (currentView === 'customersView') {
             this.renderCustomersTable(query);
         } else if (currentView === 'historyView') {
@@ -170,29 +303,58 @@ class CRMApp {
     }
 
     // ===== Dashboard =====
+
+    /**
+     * Updates dashboard statistics counters
+     *
+     * Calculates and displays various metrics including:
+     * - Total customer count
+     * - Active customer count
+     * - Total history records
+     * - Monthly history count (current month)
+     * - Today's activity count
+     *
+     * @private
+     */
     updateStats() {
         document.getElementById('totalCustomers').textContent = this.customers.length;
-        document.getElementById('activeCustomers').textContent = 
+        document.getElementById('activeCustomers').textContent =
             this.customers.filter(c => c.status === 'active').length;
         document.getElementById('totalHistory').textContent = this.history.length;
-        
+
         // Monthly history
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-        document.getElementById('monthlyHistory').textContent = 
+        document.getElementById('monthlyHistory').textContent =
             this.history.filter(h => new Date(h.date) >= monthStart).length;
-        
+
         // Today's count
         const today = new Date().toDateString();
-        document.getElementById('todayCount').textContent = 
+        document.getElementById('todayCount').textContent =
             this.history.filter(h => new Date(h.date).toDateString() === today).length;
     }
 
+    /**
+     * Renders the complete dashboard view
+     *
+     * Triggers rendering of recent customers and recent history sections.
+     *
+     * @private
+     */
     renderDashboard() {
         this.renderRecentCustomers();
         this.renderRecentHistory();
     }
 
+    /**
+     * Renders the list of 5 most recently created customers
+     *
+     * Displays customer cards sorted by creation date (newest first).
+     * Shows customer name, company, and creation date. Clicking a card
+     * opens the customer detail modal. Displays empty state if no customers exist.
+     *
+     * @private
+     */
     renderRecentCustomers() {
         const container = document.getElementById('recentCustomers');
         const recent = [...this.customers]
@@ -226,6 +388,15 @@ class CRMApp {
         });
     }
 
+    /**
+     * Renders the list of 5 most recent interaction history records
+     *
+     * Displays history cards sorted by interaction date (newest first).
+     * Shows interaction subject, customer name, and timestamp. Clicking a card
+     * opens the customer detail modal. Displays empty state if no history exists.
+     *
+     * @private
+     */
     renderRecentHistory() {
         const container = document.getElementById('recentHistory');
         const recent = [...this.history]
@@ -265,6 +436,21 @@ class CRMApp {
     }
 
     // ===== Customers Table =====
+
+    /**
+     * Renders the customers table with filtering and sorting
+     *
+     * Displays all customers in a table format with support for:
+     * - Text search across name, company, phone, and email fields
+     * - Status filtering (active/pending/inactive)
+     * - Rank filtering (S/A/B/C)
+     * - Sorting by newest, oldest, name, or company
+     *
+     * Each row is clickable to open customer details.
+     *
+     * @param {string} [searchQuery=''] - Optional search query to filter customers
+     * @private
+     */
     renderCustomersTable(searchQuery = '') {
         const tbody = document.getElementById('customersTableBody');
         const emptyState = document.getElementById('customersEmptyState');
@@ -362,6 +548,22 @@ class CRMApp {
     }
 
     // ===== History List =====
+
+    /**
+     * Renders the interaction history list with filtering
+     *
+     * Displays all interaction history records with support for:
+     * - Text search across subject, content, and customer name
+     * - Type filtering (phone/email/visit/meeting/other)
+     * - Period filtering (today/week/month/all)
+     * - Always sorted by date (newest first)
+     *
+     * History items show type badge, customer name, subject, and truncated content.
+     * Customer names are clickable to open customer details.
+     *
+     * @param {string} [searchQuery=''] - Optional search query to filter history
+     * @private
+     */
     renderHistoryList(searchQuery = '') {
         const container = document.getElementById('historyList');
         const emptyState = document.getElementById('historyEmptyState');
@@ -448,6 +650,16 @@ class CRMApp {
     }
 
     // ===== Customer Modal =====
+
+    /**
+     * Opens the customer form modal for creating or editing a customer
+     *
+     * If a customer object is provided, the form is populated for editing.
+     * If no customer is provided, an empty form is shown for creating a new customer.
+     *
+     * @param {Customer|null} [customer=null] - Customer to edit, or null to create new
+     * @public
+     */
     openCustomerModal(customer = null) {
         const modal = document.getElementById('customerModal');
         const title = document.getElementById('customerModalTitle');
@@ -478,10 +690,24 @@ class CRMApp {
         modal.classList.add('active');
     }
 
+    /**
+     * Closes the customer form modal
+     *
+     * @private
+     */
     closeCustomerModal() {
         document.getElementById('customerModal').classList.remove('active');
     }
 
+    /**
+     * Saves customer data from the form (create or update)
+     *
+     * Reads form values, creates/updates the customer record, persists to localStorage,
+     * and refreshes all relevant views. Shows a success toast notification.
+     * Preserves createdAt timestamp for updates.
+     *
+     * @private
+     */
     saveCustomer() {
         const id = document.getElementById('customerId').value;
         const customerData = {
@@ -526,6 +752,17 @@ class CRMApp {
     }
 
     // ===== Customer Detail Modal =====
+
+    /**
+     * Opens the customer detail modal showing full customer information
+     *
+     * Displays comprehensive customer information in a tabbed modal with:
+     * - Info tab: All customer fields and metadata
+     * - History tab: All interaction history for this customer
+     *
+     * @param {string} customerId - ID of the customer to display
+     * @public
+     */
     openCustomerDetail(customerId) {
         const customer = this.customers.find(c => c.id === customerId);
         if (!customer) return;
@@ -605,11 +842,24 @@ class CRMApp {
         modal.classList.add('active');
     }
 
+    /**
+     * Closes the customer detail modal
+     *
+     * Clears the currently selected customer ID.
+     *
+     * @private
+     */
     closeDetailModal() {
         document.getElementById('customerDetailModal').classList.remove('active');
         this.currentCustomerId = null;
     }
 
+    /**
+     * Switches between tabs in the customer detail modal
+     *
+     * @param {string} tabName - Tab name to activate ('info' or 'customerHistory')
+     * @private
+     */
     switchDetailTab(tabName) {
         document.querySelectorAll('.detail-tabs .tab-btn').forEach(btn => {
             btn.classList.toggle('active', btn.dataset.tab === tabName);
@@ -618,6 +868,15 @@ class CRMApp {
         document.getElementById('customerHistoryTab').classList.toggle('active', tabName === 'customerHistory');
     }
 
+    /**
+     * Renders interaction history for a specific customer
+     *
+     * Displays all history records associated with the customer, sorted by date (newest first).
+     * Each history item includes edit and delete buttons. Shows empty state if no history exists.
+     *
+     * @param {string} customerId - ID of the customer whose history to display
+     * @private
+     */
     renderCustomerHistory(customerId) {
         const container = document.getElementById('customerHistoryList');
         const customerHistory = this.history
@@ -676,6 +935,13 @@ class CRMApp {
         });
     }
 
+    /**
+     * Initiates editing of the currently viewed customer
+     *
+     * Closes the detail modal and opens the edit form modal with customer data.
+     *
+     * @private
+     */
     editCurrentCustomer() {
         const customer = this.customers.find(c => c.id === this.currentCustomerId);
         if (customer) {
@@ -684,6 +950,11 @@ class CRMApp {
         }
     }
 
+    /**
+     * Shows confirmation dialog for deleting the currently viewed customer
+     *
+     * @private
+     */
     confirmDeleteCustomer() {
         const customer = this.customers.find(c => c.id === this.currentCustomerId);
         if (!customer) return;
@@ -697,6 +968,15 @@ class CRMApp {
         );
     }
 
+    /**
+     * Deletes a customer and all associated history records
+     *
+     * Removes the customer and all interaction history, persists changes,
+     * closes modals, refreshes views, and shows success notification.
+     *
+     * @param {string} customerId - ID of the customer to delete
+     * @private
+     */
     deleteCustomer(customerId) {
         this.customers = this.customers.filter(c => c.id !== customerId);
         this.history = this.history.filter(h => h.customerId !== customerId);
@@ -711,6 +991,16 @@ class CRMApp {
     }
 
     // ===== History Modal =====
+
+    /**
+     * Opens the history form modal for creating or editing an interaction record
+     *
+     * If historyData is provided, the form is populated for editing.
+     * If not provided, an empty form is shown with the current customer pre-selected.
+     *
+     * @param {History|null} [historyData=null] - History record to edit, or null to create new
+     * @public
+     */
     openHistoryModal(historyData = null) {
         const modal = document.getElementById('historyModal');
         const title = document.getElementById('historyModalTitle');
@@ -737,10 +1027,23 @@ class CRMApp {
         modal.classList.add('active');
     }
 
+    /**
+     * Closes the history form modal
+     *
+     * @private
+     */
     closeHistoryModal() {
         document.getElementById('historyModal').classList.remove('active');
     }
 
+    /**
+     * Saves history data from the form (create or update)
+     *
+     * Reads form values, creates/updates the history record, persists to localStorage,
+     * and refreshes all relevant views. Shows a success toast notification.
+     *
+     * @private
+     */
     saveHistory() {
         const id = document.getElementById('historyId').value;
         const historyData = {
@@ -776,6 +1079,14 @@ class CRMApp {
         }
     }
 
+    /**
+     * Initiates editing of a history record
+     *
+     * Opens the history form modal populated with the history data.
+     *
+     * @param {string} historyId - ID of the history record to edit
+     * @private
+     */
     editHistory(historyId) {
         const historyData = this.history.find(h => h.id === historyId);
         if (historyData) {
@@ -783,6 +1094,12 @@ class CRMApp {
         }
     }
 
+    /**
+     * Shows confirmation dialog for deleting a history record
+     *
+     * @param {string} historyId - ID of the history record to delete
+     * @private
+     */
     confirmDeleteHistory(historyId) {
         this.showConfirmDialog(
             '履歴を削除',
@@ -793,6 +1110,15 @@ class CRMApp {
         );
     }
 
+    /**
+     * Deletes a history record
+     *
+     * Removes the history record, persists changes, closes modal,
+     * refreshes views, and shows success notification.
+     *
+     * @param {string} historyId - ID of the history record to delete
+     * @private
+     */
     deleteHistory(historyId) {
         this.history = this.history.filter(h => h.id !== historyId);
         this.saveData();
@@ -809,25 +1135,56 @@ class CRMApp {
     }
 
     // ===== Confirm Dialog =====
+
+    /**
+     * Shows a confirmation dialog with custom title and message
+     *
+     * Displays a modal dialog with confirm and cancel buttons.
+     * The onConfirm callback is executed when the user confirms.
+     *
+     * @param {string} title - Dialog title
+     * @param {string} message - Confirmation message to display
+     * @param {Function} onConfirm - Callback function to execute on confirmation
+     * @private
+     */
     showConfirmDialog(title, message, onConfirm) {
         const modal = document.getElementById('confirmModal');
         document.getElementById('confirmTitle').textContent = title;
         document.getElementById('confirmMessage').textContent = message;
-        
+
         const confirmBtn = document.getElementById('confirmOk');
         const newConfirmBtn = confirmBtn.cloneNode(true);
         confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-        
+
         newConfirmBtn.addEventListener('click', onConfirm);
-        
+
         modal.classList.add('active');
     }
 
+    /**
+     * Closes the confirmation dialog
+     *
+     * @private
+     */
     closeConfirmModal() {
         document.getElementById('confirmModal').classList.remove('active');
     }
 
     // ===== Toast Notifications =====
+
+    /**
+     * Displays a temporary toast notification
+     *
+     * Shows a notification message that auto-dismisses after 3 seconds.
+     * Supports three types: success (green), error (red), and info (blue).
+     *
+     * @param {string} message - Message to display in the toast
+     * @param {('success'|'error'|'info')} [type='info'] - Toast type/style
+     * @private
+     * @example
+     * this.showToast('Customer saved successfully', 'success');
+     * this.showToast('An error occurred', 'error');
+     */
     showToast(message, type = 'info') {
         const container = document.getElementById('toastContainer');
         const toast = document.createElement('div');
@@ -854,15 +1211,54 @@ class CRMApp {
     }
 
     // ===== Utility Functions =====
+
+    /**
+     * Generates a unique ID for new records
+     *
+     * Creates a unique identifier using current timestamp and random string.
+     * Format: 'id_<timestamp>_<random>'
+     *
+     * @returns {string} Unique ID string
+     * @private
+     * @example
+     * // Returns something like: 'id_1640000000000_a1b2c3d4e'
+     * const id = this.generateId();
+     */
     generateId() {
         return 'id_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
     }
 
+    /**
+     * Extracts initials from a name for avatar display
+     *
+     * Returns the first character of the name in uppercase.
+     * Returns '?' if name is empty or undefined.
+     *
+     * @param {string} name - Full name to extract initials from
+     * @returns {string} First character in uppercase, or '?'
+     * @private
+     * @example
+     * this.getInitials('田中太郎'); // Returns '田'
+     * this.getInitials('John Smith'); // Returns 'J'
+     */
     getInitials(name) {
         if (!name) return '?';
         return name.charAt(0).toUpperCase();
     }
 
+    /**
+     * Escapes HTML special characters to prevent XSS attacks
+     *
+     * Converts HTML special characters to their entity equivalents.
+     * Uses browser's built-in text node escaping for security.
+     *
+     * @param {string} text - Text to escape
+     * @returns {string} HTML-escaped text
+     * @private
+     * @example
+     * this.escapeHtml('<script>alert("xss")</script>');
+     * // Returns '&lt;script&gt;alert("xss")&lt;/script&gt;'
+     */
     escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
@@ -870,6 +1266,16 @@ class CRMApp {
         return div.innerHTML;
     }
 
+    /**
+     * Formats an ISO date string to Japanese locale date format
+     *
+     * @param {string} dateString - ISO 8601 date string
+     * @returns {string} Formatted date (e.g., '2024年1月15日')
+     * @private
+     * @example
+     * this.formatDate('2024-01-15T10:30:00.000Z');
+     * // Returns '2024年1月15日'
+     */
     formatDate(dateString) {
         const date = new Date(dateString);
         return date.toLocaleDateString('ja-JP', {
@@ -879,6 +1285,16 @@ class CRMApp {
         });
     }
 
+    /**
+     * Formats an ISO date string to Japanese locale datetime format
+     *
+     * @param {string} dateString - ISO 8601 date string
+     * @returns {string} Formatted datetime (e.g., '2024年1月15日 10:30')
+     * @private
+     * @example
+     * this.formatDateTime('2024-01-15T10:30:00.000Z');
+     * // Returns '2024年1月15日 10:30'
+     */
     formatDateTime(dateString) {
         const date = new Date(dateString);
         return date.toLocaleDateString('ja-JP', {
@@ -890,6 +1306,19 @@ class CRMApp {
         });
     }
 
+    /**
+     * Formats an ISO date string to HTML datetime-local input format
+     *
+     * Converts ISO 8601 string to format required by HTML datetime-local inputs.
+     * Format: 'YYYY-MM-DDTHH:mm'
+     *
+     * @param {string} dateString - ISO 8601 date string
+     * @returns {string} Datetime in HTML5 datetime-local format
+     * @private
+     * @example
+     * this.formatDateTimeLocal('2024-01-15T10:30:00.000Z');
+     * // Returns '2024-01-15T10:30'
+     */
     formatDateTimeLocal(dateString) {
         const date = new Date(dateString);
         return date.getFullYear() + '-' +
@@ -899,6 +1328,13 @@ class CRMApp {
             String(date.getMinutes()).padStart(2, '0');
     }
 
+    /**
+     * Converts customer status code to Japanese label
+     *
+     * @param {string} status - Status code ('active', 'pending', 'inactive')
+     * @returns {string} Japanese status label
+     * @private
+     */
     getStatusLabel(status) {
         const labels = {
             active: 'アクティブ',
@@ -908,6 +1344,13 @@ class CRMApp {
         return labels[status] || status;
     }
 
+    /**
+     * Converts interaction type code to Japanese label
+     *
+     * @param {string} type - Type code ('phone', 'email', 'visit', 'meeting', 'other')
+     * @returns {string} Japanese type label
+     * @private
+     */
     getTypeLabel(type) {
         const labels = {
             phone: '電話',
@@ -919,6 +1362,13 @@ class CRMApp {
         return labels[type] || type;
     }
 
+    /**
+     * Gets emoji icon for interaction type
+     *
+     * @param {string} type - Type code ('phone', 'email', 'visit', 'meeting', 'other')
+     * @returns {string} Emoji icon representing the type
+     * @private
+     */
     getTypeIcon(type) {
         const icons = {
             phone: '📞',
@@ -931,7 +1381,12 @@ class CRMApp {
     }
 }
 
-// Initialize the app
+/**
+ * Application Initialization
+ *
+ * Automatically initializes the CRM application when the DOM is fully loaded.
+ * Creates a global instance accessible via window.crmApp for debugging purposes.
+ */
 document.addEventListener('DOMContentLoaded', () => {
     window.crmApp = new CRMApp();
 });
