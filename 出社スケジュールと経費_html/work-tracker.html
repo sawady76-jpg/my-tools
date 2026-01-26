@@ -788,6 +788,137 @@
             color: var(--text-secondary);
             margin-left: 8px;
         }
+        /* グラフ用CSS */
+        .chart-container {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            gap: 8px;
+            height: 200px;
+            padding: 10px 0;
+        }
+        .bar-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        .bar-stack {
+            width: 100%;
+            display: flex;
+            flex-direction: column-reverse;
+            max-width: 40px;
+        }
+        .bar-segment {
+            width: 100%;
+            min-height: 2px;
+            transition: height 0.3s;
+        }
+        .bar-segment.office { background: var(--accent-blue); }
+        .bar-segment.remote { background: var(--accent-green); }
+        .bar-segment.trip { background: var(--accent-orange); }
+        .bar-segment.paidLeave { background: var(--accent-purple); }
+        .bar-segment.transport { background: #3b82f6; }
+        .bar-segment.hotel { background: #f59e0b; }
+        .bar-segment.allowance { background: #10b981; }
+        .bar-segment.entertainment { background: #8b5cf6; }
+        .bar-segment.other { background: #6b7280; }
+        .bar-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+        .bar-value {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+        /* 円グラフ風の表示 */
+        .pie-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .pie-legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+        }
+        .pie-legend-label {
+            flex: 1;
+            font-size: 0.9rem;
+        }
+        .pie-legend-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+        }
+        .pie-legend-percent {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            width: 50px;
+            text-align: right;
+        }
+        /* ランキング */
+        .ranking-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+        .ranking-rank {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+        }
+        .ranking-rank.gold { background: #fbbf24; color: #1f2937; }
+        .ranking-rank.silver { background: #9ca3af; color: #1f2937; }
+        .ranking-rank.bronze { background: #d97706; color: white; }
+        .ranking-rank.normal { background: var(--bg-card); color: var(--text-secondary); }
+        .ranking-dest { flex: 1; font-size: 0.95rem; }
+        .ranking-count { font-weight: 600; color: var(--accent-orange); }
+        /* テンプレート */
+        .template-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        .template-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .template-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        .template-days {
+            display: flex;
+            gap: 4px;
+            flex-wrap: wrap;
+        }
+        .template-day-badge {
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: var(--bg-card);
+        }
     </style>
 </head>
 <body>
@@ -812,7 +943,8 @@
             <div class="tab" onclick="switchTab('expense')">💰 経費入力</div>
             <div class="tab" onclick="switchTab('events')">📅 会社イベント</div>
             <div class="tab" onclick="switchTab('hotels')">🏨 宿泊履歴</div>
-            <div class="tab" onclick="switchTab('flow')">🤔 前乗り判断</div>
+            <div class="tab" onclick="switchTab('annual')">📈 年間サマリー</div>
+            <div class="tab" onclick="switchTab('settings')">⚙️ 設定</div>
         </div>
         <div id="dashboard" class="panel active">
             <div class="summary-grid">
@@ -1042,35 +1174,171 @@
                 </details>
             </div>
         </div>
-        <div id="flow" class="panel">
-            <div class="flow-card">
-                <h2 style="margin-bottom: 24px;">🤔 前乗りすべき?判断フロー</h2>
+        </div>
+
+        <!-- 年間サマリーパネル -->
+        <div id="annual" class="panel">
+            <div class="form-section">
+                <h2>📈 年間サマリー</h2>
+                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+                    <button class="btn btn-secondary" onclick="changeAnnualYear(-1)">◀</button>
+                    <span id="annualYear" style="font-size: 1.2rem; font-weight: 600;">2026年</span>
+                    <button class="btn btn-secondary" onclick="changeAnnualYear(1)">▶</button>
+                </div>
                 
-                <div id="flowStep1" class="flow-step">
-                    <div class="flow-question">Q1. 出張先はどこ?</div>
-                    <div class="flow-options">
-                        <div class="flow-option" onclick="selectFlow(1, 'tohoku')">東北(仙台など)</div>
-                        <div class="flow-option" onclick="selectFlow(1, 'other')">その他</div>
+                <!-- 年間集計カード -->
+                <div class="summary-grid" style="margin-bottom: 24px;">
+                    <div class="summary-card blue">
+                        <div class="label">年間勤務日数</div>
+                        <div class="value"><span id="annualWorkDays">0</span><span class="unit">日</span></div>
+                    </div>
+                    <div class="summary-card orange">
+                        <div class="label">年間出張日数</div>
+                        <div class="value"><span id="annualTripDays">0</span><span class="unit">日</span></div>
+                    </div>
+                    <div class="summary-card purple">
+                        <div class="label">有給消化</div>
+                        <div class="value"><span id="annualPaidLeave">0</span><span class="unit">日</span></div>
+                    </div>
+                    <div class="summary-card red">
+                        <div class="label">年間経費合計</div>
+                        <div class="value">¥<span id="annualExpense">0</span></div>
                     </div>
                 </div>
-                <div id="flowStep2" class="flow-step" style="display: none; margin-top: 24px;">
-                    <div class="flow-question">Q2. 時期は?</div>
-                    <div class="flow-options">
-                        <div class="flow-option" onclick="selectFlow(2, 'winter')">冬季(1〜2月)</div>
-                        <div class="flow-option" onclick="selectFlow(2, 'other')">それ以外</div>
-                    </div>
+                
+                <!-- 月別勤務グラフ -->
+                <h3 style="font-size: 0.95rem; margin-bottom: 12px;">📊 月別勤務日数</h3>
+                <div id="monthlyWorkChart" class="chart-container"></div>
+                
+                <!-- 月別経費グラフ -->
+                <h3 style="font-size: 0.95rem; margin: 24px 0 12px;">💰 月別経費</h3>
+                <div id="monthlyExpenseChart" class="chart-container"></div>
+                
+                <!-- 経費カテゴリ別グラフ -->
+                <h3 style="font-size: 0.95rem; margin: 24px 0 12px;">📦 経費カテゴリ別内訳</h3>
+                <div id="categoryChart" class="chart-container" style="display: flex; gap: 24px; flex-wrap: wrap;">
+                    <div id="categoryPieChart" style="flex: 1; min-width: 200px;"></div>
+                    <div id="categoryLegend" style="flex: 1; min-width: 200px;"></div>
                 </div>
-                <div id="flowStep3" class="flow-step" style="display: none; margin-top: 24px;">
-                    <div class="flow-question">Q3. その週の出社回数は?</div>
-                    <div class="flow-options">
-                        <div class="flow-option" onclick="selectFlow(3, '2plus')">2回以上</div>
-                        <div class="flow-option" onclick="selectFlow(3, '1')">1回</div>
-                        <div class="flow-option" onclick="selectFlow(3, '0')">0回</div>
-                    </div>
-                </div>
-                <div id="flowResult" style="display: none;"></div>
-                <button class="btn btn-secondary" onclick="resetFlow()" style="margin-top: 20px;">リセット</button>
+                
+                <!-- 出張先ランキング -->
+                <h3 style="font-size: 0.95rem; margin: 24px 0 12px;">🏆 出張先ランキング</h3>
+                <div id="tripRanking"></div>
             </div>
+        </div>
+
+        <!-- 設定パネル -->
+        <div id="settings" class="panel">
+            <!-- テンプレート機能 -->
+            <div class="form-section">
+                <h2>📋 テンプレート機能</h2>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                    よく使う勤務パターンを保存して、ワンタップで登録できます。
+                </p>
+                
+                <details>
+                    <summary style="cursor: pointer; color: var(--accent-blue); font-size: 0.9rem; margin-bottom: 12px;">＋ 新しいテンプレートを作成</summary>
+                    <div style="margin-top: 12px; padding: 16px; background: var(--bg-secondary); border-radius: 8px;">
+                        <div class="form-group">
+                            <label>テンプレート名</label>
+                            <input type="text" id="templateName" placeholder="例：仙台出張2泊3日">
+                        </div>
+                        <div class="form-group">
+                            <label>日数</label>
+                            <input type="number" id="templateDays" value="1" min="1" max="14" style="width: 80px;">
+                        </div>
+                        <div id="templateDayInputs"></div>
+                        <button class="btn btn-secondary" onclick="generateTemplateDayInputs()" style="margin: 12px 0;">入力欄を生成</button>
+                        <button class="btn btn-primary" onclick="saveTemplate()">テンプレートを保存</button>
+                    </div>
+                </details>
+                
+                <h3 style="font-size: 0.9rem; margin: 20px 0 12px;">保存済みテンプレート</h3>
+                <div id="templateList"></div>
+            </div>
+
+            <!-- 定期スケジュール -->
+            <div class="form-section">
+                <h2>🔁 定期スケジュール登録</h2>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 16px;">
+                    「毎週水曜は在宅」などのパターンを一括登録できます。
+                </p>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>曜日</label>
+                        <select id="recurringDayOfWeek">
+                            <option value="1">毎週 月曜</option>
+                            <option value="2">毎週 火曜</option>
+                            <option value="3">毎週 水曜</option>
+                            <option value="4">毎週 木曜</option>
+                            <option value="5">毎週 金曜</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>勤務タイプ</label>
+                        <select id="recurringWorkType">
+                            <option value="office">出社(京橋)</option>
+                            <option value="remote">在宅</option>
+                            <option value="trip">出張</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group" id="recurringTripDestGroup" style="display: none;">
+                    <label>出張先</label>
+                    <input type="text" id="recurringTripDest" placeholder="例：埼玉支店">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>開始日</label>
+                        <input type="date" id="recurringStartDate">
+                    </div>
+                    <div class="form-group">
+                        <label>終了日</label>
+                        <input type="date" id="recurringEndDate">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="recurringSkipHolidays" checked style="width: 18px; height: 18px;">
+                        祝日はスキップする
+                    </label>
+                </div>
+                <button class="btn btn-primary" onclick="applyRecurringSchedule()">一括登録</button>
+            </div>
+            
+            <!-- 前乗り判断（移動） -->
+            <div class="form-section">
+                <h2>🤔 前乗り判断フロー</h2>
+                <div class="flow-card" style="background: transparent; border: none; padding: 0;">
+                    <div id="flowStep1" class="flow-step">
+                        <div class="flow-question">Q1. 出張先はどこ?</div>
+                        <div class="flow-options">
+                            <div class="flow-option" onclick="selectFlow(1, 'tohoku')">東北(仙台など)</div>
+                            <div class="flow-option" onclick="selectFlow(1, 'other')">その他</div>
+                        </div>
+                    </div>
+                    <div id="flowStep2" class="flow-step" style="display: none; margin-top: 24px;">
+                        <div class="flow-question">Q2. 時期は?</div>
+                        <div class="flow-options">
+                            <div class="flow-option" onclick="selectFlow(2, 'winter')">冬季(1〜2月)</div>
+                            <div class="flow-option" onclick="selectFlow(2, 'other')">それ以外</div>
+                        </div>
+                    </div>
+                    <div id="flowStep3" class="flow-step" style="display: none; margin-top: 24px;">
+                        <div class="flow-question">Q3. その週の出社回数は?</div>
+                        <div class="flow-options">
+                            <div class="flow-option" onclick="selectFlow(3, '2plus')">2回以上</div>
+                            <div class="flow-option" onclick="selectFlow(3, '1')">1回</div>
+                            <div class="flow-option" onclick="selectFlow(3, '0')">0回</div>
+                        </div>
+                    </div>
+                    <div id="flowResult" style="display: none;"></div>
+                    <button class="btn btn-secondary" onclick="resetFlow()" style="margin-top: 20px;">リセット</button>
+                </div>
+            </div>
+            
+            <!-- コスト比較 -->
             <div class="form-section">
                 <h2>💰 コスト比較シミュレーション</h2>
                 <div class="form-row">
@@ -1358,10 +1626,51 @@
                 </div>
             </div>
             
+            <!-- コピー・複製機能（データがある場合のみ表示） -->
+            <div id="modalCopySection" style="display: none; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border);">
+                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">📋 コピー・複製</div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <button class="btn btn-secondary" onclick="copyToNextDay()" style="font-size: 0.8rem; padding: 8px 12px;">
+                        ➡️ 翌日にコピー
+                    </button>
+                    <button class="btn btn-secondary" onclick="copyToPrevDay()" style="font-size: 0.8rem; padding: 8px 12px;">
+                        ⬅️ 前日にコピー
+                    </button>
+                    <button class="btn btn-secondary" onclick="openCopyToDateModal()" style="font-size: 0.8rem; padding: 8px 12px;">
+                        📅 日付を指定
+                    </button>
+                </div>
+            </div>
+            
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="closeModal()">キャンセル</button>
                 <button class="btn btn-danger" onclick="deleteWorkDay()">削除</button>
                 <button class="btn btn-primary" onclick="saveModalWorkDay()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 日付指定コピーモーダル -->
+    <div class="modal-overlay" id="copyToDateModal">
+        <div class="modal" style="max-width: 400px;">
+            <h2>📅 日付を指定してコピー</h2>
+            <div class="form-group">
+                <label>コピー先の日付</label>
+                <input type="date" id="copyTargetDate">
+            </div>
+            <div class="form-group">
+                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <input type="checkbox" id="copyMultipleDays" onchange="toggleCopyEndDate()" style="width: 18px; height: 18px;">
+                    複数日にコピー
+                </label>
+            </div>
+            <div class="form-group" id="copyEndDateGroup" style="display: none;">
+                <label>終了日</label>
+                <input type="date" id="copyEndDate">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeCopyToDateModal()">キャンセル</button>
+                <button class="btn btn-primary" onclick="executeCopyToDate()">コピー実行</button>
             </div>
         </div>
     </div>
@@ -1578,8 +1887,12 @@
             transHistory: [],
             hotelHistory: [],
             events: [],      // [{ date, type, name, location, memo }]
-            hotelStays: []   // [{ checkin, checkout, name, area, price, rating, memo }]
+            hotelStays: [],  // [{ checkin, checkout, name, area, price, rating, memo }]
+            templates: []    // [{ name, days: [{ type, dest }] }]
         };
+        
+        // 年間サマリー用の年
+        let annualYear = 2026;
         // 初期化
         document.addEventListener('DOMContentLoaded', () => {
             loadData();
@@ -1606,7 +1919,8 @@
                     transHistory: loaded.transHistory || [],
                     hotelHistory: loaded.hotelHistory || [],
                     events: loaded.events || [],
-                    hotelStays: loaded.hotelStays || []
+                    hotelStays: loaded.hotelStays || [],
+                    templates: loaded.templates || []
                 };
             }
             // クラウドからも読み込み（非同期）
@@ -1630,7 +1944,8 @@
                         transHistory: cloudData.transHistory || data.transHistory || [],
                         hotelHistory: cloudData.hotelHistory || data.hotelHistory || [],
                         events: cloudData.events || data.events || [],
-                        hotelStays: cloudData.hotelStays || data.hotelStays || []
+                        hotelStays: cloudData.hotelStays || data.hotelStays || [],
+                        templates: cloudData.templates || data.templates || []
                     };
                     
                     // ローカルにも保存
@@ -1759,6 +2074,12 @@
                     closeEventDetailModal();
                 }
             });
+            // 日付指定コピーモーダル外クリックで閉じる
+            document.getElementById('copyToDateModal').addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal-overlay')) {
+                    closeCopyToDateModal();
+                }
+            });
             // コンテキストメニューを閉じる
             document.addEventListener('click', (e) => {
                 if (!e.target.closest('.context-menu')) {
@@ -1776,6 +2097,11 @@
                     isCopyMode = false;
                 }
             });
+            // 定期スケジュールの出張先表示切り替え
+            document.getElementById('recurringWorkType').addEventListener('change', (e) => {
+                document.getElementById('recurringTripDestGroup').style.display =
+                    e.target.value === 'trip' ? 'block' : 'none';
+            });
         }
         // タブ切り替え
         function switchTab(tabId) {
@@ -1784,6 +2110,19 @@
             
             document.querySelector(`.tab[onclick="switchTab('${tabId}')"]`).classList.add('active');
             document.getElementById(tabId).classList.add('active');
+            
+            // 特定のタブで追加の描画
+            if (tabId === 'annual') {
+                renderAnnualSummary();
+            } else if (tabId === 'settings') {
+                renderTemplateList();
+                // 定期スケジュールのデフォルト日付を設定
+                const today = new Date();
+                const threeMonthsLater = new Date(today);
+                threeMonthsLater.setMonth(threeMonthsLater.getMonth() + 3);
+                document.getElementById('recurringStartDate').value = toDateStr(today);
+                document.getElementById('recurringEndDate').value = toDateStr(threeMonthsLater);
+            }
         }
         // 月変更
         function changeMonth(delta) {
@@ -2384,6 +2723,9 @@
                     dayData?.type === 'paid-leave-hour' ? 'block' : 'none';
             }
             
+            // コピーセクションの表示/非表示（データがある場合のみ表示）
+            document.getElementById('modalCopySection').style.display = dayData ? 'block' : 'none';
+            
             document.getElementById('dayModal').classList.add('active');
         }
         
@@ -2462,6 +2804,115 @@
                 saveData();
                 renderAll();
                 closeModal();
+            }
+        }
+        
+        // ===== コピー機能 =====
+        
+        // 翌日にコピー
+        function copyToNextDay() {
+            const dayData = data.workDays[selectedDate];
+            if (!dayData) return;
+            
+            const currentDate = new Date(selectedDate);
+            currentDate.setDate(currentDate.getDate() + 1);
+            const nextDateStr = toDateStr(currentDate);
+            
+            data.workDays[nextDateStr] = JSON.parse(JSON.stringify(dayData));
+            saveData();
+            renderAll();
+            closeModal();
+            alert('翌日にコピーしました');
+        }
+        
+        // 前日にコピー
+        function copyToPrevDay() {
+            const dayData = data.workDays[selectedDate];
+            if (!dayData) return;
+            
+            const currentDate = new Date(selectedDate);
+            currentDate.setDate(currentDate.getDate() - 1);
+            const prevDateStr = toDateStr(currentDate);
+            
+            data.workDays[prevDateStr] = JSON.parse(JSON.stringify(dayData));
+            saveData();
+            renderAll();
+            closeModal();
+            alert('前日にコピーしました');
+        }
+        
+        // 日付指定コピーモーダルを開く
+        function openCopyToDateModal() {
+            // 翌日をデフォルト値に
+            const currentDate = new Date(selectedDate);
+            currentDate.setDate(currentDate.getDate() + 1);
+            document.getElementById('copyTargetDate').value = toDateStr(currentDate);
+            document.getElementById('copyEndDate').value = '';
+            document.getElementById('copyMultipleDays').checked = false;
+            document.getElementById('copyEndDateGroup').style.display = 'none';
+            
+            document.getElementById('copyToDateModal').classList.add('active');
+        }
+        
+        // 日付指定コピーモーダルを閉じる
+        function closeCopyToDateModal() {
+            document.getElementById('copyToDateModal').classList.remove('active');
+        }
+        
+        // 複数日コピーの終了日表示切り替え
+        function toggleCopyEndDate() {
+            const isMultiple = document.getElementById('copyMultipleDays').checked;
+            document.getElementById('copyEndDateGroup').style.display = isMultiple ? 'block' : 'none';
+        }
+        
+        // 日付指定コピー実行
+        function executeCopyToDate() {
+            const dayData = data.workDays[selectedDate];
+            if (!dayData) return;
+            
+            const targetDate = document.getElementById('copyTargetDate').value;
+            if (!targetDate) {
+                alert('コピー先の日付を入力してください');
+                return;
+            }
+            
+            const isMultiple = document.getElementById('copyMultipleDays').checked;
+            
+            if (isMultiple) {
+                const endDate = document.getElementById('copyEndDate').value;
+                if (!endDate) {
+                    alert('終了日を入力してください');
+                    return;
+                }
+                
+                // 複数日にコピー
+                let current = new Date(targetDate);
+                const end = new Date(endDate);
+                let count = 0;
+                
+                while (current <= end) {
+                    const dateStr = toDateStr(current);
+                    data.workDays[dateStr] = JSON.parse(JSON.stringify(dayData));
+                    current.setDate(current.getDate() + 1);
+                    count++;
+                    
+                    // 安全のため最大365日まで
+                    if (count > 365) break;
+                }
+                
+                saveData();
+                renderAll();
+                closeCopyToDateModal();
+                closeModal();
+                alert(`${count}日分コピーしました`);
+            } else {
+                // 1日にコピー
+                data.workDays[targetDate] = JSON.parse(JSON.stringify(dayData));
+                saveData();
+                renderAll();
+                closeCopyToDateModal();
+                closeModal();
+                alert('コピーしました');
             }
         }
         // 判断フロー
@@ -3672,6 +4123,419 @@
             saveData();
             renderHotelTable();
             alert(`${checkedBoxes.length}件を削除しました`);
+        }
+
+        // ===== 年間サマリー =====
+        
+        function changeAnnualYear(delta) {
+            annualYear += delta;
+            document.getElementById('annualYear').textContent = `${annualYear}年`;
+            renderAnnualSummary();
+        }
+        
+        function renderAnnualSummary() {
+            document.getElementById('annualYear').textContent = `${annualYear}年`;
+            
+            // 年間集計
+            let totalWorkDays = 0;
+            let totalTripDays = 0;
+            let totalPaidLeave = 0;
+            let totalExpense = 0;
+            
+            // 月別データ
+            const monthlyWork = Array(12).fill(null).map(() => ({ office: 0, remote: 0, trip: 0, paidLeave: 0 }));
+            const monthlyExpense = Array(12).fill(null).map(() => ({ transport: 0, hotel: 0, allowance: 0, entertainment: 0, other: 0 }));
+            
+            // 出張先カウント
+            const tripDestCount = {};
+            
+            // 勤務データ集計
+            Object.entries(data.workDays).forEach(([date, info]) => {
+                if (!date.startsWith(String(annualYear))) return;
+                const month = parseInt(date.split('-')[1]) - 1;
+                
+                if (info.type === 'split') {
+                    // 午前/午後別
+                    if (info.amType === 'office') monthlyWork[month].office += 0.5;
+                    else if (info.amType === 'remote') monthlyWork[month].remote += 0.5;
+                    else if (info.amType === 'trip') { monthlyWork[month].trip += 0.5; if (info.amDest) tripDestCount[info.amDest] = (tripDestCount[info.amDest] || 0) + 0.5; }
+                    else if (isPaidLeaveType(info.amType)) monthlyWork[month].paidLeave += 0.5;
+                    
+                    if (info.pmType === 'office') monthlyWork[month].office += 0.5;
+                    else if (info.pmType === 'remote') monthlyWork[month].remote += 0.5;
+                    else if (info.pmType === 'trip') { monthlyWork[month].trip += 0.5; if (info.pmDest) tripDestCount[info.pmDest] = (tripDestCount[info.pmDest] || 0) + 0.5; }
+                    else if (isPaidLeaveType(info.pmType)) monthlyWork[month].paidLeave += 0.5;
+                } else {
+                    if (info.type === 'office') monthlyWork[month].office++;
+                    else if (info.type === 'remote') monthlyWork[month].remote++;
+                    else if (info.type === 'trip') { monthlyWork[month].trip++; if (info.dest) tripDestCount[info.dest] = (tripDestCount[info.dest] || 0) + 1; }
+                    else if (isPaidLeaveType(info.type)) monthlyWork[month].paidLeave++;
+                }
+            });
+            
+            // 経費データ集計
+            data.expenses.forEach(e => {
+                if (!e.date.startsWith(String(annualYear))) return;
+                const month = parseInt(e.date.split('-')[1]) - 1;
+                const cat = e.category || 'other';
+                monthlyExpense[month][cat] = (monthlyExpense[month][cat] || 0) + e.amount;
+                totalExpense += e.amount;
+            });
+            
+            // 年間合計
+            monthlyWork.forEach(m => {
+                totalWorkDays += m.office + m.remote + m.trip;
+                totalTripDays += m.trip;
+                totalPaidLeave += m.paidLeave;
+            });
+            
+            // 表示更新
+            document.getElementById('annualWorkDays').textContent = totalWorkDays;
+            document.getElementById('annualTripDays').textContent = totalTripDays;
+            document.getElementById('annualPaidLeave').textContent = totalPaidLeave;
+            document.getElementById('annualExpense').textContent = totalExpense.toLocaleString();
+            
+            // 月別勤務グラフ
+            renderMonthlyWorkChart(monthlyWork);
+            
+            // 月別経費グラフ
+            renderMonthlyExpenseChart(monthlyExpense);
+            
+            // 経費カテゴリ別グラフ
+            renderCategoryChart(monthlyExpense);
+            
+            // 出張先ランキング
+            renderTripRanking(tripDestCount);
+        }
+        
+        function renderMonthlyWorkChart(monthlyWork) {
+            const maxDays = Math.max(...monthlyWork.map(m => m.office + m.remote + m.trip + m.paidLeave), 1);
+            const container = document.getElementById('monthlyWorkChart');
+            
+            let html = '<div class="bar-chart">';
+            for (let i = 0; i < 12; i++) {
+                const m = monthlyWork[i];
+                const total = m.office + m.remote + m.trip + m.paidLeave;
+                const scale = 150 / maxDays;
+                
+                html += `
+                    <div class="bar-group">
+                        <div class="bar-value">${total}</div>
+                        <div class="bar-stack">
+                            <div class="bar-segment office" style="height: ${m.office * scale}px;" title="出社 ${m.office}日"></div>
+                            <div class="bar-segment remote" style="height: ${m.remote * scale}px;" title="在宅 ${m.remote}日"></div>
+                            <div class="bar-segment trip" style="height: ${m.trip * scale}px;" title="出張 ${m.trip}日"></div>
+                            <div class="bar-segment paidLeave" style="height: ${m.paidLeave * scale}px;" title="有給 ${m.paidLeave}日"></div>
+                        </div>
+                        <div class="bar-label">${i + 1}月</div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+            html += `<div style="display: flex; gap: 16px; margin-top: 12px; font-size: 0.8rem;">
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: var(--accent-blue); border-radius: 2px;"></span> 出社</span>
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: var(--accent-green); border-radius: 2px;"></span> 在宅</span>
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: var(--accent-orange); border-radius: 2px;"></span> 出張</span>
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: var(--accent-purple); border-radius: 2px;"></span> 有給</span>
+            </div>`;
+            container.innerHTML = html;
+        }
+        
+        function renderMonthlyExpenseChart(monthlyExpense) {
+            const maxAmount = Math.max(...monthlyExpense.map(m => 
+                Object.values(m).reduce((a, b) => a + b, 0)
+            ), 1);
+            const container = document.getElementById('monthlyExpenseChart');
+            
+            let html = '<div class="bar-chart">';
+            for (let i = 0; i < 12; i++) {
+                const m = monthlyExpense[i];
+                const total = Object.values(m).reduce((a, b) => a + b, 0);
+                const scale = 150 / maxAmount;
+                
+                html += `
+                    <div class="bar-group">
+                        <div class="bar-value">${total > 0 ? Math.round(total / 1000) + 'k' : ''}</div>
+                        <div class="bar-stack">
+                            <div class="bar-segment transport" style="height: ${m.transport * scale}px;"></div>
+                            <div class="bar-segment hotel" style="height: ${m.hotel * scale}px;"></div>
+                            <div class="bar-segment allowance" style="height: ${m.allowance * scale}px;"></div>
+                            <div class="bar-segment entertainment" style="height: ${m.entertainment * scale}px;"></div>
+                            <div class="bar-segment other" style="height: ${m.other * scale}px;"></div>
+                        </div>
+                        <div class="bar-label">${i + 1}月</div>
+                    </div>
+                `;
+            }
+            html += '</div>';
+            html += `<div style="display: flex; gap: 16px; margin-top: 12px; font-size: 0.8rem; flex-wrap: wrap;">
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: #3b82f6; border-radius: 2px;"></span> 交通費</span>
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: #f59e0b; border-radius: 2px;"></span> 宿泊費</span>
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: #10b981; border-radius: 2px;"></span> 手当</span>
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: #8b5cf6; border-radius: 2px;"></span> 交際費</span>
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: #6b7280; border-radius: 2px;"></span> その他</span>
+            </div>`;
+            container.innerHTML = html;
+        }
+        
+        function renderCategoryChart(monthlyExpense) {
+            // カテゴリ別合計
+            const totals = { transport: 0, hotel: 0, allowance: 0, entertainment: 0, other: 0 };
+            monthlyExpense.forEach(m => {
+                Object.keys(totals).forEach(k => totals[k] += m[k]);
+            });
+            const grandTotal = Object.values(totals).reduce((a, b) => a + b, 0);
+            
+            const categories = [
+                { key: 'transport', label: '🚃 交通費', color: '#3b82f6' },
+                { key: 'hotel', label: '🏨 宿泊費', color: '#f59e0b' },
+                { key: 'allowance', label: '💼 出張手当', color: '#10b981' },
+                { key: 'entertainment', label: '🍻 交際費', color: '#8b5cf6' },
+                { key: 'other', label: '📝 その他', color: '#6b7280' }
+            ];
+            
+            // 円グラフ風の表示（CSS円グラフ）
+            let gradientStops = [];
+            let currentPercent = 0;
+            categories.forEach(cat => {
+                const percent = grandTotal > 0 ? (totals[cat.key] / grandTotal * 100) : 0;
+                gradientStops.push(`${cat.color} ${currentPercent}% ${currentPercent + percent}%`);
+                currentPercent += percent;
+            });
+            
+            document.getElementById('categoryPieChart').innerHTML = `
+                <div style="width: 180px; height: 180px; border-radius: 50%; background: conic-gradient(${gradientStops.join(', ')}); margin: 0 auto;"></div>
+                <div style="text-align: center; margin-top: 12px; font-size: 1.1rem; font-weight: 600;">合計 ¥${grandTotal.toLocaleString()}</div>
+            `;
+            
+            // 凡例
+            let legendHtml = '';
+            categories.forEach(cat => {
+                const amount = totals[cat.key];
+                const percent = grandTotal > 0 ? (amount / grandTotal * 100).toFixed(1) : 0;
+                legendHtml += `
+                    <div class="pie-legend-item">
+                        <div class="pie-legend-color" style="background: ${cat.color};"></div>
+                        <div class="pie-legend-label">${cat.label}</div>
+                        <div class="pie-legend-value">¥${amount.toLocaleString()}</div>
+                        <div class="pie-legend-percent">${percent}%</div>
+                    </div>
+                `;
+            });
+            document.getElementById('categoryLegend').innerHTML = legendHtml;
+        }
+        
+        function renderTripRanking(tripDestCount) {
+            const sorted = Object.entries(tripDestCount)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 10);
+            
+            if (sorted.length === 0) {
+                document.getElementById('tripRanking').innerHTML = '<p style="color: var(--text-muted);">出張データがありません</p>';
+                return;
+            }
+            
+            let html = '';
+            sorted.forEach(([dest, count], i) => {
+                const rankClass = i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : 'normal';
+                html += `
+                    <div class="ranking-item">
+                        <div class="ranking-rank ${rankClass}">${i + 1}</div>
+                        <div class="ranking-dest">${dest}</div>
+                        <div class="ranking-count">${count}日</div>
+                    </div>
+                `;
+            });
+            document.getElementById('tripRanking').innerHTML = html;
+        }
+
+        // ===== テンプレート機能 =====
+        
+        function generateTemplateDayInputs() {
+            const days = parseInt(document.getElementById('templateDays').value) || 1;
+            const container = document.getElementById('templateDayInputs');
+            
+            let html = '';
+            for (let i = 0; i < days; i++) {
+                html += `
+                    <div style="margin: 12px 0; padding: 12px; background: var(--bg-card); border-radius: 8px;">
+                        <div style="font-weight: 500; margin-bottom: 8px;">${i + 1}日目</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>勤務タイプ</label>
+                                <select id="templateDayType${i}">
+                                    <option value="office">出社(京橋)</option>
+                                    <option value="remote">在宅</option>
+                                    <option value="trip">出張</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>出張先（出張の場合）</label>
+                                <input type="text" id="templateDayDest${i}" placeholder="例:仙台">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+        }
+        
+        function saveTemplate() {
+            const name = document.getElementById('templateName').value.trim();
+            if (!name) {
+                alert('テンプレート名を入力してください');
+                return;
+            }
+            
+            const days = parseInt(document.getElementById('templateDays').value) || 1;
+            const dayData = [];
+            
+            for (let i = 0; i < days; i++) {
+                const typeEl = document.getElementById(`templateDayType${i}`);
+                const destEl = document.getElementById(`templateDayDest${i}`);
+                if (typeEl) {
+                    dayData.push({
+                        type: typeEl.value,
+                        dest: destEl?.value || ''
+                    });
+                }
+            }
+            
+            if (dayData.length === 0) {
+                alert('入力欄を生成してから保存してください');
+                return;
+            }
+            
+            if (!data.templates) data.templates = [];
+            data.templates.push({ name, days: dayData });
+            saveData();
+            renderTemplateList();
+            
+            // フォームリセット
+            document.getElementById('templateName').value = '';
+            document.getElementById('templateDays').value = '1';
+            document.getElementById('templateDayInputs').innerHTML = '';
+            
+            alert('テンプレートを保存しました');
+        }
+        
+        function renderTemplateList() {
+            const container = document.getElementById('templateList');
+            if (!data.templates || data.templates.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-muted); font-size: 0.9rem;">保存済みのテンプレートはありません</p>';
+                return;
+            }
+            
+            let html = '';
+            data.templates.forEach((t, i) => {
+                const badgesHtml = t.days.map((d, j) => {
+                    const label = d.type === 'office' ? '出社' : d.type === 'remote' ? '在宅' : d.dest || '出張';
+                    const color = d.type === 'office' ? 'var(--accent-blue)' : d.type === 'remote' ? 'var(--accent-green)' : 'var(--accent-orange)';
+                    return `<span class="template-day-badge" style="border-left: 3px solid ${color};">${j + 1}日目: ${label}</span>`;
+                }).join('');
+                
+                html += `
+                    <div class="template-card">
+                        <div class="template-header">
+                            <span class="template-name">${t.name}</span>
+                            <button class="btn btn-danger" onclick="deleteTemplate(${i})" style="font-size: 0.75rem; padding: 4px 8px;">削除</button>
+                        </div>
+                        <div class="template-days">${badgesHtml}</div>
+                        <div style="margin-top: 12px;">
+                            <label style="font-size: 0.85rem; color: var(--text-secondary);">開始日:</label>
+                            <input type="date" id="templateStartDate${i}" style="margin: 0 8px;">
+                            <button class="btn btn-primary" onclick="applyTemplate(${i})" style="font-size: 0.8rem; padding: 6px 12px;">適用</button>
+                        </div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+        
+        function applyTemplate(index) {
+            const template = data.templates[index];
+            const startDateEl = document.getElementById(`templateStartDate${index}`);
+            if (!startDateEl.value) {
+                alert('開始日を選択してください');
+                return;
+            }
+            
+            const startDate = new Date(startDateEl.value);
+            
+            template.days.forEach((d, i) => {
+                const date = new Date(startDate);
+                date.setDate(date.getDate() + i);
+                const dateStr = toDateStr(date);
+                
+                const workDayData = { type: d.type };
+                if (d.type === 'trip' && d.dest) {
+                    workDayData.dest = d.dest;
+                }
+                data.workDays[dateStr] = workDayData;
+            });
+            
+            saveData();
+            renderAll();
+            alert(`${template.name}を適用しました（${template.days.length}日分）`);
+        }
+        
+        function deleteTemplate(index) {
+            if (!confirm('このテンプレートを削除しますか？')) return;
+            data.templates.splice(index, 1);
+            saveData();
+            renderTemplateList();
+        }
+
+        // ===== 定期スケジュール =====
+        
+        function applyRecurringSchedule() {
+            const dayOfWeek = parseInt(document.getElementById('recurringDayOfWeek').value);
+            const workType = document.getElementById('recurringWorkType').value;
+            const tripDest = document.getElementById('recurringTripDest').value;
+            const startDate = document.getElementById('recurringStartDate').value;
+            const endDate = document.getElementById('recurringEndDate').value;
+            const skipHolidays = document.getElementById('recurringSkipHolidays').checked;
+            
+            if (!startDate || !endDate) {
+                alert('開始日と終了日を入力してください');
+                return;
+            }
+            
+            let current = new Date(startDate);
+            const end = new Date(endDate);
+            let count = 0;
+            let skippedCount = 0;
+            
+            while (current <= end) {
+                if (current.getDay() === dayOfWeek) {
+                    const dateStr = toDateStr(current);
+                    
+                    // 祝日チェック
+                    if (skipHolidays && isHoliday(dateStr)) {
+                        skippedCount++;
+                    } else {
+                        const workDayData = { type: workType };
+                        if (workType === 'trip' && tripDest) {
+                            workDayData.dest = tripDest;
+                        }
+                        data.workDays[dateStr] = workDayData;
+                        count++;
+                    }
+                }
+                current.setDate(current.getDate() + 1);
+                
+                // 安全のため最大365日まで
+                if (count + skippedCount > 365) break;
+            }
+            
+            saveData();
+            renderAll();
+            
+            let msg = `${count}日分を登録しました`;
+            if (skippedCount > 0) {
+                msg += `（祝日${skippedCount}日スキップ）`;
+            }
+            alert(msg);
         }
     </script>
 </body>
