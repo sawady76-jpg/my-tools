@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>受発注課ツール v5.1</title>
+<style>
+    /* --- 全体共通スタイル --- */
+    :root {
+        --primary-color: #0056b3;
+        --accent-color: #ff9900;
+        --bg-color: #f4f7f9;
+        --text-color: #333;
+        --border-radius: 8px;
+    }
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: var(--bg-color); color: var(--text-color); margin: 0; padding: 0; }
+    
+    /* ヘッダー・ナビゲーション */
+    header { background-color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: sticky; top: 0; z-index: 1000; }
+    .nav-tabs { display: flex; justify-content: center; list-style: none; padding: 0; margin: 0; overflow-x: auto; }
+    .nav-item { cursor: pointer; padding: 15px 20px; font-weight: bold; color: #666; transition: 0.3s; white-space: nowrap; border-bottom: 4px solid transparent; }
+    .nav-item:hover { background-color: #f9f9f9; color: var(--primary-color); }
+    .nav-item.active { color: var(--primary-color); border-bottom-color: var(--primary-color); background-color: #fff; }
+    .nav-icon { margin-right: 5px; }
+
+    /* コンテンツエリア */
+    .main-wrapper { max-width: 1000px; margin: 20px auto; padding: 0 15px; }
+    .app-section { display: none; animation: fadeIn 0.3s ease; }
+    .app-section.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* 共通コンテナスタイル */
+    .tool-container { background: #fff; padding: 25px; border-radius: var(--border-radius); box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    h2 { text-align: center; color: #444; margin-bottom: 25px; font-size: 1.4rem; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+    h3 { color: #555; border-left: 5px solid var(--primary-color); padding-left: 10px; margin-top: 30px; margin-bottom: 15px; font-size: 1.1rem; }
+
+    /* 共通入力パーツ */
+    input[type="text"], input[type="number"], input[type="tel"], select, textarea {
+        width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 16px; box-sizing: border-box; transition: 0.3s; outline: none;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary-color); }
+    
+    /* ボタン共通 */
+    .btn-primary { background-color: var(--primary-color); color: white; border: none; padding: 12px; font-size: 16px; font-weight: bold; border-radius: 6px; cursor: pointer; transition: 0.2s; width: 100%; }
+    .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+    
+    /* --- アプリ1：商品リサーチ用 --- */
+    .search-box { position: relative; margin-bottom: 20px; }
+    .search-settings { font-size: 0.9em; margin-top: 15px; }
+    .search-settings label { margin-right: 15px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+    .search-note { color: #d9534f; font-size: 0.85em; margin-top: 15px; text-align: center; background: #fff5f5; padding: 10px; border-radius: 4px; border: 1px dashed #d9534f; }
+    .shortcut-tip { text-align: center; margin-top: 10px; font-size: 0.9em; color: #666; }
+    .shortcut-key { background-color: #eee; padding: 2px 6px; border-radius: 4px; border: 1px solid #ccc; font-weight: bold; font-family: monospace; }
+
+    /* --- アプリ2：計算機 --- */
+    .mode-switch { display: flex; justify-content: center; background: #f0f0f0; padding: 4px; border-radius: 30px; margin: 0 auto 20px; width: fit-content; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); flex-wrap: wrap; gap:5px; }
+    .mode-switch input { display: none; }
+    .mode-label { padding: 8px 15px; cursor: pointer; border-radius: 25px; font-weight: bold; color: #666; transition: 0.3s; font-size: 0.9em; white-space: nowrap; }
+    .mode-switch input:checked + .mode-label.m-mul { background: #007bff; color: white; box-shadow: 0 2px 5px rgba(0,123,255,0.3); }
+    .mode-switch input:checked + .mode-label.m-div { background: #ff9800; color: white; box-shadow: 0 2px 5px rgba(255,152,0,0.3); }
+    .mode-switch input:checked + .mode-label.m-rev { background: #9c27b0; color: white; box-shadow: 0 2px 5px rgba(156,39,176,0.3); }
+    
+    .calc-row { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 15px; background: #f8fbff; padding: 15px; border-radius: 8px; transition: background 0.3s; }
+    .calc-col { flex: 1; min-width: 200px; }
+    .calc-label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 0.9em; }
+    .preset-group { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+    .btn-preset { background: #fff; border: 1px solid #cbd5e0; padding: 4px 10px; border-radius: 20px; font-size: 0.8em; cursor: pointer; transition:0.2s; }
+    .btn-preset.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
+    .calc-area { display: flex; gap: 20px; align-items: stretch; }
+    .calc-box { flex: 1; display: flex; flex-direction: column; }
+    .calc-textarea { height: 400px; font-family: monospace; resize: vertical; }
+    #outputArea { background-color: #f0fff4; border-color: #c3e6cb; color: #155724; font-weight: bold; }
+    #arrowIcon { display:flex; align-items:center; color:#ccc; font-size:24px; font-weight:bold; }
+
+    /* 履歴エリア */
+    .history-section { margin-top: 30px; border-top: 2px dashed #eee; padding-top: 15px; }
+    .history-title { font-size: 1rem; color: #666; margin-bottom: 10px; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+    .history-list { list-style: none; padding: 0; margin: 0; max-height: 250px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; }
+    .history-item { display: flex; align-items: center; padding: 8px 15px; border-bottom: 1px solid #eee; font-size: 0.85em; gap: 10px; background: #fff; }
+    .history-item:nth-child(even) { background: #fcfcfc; }
+    .h-time { color: #999; font-size: 0.9em; min-width: 50px; }
+    .h-mode { font-weight: bold; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; min-width: 70px; text-align: center; }
+    .h-mode.m-mul { background: #e3f2fd; color: #007bff; }
+    .h-mode.m-div { background: #fff3e0; color: #e65100; }
+    .h-mode.m-rev { background: #f3e5f5; color: #9c27b0; }
+    .h-detail { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; color: #444; }
+    .h-btn { background: #666; color: white; border: none; padding: 3px 8px; border-radius: 4px; cursor: pointer; font-size: 0.85em; }
+    .h-btn:hover { background: #444; }
+
+    /* モード別スタイル上書き */
+    .mode-divide .tool-container { border-top-color: #ff9800 !important; }
+    .mode-divide .calc-row { background: #fff3e0; }
+    .mode-divide input[type="number"]:focus { border-color: #ff9800; }
+    .mode-divide .btn-preset.active { background: #ff9800; border-color: #ff9800; }
+    
+    .mode-reverse .tool-container { border-top-color: #9c27b0 !important; }
+    .mode-reverse .calc-row { background: #f3e5f5; }
+    .mode-reverse input[type="number"]:focus { border-color: #9c27b0; }
+    .mode-reverse .btn-primary { background-color: #9c27b0; }
+
+    /* --- アプリ3：物流シミュ (v5.0 New) --- */
+    .logi-result-area { background-color: #f0f8ff; border: 2px solid #b3d7ff; border-radius: 8px; padding: 20px; margin-top: 20px; display: none; }
+    .logi-result-area.active { display: block; animation: zoomIn 0.2s ease; }
+    .logi-result-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px dashed #cce5ff; padding-bottom: 8px; }
+    .logi-result-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .logi-res-label { color: #666; font-size: 0.9em; }
+    .logi-res-value { font-weight: bold; font-size: 1.2em; color: #333; }
+    .logi-res-value.highlight { color: #0056b3; font-size: 1.4em; }
+    .logi-spec-info { font-size: 0.85em; color: #666; margin-top: 8px; padding: 8px; background: #eee; border-radius: 4px; }
+    .filter-input { margin-bottom: 10px; font-size: 0.9em; padding: 8px !important; background-color: #fcfcfc; }
+    .pallet-note { display: block; font-size: 0.6em; font-weight: normal; color: #e65100; margin-top: 2px; }
+    .error-reason { font-size: 0.6em; color: #d32f2f; font-weight: normal; margin-left: 5px; }
+
+    /* --- アプリ4：単位変換用 --- */
+    .unit-tabs { display: flex; background: #eee; border-radius: 6px 6px 0 0; overflow: hidden; margin-bottom: 20px; }
+    .unit-tab { flex: 1; padding: 10px; text-align: center; cursor: pointer; color: #777; transition: 0.3s; font-weight: bold; }
+    .unit-tab.active { background: #fff; color: #e67e22; border-bottom: 3px solid #e67e22; }
+    .unit-content { display: none; }
+    .unit-content.active { display: block; }
+    .unit-group { position: relative; margin-bottom: 15px; }
+    .unit-label { position: absolute; right: 15px; top: 14px; color: #888; font-weight: bold; pointer-events: none; }
+    .unit-input { padding-right: 50px !important; text-align: right; }
+    .quick-buttons { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
+    .q-btn { background: #f0f4f8; border: 1px solid #dce6f1; padding: 6px 12px; border-radius: 20px; font-size: 0.85em; cursor: pointer; color: #2c3e50; }
+    .q-btn:hover { background: #e67e22; color: white; border-color: #e67e22; }
+    .unit-equals { text-align: center; font-size: 20px; color: #e67e22; margin: -5px 0 10px; }
+    .unit-memo { font-size: 0.85em; color: #666; background: #fdfdfd; padding: 10px; border-radius: 4px; margin-top: 15px; border: 1px solid #eee; }
+
+    /* --- アプリ5：電話メモ用 --- */
+    .badge-required { background: #ff4d4d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; vertical-align: middle; margin-left: 5px; }
+    .action-group { display: flex; gap: 10px; flex-wrap: wrap; }
+    .action-group label { flex: 1; min-width: 140px; cursor: pointer; }
+    .action-group input[type="radio"] { display: none; }
+    .action-btn { display: block; text-align: center; padding: 10px; border: 1px solid #ddd; border-radius: 6px; background: #f9f9f9; transition: all 0.2s; font-size: 0.9em; }
+    .action-group input[type="radio"]:checked + .action-btn { background-color: #e7f1ff; border-color: var(--primary-color); color: var(--primary-color); font-weight: bold; }
+    .preview-box { background-color: #333; color: #fff; padding: 15px; border-radius: 6px; margin-top: 20px; }
+    #resultMemo { width: 100%; height: 150px; background: transparent; border: none; color: #fff; font-family: monospace; font-size: 14px; resize: none; overflow: auto; outline: none; }
+    #toast { visibility: hidden; min-width: 250px; margin-left: -125px; background-color: #333; color: #fff; text-align: center; border-radius: 2px; padding: 16px; position: fixed; z-index: 2000; left: 50%; bottom: 30px; }
+    #toast.show { visibility: visible; animation: fadein 0.5s, fadeout 0.5s 2.5s; }
+    @keyframes fadein { from {bottom: 0; opacity: 0;} to {bottom: 30px; opacity: 1;} }
+    @keyframes fadeout { from {bottom: 30px; opacity: 1;} to {bottom: 0; opacity: 0;} }
+
+    /* --- アプリ6：文字変換用 --- */
+    .conv-settings { display: flex; justify-content: center; gap: 15px; flex-wrap: wrap; margin-bottom: 20px; border-bottom: 1px dashed #ddd; padding-bottom: 15px; }
+    .conv-group { display: flex; align-items: center; gap: 5px; }
+    .category-label { font-size: 0.8em; font-weight: bold; color: #ff6b81; margin-right: 5px; }
+    .toggle-btn { position: relative; cursor: pointer; user-select: none; margin: 0; }
+    .toggle-btn input { display: none; }
+    .toggle-content { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 90px; height: 45px; background: #f9f9f9; border: 1px solid #eee; border-radius: 6px; transition: 0.2s; color: #aaa; padding: 2px; }
+    .toggle-content strong { font-size: 0.75em; display: block; color: #777; }
+    .toggle-content small { font-size: 0.6em; opacity: 0.8; }
+    .toggle-btn input:checked + .toggle-content { background: #fff5f7; border-color: #ff6b81; color: #ff6b81; box-shadow: 0 2px 5px rgba(255, 107, 129, 0.2); }
+    .toggle-btn input:checked + .toggle-content strong { color: #ff6b81; }
+
+    /* --- アプリ7：サイズ早見表 --- */
+    .size-container { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+    .table-wrapper { flex: 1; min-width: 280px; }
+    .size-table { width: 100%; border-collapse: collapse; margin-top: 5px; font-size: 0.9em; }
+    .size-table th, .size-table td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+    .size-table th { background-color: #f0f4f8; color: #555; font-weight: bold; text-align: center; }
+    .size-table tr:nth-child(even) { background-color: #fafafa; }
+    .size-table tr:hover { background-color: #eaf6ff; }
+    .size-name { font-weight: bold; color: var(--primary-color); display: block; font-size: 1.05em; }
+    .size-sub { font-size: 0.8em; color: #888; font-weight: normal; }
+    .size-mm { font-family: monospace; font-size: 1.1em; font-weight: bold; color: #333; }
+    .table-caption { font-weight: bold; margin-bottom: 5px; color: #0056b3; display: block; border-bottom: 2px solid #0056b3; padding-bottom: 3px; }
+
+    /* --- アプリ8：履歴・情報 --- */
+    .version-list { list-style: none; padding: 0; }
+    .version-item { border-left: 4px solid #ccc; padding-left: 15px; margin-bottom: 20px; }
+    .v-header { display: flex; align-items: center; margin-bottom: 5px; }
+    .v-tag { background: #333; color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; margin-right: 10px; }
+    .v-date { color: #888; font-size: 0.85em; }
+    .v-desc { font-size: 0.95em; color: #555; line-height: 1.6; }
+    .v-new { border-color: #ff9900; }
+    .v-new .v-tag { background: #ff9900; }
+
+    /* --- ガイドタブ用スタイル --- */
+    .guide-box { border-left: 5px solid #ccc; padding-left: 15px; margin-bottom: 30px; }
+    .guide-title { font-size: 1.2em; font-weight: bold; color: #333; display: flex; align-items: center; margin-bottom: 10px; }
+    .guide-icon { font-size: 1.4em; margin-right: 10px; }
+    .guide-desc { font-size: 0.95em; line-height: 1.6; color: #555; margin-bottom: 10px; }
+    .guide-point { background-color: #fff9e6; border-radius: 8px; padding: 12px; font-size: 0.9em; color: #665c3d; border: 1px solid #f0e6c8; }
+    .guide-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.8em; color: #fff; margin-right: 8px; vertical-align: middle; }
+    .guide-list { margin: 5px 0 0 20px; padding: 0; }
+    .guide-list li { margin-bottom: 5px; }
+</style>
+</head>
+<body>
+
+<script>
+    // ==========================================
+    //  【データ定義】 物流シミュレーター用 商品マスター
+    //   VS Codeでの警告回避のため、スクリプトの先頭で定義します
+    // ==========================================
+    const logisticsProductData = [
+        { name: "足場ゴムバンド", perCase: 200, weightCase: 23.0, perPallet: 0, isLong: false },
+        { name: "足場チェーン 2m", perCase: 20, weightCase: 24.0, perPallet: 0, isLong: false },
+        { name: "足場チェーン 4m", perCase: 10, weightCase: 23.0, perPallet: 0, isLong: false },
+        { name: "アンカーボルト M12×400", perCase: 50, weightCase: 16.25, perPallet: 48, isLong: false },
+        { name: "アンカーボルト M12×450", perCase: 50, weightCase: 18.0, perPallet: 48, isLong: false },
+        { name: "アンカーボルト M16×600", perCase: 10, weightCase: 11.35, perPallet: 80, isLong: false },
+        { name: "アンカーボルト M16×700", perCase: 10, weightCase: 12.8, perPallet: 72, isLong: false },
+        { name: "アンカーボルト M16×800", perCase: 10, weightCase: 14.5, perPallet: 60, isLong: false },
+        { name: "アンカーボルト M16×900", perCase: 10, weightCase: 16.15, perPallet: 50, isLong: false },
+        { name: "安全ネット(目合10cm) 5*10m輸入", perCase: 2, weightCase: 20.0, perPallet: 0, isLong: false },
+        { name: "一輪車タイヤのみ", perCase: 5, weightCase: 11.3, perPallet: 0, isLong: false },
+        { name: "MAスタンド", perCase: 1, weightCase: 3.75, perPallet: 320, isLong: false },
+        { name: "エラスタイト t10", perCase: 1, weightCase: 16.0, perPallet: 100, isLong: false },
+        { name: "カラーコーン H700", perCase: 20, weightCase: 21.5, perPallet: 20, isLong: false },
+        { name: "ガラ袋", perCase: 200, weightCase: 11.5, perPallet: 0, isLong: false },
+        { name: "基礎サポート L1", perCase: 1, weightCase: 2.6, perPallet: 418, isLong: false },
+        { name: "基礎サポート L2", perCase: 1, weightCase: 3.0, perPallet: 532, isLong: false },
+        { name: "基礎サポート L3", perCase: 1, weightCase: 3.5, perPallet: 530, isLong: false },
+        { name: "杭太郎 1.1m", perCase: 1, weightCase: 3.0, perPallet: 100, isLong: false },
+        { name: "杭太郎 1.5m", perCase: 1, weightCase: 4.02, perPallet: 100, isLong: false },
+        { name: "結束線 10kg", perCase: 1, weightCase: 11.0, perPallet: 100, isLong: false },
+        { name: "コンクリートサイコロ 30×40", perCase: 200, weightCase: 21.6, perPallet: 40, isLong: false },
+        { name: "コンクリートサイコロ 40×50", perCase: 100, weightCase: 28.1, perPallet: 64, isLong: false },
+        { name: "コンクリートサイコロ 50×60", perCase: 50, weightCase: 19.8, perPallet: 84, isLong: false },
+        { name: "コンクリートサイコロ 40×50×60", perCase: 50, weightCase: 12.9, perPallet: 120, isLong: false },
+        { name: "コンテナバック 丸型(角)", perCase: 10, weightCase: 20.0, perPallet: 25, isLong: false },
+        { name: "耐候性大型土のう", perCase: 10, weightCase: 30.0, perPallet: 10, isLong: false },
+        { name: "【新基準】耐候性大型土のう(3年)", perCase: 5, weightCase: 15.7, perPallet: 24, isLong: false },
+        { name: "白防炎シート 1.8×5.4", perCase: 10, weightCase: 30.0, perPallet: 20, isLong: false },
+        { name: "白防炎シート 3.6×5.4", perCase: 5, weightCase: 30.0, perPallet: 20, isLong: false },
+        { name: "白防炎シート 10×10", perCase: 1, weightCase: 29.0, perPallet: 0, isLong: false },
+        { name: "白防炎シート原反 1800×50m", perCase: 1, weightCase: 28.0, perPallet: 15, isLong: true },
+        { name: "プラベニヤ 2.5mm", perCase: 20, weightCase: 10.0, perPallet: 42, isLong: true },
+        { name: "ベストボード(養生ボード) 3.0mm", perCase: 1, weightCase: 12.0, perPallet: 50, isLong: true },
+        { name: "ポリフィルム(ポリシート) #15", perCase: 2, weightCase: 10.0, perPallet: 30, isLong: true },
+        { name: "ブルーシート #3000 5.4×7.2", perCase: 5, weightCase: 28.0, perPallet: 20, isLong: false },
+        { name: "防音シート 1.8×3.4 通常", perCase: 2, weightCase: 22.0, perPallet: 40, isLong: false },
+        { name: "防音シート 1.8×5.4 軽量", perCase: 5, weightCase: 31.1, perPallet: 0, isLong: false },
+        { name: "ナットアンカー 3分", perCase: 600, weightCase: 23.5, perPallet: 36, isLong: false },
+        { name: "ナットアンカー 4分", perCase: 300, weightCase: 22.0, perPallet: 24, isLong: false },
+        { name: "溶接アンカー 1045", perCase: 600, weightCase: 16.7, perPallet: 36, isLong: false },
+        { name: "ワンタッチ差筋アンカー D10", perCase: 50, weightCase: 13.0, perPallet: 100, isLong: false },
+        { name: "ワンタッチ差筋アンカー D13", perCase: 30, weightCase: 18.0, perPallet: 50, isLong: false },
+        { name: "ワンタッチ差筋アンカー D16", perCase: 20, weightCase: 25.0, perPallet: 0, isLong: false }
+    ];
+</script>
+
+<header>
+    <ul class="nav-tabs">
+        <li class="nav-item active" onclick="switchApp('app-search')"><span class="nav-icon">🚀</span>一括リサーチ</li>
+        <li class="nav-item" onclick="switchApp('app-calc')"><span class="nav-icon">🧮</span>計算</li>
+        <li class="nav-item" onclick="switchApp('app-logistics')"><span class="nav-icon">🚚</span>物流シミュ</li>
+        <li class="nav-item" onclick="switchApp('app-unit')"><span class="nav-icon">📏</span>単位変換</li>
+        <li class="nav-item" onclick="switchApp('app-size')"><span class="nav-icon">📐</span>サイズ早見表</li>
+        <li class="nav-item" onclick="switchApp('app-conv')"><span class="nav-icon">✨</span>文字変換</li>
+        <li class="nav-item" onclick="switchApp('app-memo')"><span class="nav-icon">📞</span>電話メモ</li>
+        <li class="nav-item" onclick="switchApp('app-history')"><span class="nav-icon">ℹ️</span>情報・履歴</li>
+        <li class="nav-item" onclick="switchApp('app-guide')"><span class="nav-icon">📖</span>ガイド</li>
+    </ul>
+</header>
+
+<div class="main-wrapper">
+
+    <section id="app-search" class="app-section active">
+        <div class="tool-container" style="border-top: 5px solid #ff9900;">
+            <h2>商品一括リサーチ</h2>
+            <div class="search-box">
+                <input type="text" id="keyword" placeholder="型番・商品名を入力（例：HYT-4L）" onkeypress="handleEnterSearch(event)">
+            </div>
+            
+            <button class="btn-primary" style="background-color: #ff9900;" onclick="multiSearch()">まとめて検索開始！</button>
+
+            <div class="search-settings">
+                <div style="margin-bottom:5px; font-weight:bold;">検索対象サイト：</div>
+                <div id="checkboxArea"></div>
+            </div>
+
+            <div class="shortcut-tip">
+                💡 開いたタブは <span class="shortcut-key">Ctrl</span> + <span class="shortcut-key">W</span> で閉じられます
+            </div>
+            <div class="search-note">
+                ⚠️ 初回のみ「ポップアップがブロックされました」と出ます。<br>
+                アドレスバー右端のアイコンから<strong>「常に許可」</strong>を選んでください。
+            </div>
+        </div>
+    </section>
+
+    <section id="app-calc" class="app-section">
+        <div id="calcContainer" class="tool-container" style="border-top: 5px solid #0056b3;">
+            <h2 id="calcTitle">定価×掛け率 計算機</h2>
+            
+            <div class="mode-switch">
+                <input type="radio" name="calcMode" id="modeMultiply" value="multiply" checked onchange="changeCalcMode()">
+                <label for="modeMultiply" class="mode-label m-mul">✖ 掛け率 (定価→仕切)</label>
+                
+                <input type="radio" name="calcMode" id="modeDivide" value="divide" onchange="changeCalcMode()">
+                <label for="modeDivide" class="mode-label m-div">➗ 割り戻し (原価→売値)</label>
+
+                <input type="radio" name="calcMode" id="modeReverse" value="reverse" onchange="changeCalcMode()">
+                <label for="modeReverse" class="mode-label m-rev">❓ 掛け率逆算 (これ何%?)</label>
+            </div>
+
+            <div class="calc-row">
+                <div class="calc-col" id="colRate">
+                    <span class="calc-label" id="rateLabel">掛け率（％）</span>
+                    <input type="number" id="multiplier" value="70" step="0.1" oninput="handleInputMultiplier()">
+                    <div class="preset-group">
+                        <button class="btn-preset" onclick="setMultiplier(50)">50%</button>
+                        <button class="btn-preset" onclick="setMultiplier(60)">60%</button>
+                        <button class="btn-preset" onclick="setMultiplier(65)">65%</button>
+                        <button class="btn-preset" onclick="setMultiplier(70)">70%</button>
+                        <button class="btn-preset" onclick="setMultiplier(80)">80%</button>
+                        <button class="btn-preset" onclick="setMultiplier(85)">85%</button>
+                    </div>
+                </div>
+                <div class="calc-col" id="colRounding">
+                    <span class="calc-label">端数処理・税</span>
+                    <select id="roundingMode" onchange="calculatePrice()">
+                        <option value="floor" selected>切り捨て (推奨)</option>
+                        <option value="round">四捨五入</option>
+                        <option value="ceil">切り上げ</option>
+                    </select>
+                    <div style="margin-top:10px;">
+                        <label style="cursor:pointer; display:flex; align-items:center; font-size:0.9em; font-weight:bold;">
+                            <input type="checkbox" id="checkTax" onchange="calculatePrice()" style="width:auto; margin-right:8px;">
+                            税込価格にする (×1.10)
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="calc-area">
+                <div class="calc-box">
+                    <div class="box-header">
+                        <label id="inputLabel">【入力】定価リスト</label>
+                        <span class="count-badge" id="countInput">0行</span>
+                    </div>
+                    <textarea id="inputArea" class="calc-textarea" placeholder="Excelから貼り付け&#13;10,000&#13;15800" oninput="calculatePrice()"></textarea>
+                </div>
+                <div id="arrowIcon">➡</div>
+                <div class="calc-box">
+                    <div class="box-header">
+                        <label id="outputLabel">【結果】仕切価格</label>
+                        <span class="count-badge" id="countOutput">0行</span>
+                    </div>
+                    <textarea id="outputArea" class="calc-textarea" readonly></textarea>
+                </div>
+            </div>
+            
+            <button class="btn-primary" style="margin-top:15px; background-color:#28a745;" onclick="copyPriceResult()">📋 結果をコピーして履歴に残す</button>
+
+            <div class="history-section">
+                <div class="history-title">
+                    <span>🕒 計算履歴 (直近30件)</span>
+                    <button onclick="clearHistory()" style="font-size:0.8em; background:none; border:none; color:#d32f2f; cursor:pointer; text-decoration:underline;">履歴を全消去</button>
+                </div>
+                <ul id="historyList" class="history-list"></ul>
+            </div>
+        </div>
+    </section>
+
+    <section id="app-logistics" class="app-section">
+        <div class="tool-container" style="border-top: 5px solid #0056b3;">
+            <h2>物流・荷姿シミュレーター</h2>
+            
+            <div class="input-group">
+                <label>① 商品を選択</label>
+                <input type="text" id="logiFilterInput" class="filter-input" placeholder="🔍 品名を入力して絞り込み..." oninput="filterLogisticsProducts()">
+                <select id="logiProductSelect" onchange="calculateLogistics()" size="5" style="height: 120px;">
+                    </select>
+                <div id="logiSpecDisplay" class="logi-spec-info">商品を選択してください</div>
+            </div>
+
+            <div class="input-group">
+                <label>② 発注数量 (バラ個数/枚数/本数)</label>
+                <input type="number" id="logiInputQty" placeholder="例：100" min="0" oninput="calculateLogistics()">
+            </div>
+
+            <div id="logiResultArea" class="logi-result-area">
+                <div class="logi-result-row">
+                    <span class="logi-res-label">📦 荷姿（ケース数）</span>
+                    <span class="logi-res-value highlight" id="logiResCase">0 ケース</span>
+                </div>
+                <div class="logi-result-row">
+                    <span class="logi-res-label">⚖️ 総重量（目安）</span>
+                    <span class="logi-res-value" id="logiResWeight">0 kg</span>
+                </div>
+                <div class="logi-result-row">
+                    <span class="logi-res-label">🏗️ パレット換算</span>
+                    <span class="logi-res-value" id="logiResPallet">0 PL</span>
+                </div>
+            </div>
+            <div style="font-size:0.8em; color:#aaa; margin-top:10px; text-align:right;">Data: 2026.1.27</div>
+        </div>
+    </section>
+
+    <section id="app-unit" class="app-section">
+        <div class="tool-container" style="max-width: 600px; margin: 0 auto; border-top: 5px solid #e67e22;">
+            <h2>建材単位 変換くん</h2>
+
+            <div class="unit-tabs">
+                <div class="unit-tab active" onclick="switchUnitTab('tab-length', this)">長さ (尺・間)</div>
+                <div class="unit-tab" onclick="switchUnitTab('tab-area', this)">広さ (坪・平米)</div>
+            </div>
+
+            <div id="tab-length" class="unit-content active">
+                <div class="quick-buttons">
+                    <button class="q-btn" onclick="setLength(1)">1尺 (サシガネ)</button>
+                    <button class="q-btn" onclick="setLength(6)">1間 (1820)</button>
+                    <button class="q-btn" onclick="setLength(3)">3尺 (910)</button>
+                </div>
+                <div class="unit-group">
+                    <input type="number" id="inputShaku" class="unit-input" placeholder="例: 6" oninput="calcFromShaku()">
+                    <span class="unit-label">尺</span>
+                </div>
+                <div class="unit-equals">⇅</div>
+                <div class="unit-group">
+                    <input type="number" id="inputMm" class="unit-input" placeholder="例: 1818" oninput="calcFromMm()">
+                    <span class="unit-label">mm</span>
+                </div>
+                <div class="unit-memo">
+                    <strong>💡 長さメモ</strong><br>
+                    1尺 ≒ 303mm / 3尺(半間) ≒ 910mm / 6尺(1間) ≒ 1820mm
+                </div>
+            </div>
+
+            <div id="tab-area" class="unit-content">
+                <div class="quick-buttons">
+                    <button class="q-btn" onclick="setArea(1)">1坪 (サブロク2枚)</button>
+                    <button class="q-btn" onclick="setArea(30)">30坪 (戸建)</button>
+                </div>
+                <div class="unit-group">
+                    <input type="number" id="inputTsubo" class="unit-input" placeholder="例: 10" oninput="calcFromTsubo()">
+                    <span class="unit-label">坪</span>
+                </div>
+                <div class="unit-equals">⇅</div>
+                <div class="unit-group">
+                    <input type="number" id="inputM2" class="unit-input" placeholder="例: 33.1" oninput="calcFromM2()">
+                    <span class="unit-label">m²</span>
+                </div>
+                <div class="unit-group">
+                    <input type="number" id="inputTatami" class="unit-input" placeholder="例: 20" oninput="calcFromTatami()">
+                    <span class="unit-label">帖</span>
+                </div>
+                <div class="unit-memo">
+                    <strong>💡 広さメモ</strong><br>
+                    1坪 ≒ 3.3m² (畳2枚分) / 1坪 ＝ サブロク板(3×6) 2枚分
+                </div>
+            </div>
+
+            <button class="btn-primary" style="margin-top:20px; background-color:#95a5a6;" onclick="clearUnitInputs()">クリア</button>
+        </div>
+    </section>
+
+    <section id="app-size" class="app-section">
+        <div class="tool-container" style="max-width: 900px; margin: 0 auto; border-top: 5px solid #28a745;">
+            <h2>📏 サイズ早見表</h2>
+            
+            <div class="size-container">
+                <div class="table-wrapper">
+                    <span class="table-caption">板・建材 (サブロク等)</span>
+                    <table class="size-table">
+                        <thead><tr><th>通称</th><th>尺相当</th><th>ミリ(mm)</th></tr></thead>
+                        <tbody>
+                            <tr><td><span class="size-name">サブロク</span></td><td>3×6</td><td><span class="size-mm">910 × 1820</span></td></tr>
+                            <tr><td><span class="size-name">シハチ</span></td><td>4×8</td><td><span class="size-mm">1212 × 2424</span></td></tr>
+                            <tr><td><span class="size-name">サントウ</span></td><td>3×10</td><td><span class="size-mm">910 × 3030</span></td></tr>
+                            <tr><td><span class="size-name">メーター</span></td><td>1m×2m</td><td><span class="size-mm">1000 × 2000</span></td></tr>
+                            <tr><td><span class="size-name">シハチ(大)</span></td><td>1220幅</td><td><span class="size-mm">1220 × 2440</span></td></tr>
+                            <tr><td><span class="size-name">ゴットー</span></td><td>5×10</td><td><span class="size-mm">1515 × 3030</span></td></tr>
+                            <tr><td><span class="size-name">シクロク</span></td><td>4×6</td><td><span class="size-mm">1212 × 1820</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-wrapper" style="flex:0 0 220px;">
+                    <span class="table-caption">番線の線径 (#)</span>
+                    <table class="size-table">
+                        <thead><tr><th>#</th><th>mm</th></tr></thead>
+                        <tbody>
+                            <tr><td>#8</td><td>4.0~3.9</td></tr>
+                            <tr><td>#10</td><td>3.2~3.1</td></tr>
+                            <tr><td>#12</td><td>2.6~2.5</td></tr>
+                            <tr><td>#14</td><td>2.0~1.9</td></tr>
+                            <tr><td>#16</td><td>1.6~1.5</td></tr>
+                            <tr><td>#18</td><td>1.2~1.1</td></tr>
+                            <tr><td>#20</td><td>0.90~0.85</td></tr>
+                            <tr><td>#22</td><td>0.70~0.66</td></tr>
+                            <tr><td>#24</td><td>0.55~0.52</td></tr>
+                            <tr><td>#26</td><td>0.45~0.42</td></tr>
+                            <tr><td>#28</td><td>0.35~0.33</td></tr>
+                            <tr><td>#30</td><td>0.30~0.29</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="table-wrapper">
+                    <span class="table-caption">ネジ・インチ・分</span>
+                    <table class="size-table">
+                        <thead><tr><th>インチ</th><th>読み方</th><th>mm</th></tr></thead>
+                        <tbody>
+                            <tr><td>1/8</td><td>一分 (いちぶ)</td><td><span class="size-mm">3.175</span></td></tr>
+                            <tr><td>5/32</td><td>さんにのご</td><td><span class="size-mm">3.969</span></td></tr>
+                            <tr><td>3/16</td><td>一分五厘</td><td><span class="size-mm">4.763</span></td></tr>
+                            <tr><td>1/4</td><td>二分 (にぶ)</td><td><span class="size-mm">6.35</span></td></tr>
+                            <tr><td>5/16</td><td>二分五厘</td><td><span class="size-mm">7.938</span></td></tr>
+                            <tr><td>3/8</td><td>三分 (さんぶ)</td><td><span class="size-mm">9.525</span></td></tr>
+                            <tr><td>1/2</td><td>四分 (よんぶ)</td><td><span class="size-mm">12.7</span></td></tr>
+                            <tr><td>5/8</td><td>五分 (ごぶ)</td><td><span class="size-mm">15.875</span></td></tr>
+                            <tr><td>3/4</td><td>六分 (ろくぶ)</td><td><span class="size-mm">19.05</span></td></tr>
+                            <tr><td>7/8</td><td>七分 (ななぶ)</td><td><span class="size-mm">22.225</span></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="app-conv" class="app-section">
+        <div class="tool-container" style="border-top: 5px solid #ff6b81;">
+            <h2>文字変換ツール</h2>
+
+            <div class="conv-settings">
+                <div class="conv-group">
+                    <span class="category-label">英数</span>
+                    <label class="toggle-btn">
+                        <input type="checkbox" id="mode_num_half" checked onchange="toggleGroup('num', 'half')">
+                        <div class="toggle-content"><strong>半角へ</strong><small>１２３→123</small></div>
+                    </label>
+                    <label class="toggle-btn">
+                        <input type="checkbox" id="mode_num_full" onchange="toggleGroup('num', 'full')">
+                        <div class="toggle-content"><strong>全角へ</strong><small>123→１２３</small></div>
+                    </label>
+                </div>
+                <div class="conv-group" style="border-left:1px dashed #ddd; padding-left:15px;">
+                    <span class="category-label">カナ</span>
+                    <label class="toggle-btn">
+                        <input type="checkbox" id="mode_kana_full" onchange="toggleGroup('kana', 'full')">
+                        <div class="toggle-content"><strong>全角へ</strong><small>ｱｲｳ→アイウ</small></div>
+                    </label>
+                    <label class="toggle-btn">
+                        <input type="checkbox" id="mode_kana_half" onchange="toggleGroup('kana', 'half')">
+                        <div class="toggle-content"><strong>半角へ</strong><small>アイウ→ｱｲｳ</small></div>
+                    </label>
+                </div>
+                <div class="conv-group" style="border-left:1px dashed #ddd; padding-left:15px;">
+                    <span class="category-label">掃除</span>
+                    <label class="toggle-btn">
+                        <input type="checkbox" id="checkRemoveSpace">
+                        <div class="toggle-content"><strong>空白削除</strong><small>スペースのみ</small></div>
+                    </label>
+                    <label class="toggle-btn">
+                        <input type="checkbox" id="checkRemoveHyphen">
+                        <div class="toggle-content"><strong>ハイフン</strong><small>090- → 090</small></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="calc-area">
+                <div class="calc-box">
+                    <span class="calc-label">変換前 (Ctrl+V)</span>
+                    <textarea id="convInput" class="calc-textarea" style="height:300px;" placeholder="例：&#13;１２３－４５６７&#13;ＡＢＣ　ＤＥＦ&#13;０９０－１２３４－５６７８"></textarea>
+                </div>
+                <div style="display:flex; align-items:center; color:#ccc; font-size:24px;">➡</div>
+                <div class="calc-box">
+                    <span class="calc-label">変換結果</span>
+                    <textarea id="convOutput" class="calc-textarea" style="height:300px;" readonly placeholder="変換ボタンを押すと結果が出ます"></textarea>
+                </div>
+            </div>
+            
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button class="btn-primary" style="background-color:#eee; color:#555; width:30%;" onclick="clearConv()">リセット</button>
+                <button class="btn-primary" style="background-color:#ff6b81;" onclick="convertText()">✨ 変換実行</button>
+                <button class="btn-primary" style="background-color:#2ed573;" onclick="copyConvResult()">📋 結果をコピー</button>
+            </div>
+        </div>
+    </section>
+
+    <section id="app-memo" class="app-section">
+        <div class="tool-container" style="max-width: 600px; margin: 0 auto; border-top: 5px solid #0056b3;">
+            <h2>受電メモ作成</h2>
+            <div style="margin-bottom:15px;">
+                <label class="calc-label">受電日時</label>
+                <input type="text" id="memoTime" oninput="updateMemoPreview()">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label class="calc-label">相手の会社名・氏名 <span class="badge-required">必須</span></label>
+                <input type="text" id="memoClient" placeholder="例：〇〇商事 田中様" oninput="updateMemoPreview()">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label class="calc-label">相手の電話番号</label>
+                <input type="tel" id="memoPhone" placeholder="折り返しが必要な場合に入力" oninput="updateMemoPreview()">
+            </div>
+            <div style="margin-bottom:15px;">
+                <label class="calc-label">用件・伝言内容</label>
+                <textarea id="memoBody" style="height:80px;" placeholder="例：見積書の件で確認したい点があるそうです。" oninput="updateMemoPreview()"></textarea>
+            </div>
+            <div style="margin-bottom:15px;">
+                <label class="calc-label">対応依頼（アクション）</label>
+                <div class="action-group">
+                    <label><input type="radio" name="actionType" value="折り返しお願いします" checked onchange="updateMemoPreview()"><span class="action-btn">📞 折り返し要</span></label>
+                    <label><input type="radio" name="actionType" value="伝言のみ（折り返し不要）" onchange="updateMemoPreview()"><span class="action-btn">✉️ 伝言のみ</span></label>
+                    <label><input type="radio" name="actionType" value="再度電話あります" onchange="updateMemoPreview()"><span class="action-btn">🔄 また掛かってきます</span></label>
+                </div>
+            </div>
+
+            <div class="preview-box">
+                <div style="font-size:0.8em; color:#aaa; margin-bottom:5px;">プレビュー（これをコピーします）</div>
+                <textarea id="resultMemo" readonly></textarea>
+            </div>
+            
+            <button class="btn-primary" onclick="copyMemoResult()">📋 テキストをコピーする</button>
+        </div>
+    </section>
+
+    <section id="app-history" class="app-section">
+        <div class="tool-container" style="max-width: 800px; margin: 0 auto; border-top: 5px solid #666;">
+            <h2>ℹ️ 更新履歴・情報</h2>
+            <ul class="version-list">
+                <li class="version-item v-new">
+                    <div class="v-header">
+                        <span class="v-tag">v5.1</span>
+                        <span class="v-date">最新版</span>
+                    </div>
+                    <div class="v-desc">
+                        <strong>・「物流シミュレーター」を統合：</strong> 商品名と数量から、荷姿（ケース数）・総重量・パレット枚数を自動計算する機能を追加しました。<br>
+                        ・「ガイド」タブに物流シミュレーターの詳細な説明を追記しました。
+                    </div>
+                </li>
+                <li class="version-item">
+                    <div class="v-header">
+                        <span class="v-tag">v4.1</span>
+                    </div>
+                    <div class="v-desc">
+                        ・「サイズ早見表」を拡充（番線、ネジインチ換算）。<br>
+                        ・メーカーリンク集を削除。
+                    </div>
+                </li>
+                <li class="version-item">
+                    <div class="v-header">
+                        <span class="v-tag">v4.0</span>
+                    </div>
+                    <div class="v-desc">
+                        ・「掛け率逆算」モードを追加。<br>
+                        ・「情報・履歴」タブを追加。
+                    </div>
+                </li>
+                <li class="version-item">
+                    <div class="v-header">
+                        <span class="v-tag">v3.0</span>
+                    </div>
+                    <div class="v-desc">
+                        ・「板サイズ早見表」タブを追加。
+                    </div>
+                </li>
+                <li class="version-item">
+                    <div class="v-header">
+                        <span class="v-tag">v2.0</span>
+                    </div>
+                    <div class="v-desc">
+                        ・計算機に「割り戻し計算」モードと計算履歴保存機能を追加。
+                    </div>
+                </li>
+                <li class="version-item">
+                    <div class="v-header">
+                        <span class="v-tag">v1.0</span>
+                    </div>
+                    <div class="v-desc">
+                        ・リリース（一括リサーチ、定価計算、単位変換、文字変換、電話メモ）。
+                    </div>
+                </li>
+            </ul>
+        </div>
+    </section>
+
+    <section id="app-guide" class="app-section">
+        <div class="tool-container" style="border-top: 5px solid #888;">
+            <h2>📖 使い方ガイド</h2>
+            
+            <p style="text-align:center; margin-bottom:30px;">
+                毎日の業務お疲れ様です！<br>
+                このツールセットは、日々の「ちょっと面倒な作業」を楽にするために作られました。<br>
+                それぞれの便利機能をご紹介します。
+            </p>
+
+            <div class="guide-box" style="border-color: #0056b3;">
+                <div class="guide-title"><span class="guide-badge" style="background:#0056b3;">物流</span> 物流・荷姿シミュレーター</div>
+                <div class="guide-desc">
+                    発注予定の商品が<strong>「全部で何ケースになるか」「総重量」「パレット何枚分か」</strong>を瞬時に計算します。
+                </div>
+                <div class="guide-text">
+                    <strong>■ パレット換算の仕組み</strong><br>
+                    商品の種類によって、基準となるパレットサイズを自動で切り替えています。
+                    <ul class="guide-list">
+                        <li><strong>通常商品：</strong> 11型パレット (1100×1100mm) で計算。</li>
+                        <li><strong>長尺・大型：</strong> プラベニヤ、ベストボード等は サブロクパレット (1800×900mm) で計算します。</li>
+                    </ul>
+                    <div class="guide-note">
+                        ※計算結果が「0 PL」になる場合：<br>
+                        <strong>「積載データなし」</strong>はマスター未登録、<strong>「パレット未満」</strong>は数量が少ないためです。
+                    </div>
+                </div>
+            </div>
+
+            <div class="guide-box" style="border-color: #ff9900;">
+                <div class="guide-title"><span class="guide-badge" style="background:#ff9900;">リサーチ</span> 商品一括リサーチ</div>
+                <div class="guide-desc">
+                    型番や商品名を入れるだけで、Google・画像検索・トラスコ・MonotaROなどを<strong>一度にまとめて検索</strong>できます。
+                </div>
+            </div>
+
+            <div class="guide-box" style="border-color: #0056b3;">
+                <div class="guide-title"><span class="guide-badge" style="background:#0056b3;">計算</span> 計算・割り戻し・逆算</div>
+                <div class="guide-desc">
+                    <strong>① 掛け率計算（青）：</strong> 定価 × 70% ＝ 仕切価格<br>
+                    <strong>② 割り戻し計算（橙）：</strong> 原価 ÷ 80% ＝ 売値<br>
+                    <strong>③ 掛け率逆算（紫）：</strong> 「この定価と仕切、何％？」を一発計算。<br>
+                    <strong>★履歴機能：</strong> コピーボタンを押すと、計算結果が履歴に残ります。
+                </div>
+            </div>
+
+            <div class="guide-box" style="border-color: #e67e22;">
+                <div class="guide-title"><span class="guide-badge" style="background:#e67e22;">単位</span> 建材単位 変換くん</div>
+                <div class="guide-desc">
+                    「1間（けん）は何ミリ？」「10坪は何平米？」という時に。数字を入れるだけで相互に変換します。
+                </div>
+            </div>
+
+            <div class="guide-box" style="border-color: #28a745;">
+                <div class="guide-title"><span class="guide-badge" style="background:#28a745;">サイズ</span> サイズ早見表</div>
+                <div class="guide-desc">
+                    「サブロク」「シハチ」などの定尺サイズや、番線・ネジの規格がパッと確認できる一覧表です。
+                </div>
+            </div>
+
+            <div class="guide-box" style="border-color: #ff6b81;">
+                <div class="guide-title"><span class="guide-badge" style="background:#ff6b81;">文字</span> 文字変換ツール</div>
+                <div class="guide-desc">
+                    Excelやメールの文章で「全角・半角がバラバラ」な時に使います。<br>
+                    貼り付けて「変換」ボタンを押せば、数字を半角に揃えたり、カタカナを全角に直したりできます。
+                </div>
+            </div>
+
+            <div class="guide-box" style="border-color: #333;">
+                <div class="guide-title"><span class="guide-badge" style="background:#333;">メモ</span> 受電メモ作成</div>
+                <div class="guide-desc">
+                    電話を受けながら入力して、最後に「コピー」を押すだけ。チャットツールに貼り付けやすい形式にします。
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+</div>
+<div id="toast">コピーしました！</div>
+
+<script>
+    // --- 初期化処理 ---
+    window.onload = function() {
+        initSearchCheckboxes();
+        document.getElementById('keyword').focus();
+        handleInputMultiplier();
+        loadHistory(); // 計算履歴読み込み
+        
+        // 物流シミュレーター初期化
+        renderLogisticsOptions(logisticsProductData);
+
+        const now = new Date();
+        const str = `${now.getMonth() + 1}/${now.getDate()} ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}`;
+        document.getElementById('memoTime').value = str;
+        updateMemoPreview();
+    };
+
+    function switchApp(appId) {
+        document.querySelectorAll('.app-section').forEach(sec => sec.classList.remove('active'));
+        document.getElementById(appId).classList.add('active');
+        document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+    }
+
+    // --- ユーティリティ ---
+    function copyToClipboard(text) {
+        if (!text) { alert("内容が空です"); return; }
+        navigator.clipboard.writeText(text).then(() => {
+            const t = document.getElementById("toast");
+            t.className = "show";
+            setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
+        });
+    }
+
+    // --- 1. 商品リサーチ ---
+    const searchTargets = [
+        { id: "google", name: "Google 検索", url: "https://www.google.com/search?q=", checked: true },
+        { id: "image", name: "Google 画像", url: "https://www.google.com/search?tbm=isch&q=", checked: true },
+        { id: "trusco", name: "トラスコ (Orange)", url: "https://www.orange-book.com/ja/c/search/result.html?q=", checked: true },
+        { id: "monotaro", name: "MonotaRO", url: "https://www.monotaro.com/s/?q=", checked: true },
+        { id: "amazon", name: "Amazon", url: "https://www.amazon.co.jp/s?k=", checked: false },
+        { id: "rakuten", name: "楽天市場", url: "https://search.rakuten.co.jp/search/mall/", checked: false }
+    ];
+    function initSearchCheckboxes() {
+        const area = document.getElementById('checkboxArea');
+        searchTargets.forEach(site => {
+            const label = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = "checkbox"; checkbox.id = "check_" + site.id; checkbox.checked = site.checked;
+            label.appendChild(checkbox); label.appendChild(document.createTextNode(site.name));
+            area.appendChild(label);
+        });
+    }
+    function multiSearch() {
+        const keyword = document.getElementById('keyword').value.trim();
+        if (!keyword) { alert("キーワードを入力してください"); return; }
+        const encoded = encodeURIComponent(keyword);
+        let count = 0;
+        searchTargets.forEach(site => {
+            const cb = document.getElementById("check_" + site.id);
+            if (cb && cb.checked) { window.open(site.url + encoded, '_blank'); count++; }
+        });
+        if (count === 0) alert("検索サイトを選択してください");
+    }
+    function handleEnterSearch(e) { if(e.key === 'Enter') multiSearch(); }
+
+    // --- 2. 計算機 (v3: 逆算追加) ---
+    let historyData = [];
+
+    function changeCalcMode() {
+        const mode = document.querySelector('input[name="calcMode"]:checked').value;
+        const container = document.getElementById('calcContainer');
+        const arrow = document.getElementById('arrowIcon');
+        const rateCol = document.getElementById('colRate');
+        const roundCol = document.getElementById('colRounding');
+        
+        container.parentElement.classList.remove('mode-divide', 'mode-reverse');
+
+        if (mode === 'divide') {
+            container.parentElement.classList.add('mode-divide');
+            document.getElementById('rateLabel').textContent = "割り戻し率（％）";
+            document.getElementById('inputLabel').textContent = "【入力】原価リスト";
+            document.getElementById('outputLabel').textContent = "【結果】売値 (利益乗せ)";
+            arrow.textContent = "➗";
+            document.getElementById('inputArea').placeholder = "Excelから貼り付け\n1000\n2500";
+            rateCol.style.display = "block";
+            roundCol.style.visibility = "visible";
+            if(document.getElementById('multiplier').value == "70") document.getElementById('multiplier').value = "85";
+        
+        } else if (mode === 'reverse') {
+            container.parentElement.classList.add('mode-reverse');
+            document.getElementById('inputLabel').textContent = "【入力】定価と仕切 (2列貼付)";
+            document.getElementById('outputLabel').textContent = "【結果】掛け率 (%)";
+            arrow.textContent = "❓";
+            document.getElementById('inputArea').placeholder = "Excelから2列コピーして貼り付け\n12900  5934\n定価   仕切";
+            rateCol.style.display = "none";
+            roundCol.style.visibility = "hidden";
+
+        } else {
+            document.getElementById('rateLabel').textContent = "掛け率（％）";
+            document.getElementById('inputLabel').textContent = "【入力】定価リスト";
+            document.getElementById('outputLabel').textContent = "【結果】仕切価格";
+            arrow.textContent = "✖";
+            document.getElementById('inputArea').placeholder = "Excelから貼り付け\n10,000\n15800";
+            rateCol.style.display = "block";
+            roundCol.style.visibility = "visible";
+        }
+        handleInputMultiplier();
+    }
+
+    function setMultiplier(val) { document.getElementById('multiplier').value = val; handleInputMultiplier(); }
+    
+    function handleInputMultiplier() {
+        const val = document.getElementById('multiplier').value;
+        document.querySelectorAll('.btn-preset').forEach(btn => {
+            if (btn.textContent.replace('%','') == val) btn.classList.add('active'); else btn.classList.remove('active');
+        });
+        calculatePrice();
+    }
+
+    function calculatePrice() {
+        const input = document.getElementById('inputArea').value;
+        const mult = parseFloat(document.getElementById('multiplier').value) || 0;
+        const mode = document.getElementById('roundingMode').value;
+        const isTax = document.getElementById('checkTax').checked;
+        const calcMode = document.querySelector('input[name="calcMode"]:checked').value;
+
+        const lines = input.split('\n');
+        document.getElementById('countInput').textContent = lines.length + "行";
+        document.getElementById('countOutput').textContent = lines.length + "行";
+        
+        const results = lines.map(line => {
+            if (calcMode === 'reverse') {
+                let nums = line.replace(/,/g, '').match(/(\d+(\.\d+)?)/g);
+                if (!nums || nums.length < 2) return "";
+                let val1 = parseFloat(nums[0]);
+                let val2 = parseFloat(nums[1]);
+                if (val1 === 0 && val2 === 0) return "0%";
+                let big = Math.max(val1, val2);
+                let small = Math.min(val1, val2);
+                if (big === 0) return "";
+                let rate = (small / big) * 100;
+                return rate.toFixed(1) + "%";
+            }
+
+            let clean = line.replace(/[^\d.]/g, ''); if (!clean) return "";
+            let price = parseFloat(clean); if (isNaN(price)) return "";
+            
+            let final = 0;
+            if (calcMode === 'divide') {
+                final = (mult === 0) ? 0 : price / (mult / 100);
+            } else {
+                final = price * (mult / 100);
+            }
+
+            if (isTax) final *= 1.10;
+            if (mode === 'floor') final = Math.floor(final);
+            else if (mode === 'round') final = Math.round(final);
+            else if (mode === 'ceil') final = Math.ceil(final);
+            return final.toLocaleString();
+        });
+        document.getElementById('outputArea').value = results.join('\n');
+    }
+
+    function copyPriceResult() {
+        const val = document.getElementById('outputArea').value;
+        if (!val) { alert("結果がありません"); return; }
+        navigator.clipboard.writeText(val).then(() => {
+            saveHistory();
+            const t = document.getElementById("toast");
+            t.textContent = "コピー＆履歴保存しました！";
+            t.className = "show";
+            setTimeout(() => { t.className = t.className.replace("show", ""); }, 3000);
+        });
+    }
+
+    function saveHistory() {
+        const inputVal = document.getElementById('inputArea').value;
+        const rateVal = document.getElementById('multiplier').value;
+        const calcMode = document.querySelector('input[name="calcMode"]:checked').value;
+        const now = new Date();
+        const timeStr = `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`;
+        
+        const lines = inputVal.split('\n').filter(l => l.trim() !== "");
+        let summary = lines.length > 0 ? lines[0] : "";
+        if (lines.length > 1) summary += ` (他${lines.length-1}行)`;
+
+        const newItem = { time: timeStr, mode: calcMode, rate: rateVal, input: inputVal, summary: summary };
+        historyData.unshift(newItem);
+        if (historyData.length > 30) historyData.pop();
+        localStorage.setItem('calcHistory_v3', JSON.stringify(historyData));
+        renderHistory();
+    }
+
+    function loadHistory() {
+        const stored = localStorage.getItem('calcHistory_v3');
+        if (stored) { historyData = JSON.parse(stored); renderHistory(); }
+    }
+
+    function renderHistory() {
+        const list = document.getElementById('historyList');
+        list.innerHTML = "";
+        historyData.forEach((item, index) => {
+            const li = document.createElement('li');
+            li.className = 'history-item';
+            let badge = "";
+            if(item.mode === 'divide') badge = `<span class="h-mode m-div">÷ ${item.rate}%</span>`;
+            else if(item.mode === 'reverse') badge = `<span class="h-mode m-rev">逆算</span>`;
+            else badge = `<span class="h-mode m-mul">× ${item.rate}%</span>`;
+            li.innerHTML = `<span class="h-time">${item.time}</span>${badge}<span class="h-detail">${item.summary}</span><button class="h-btn" onclick="restoreHistory(${index})">呼出</button>`;
+            list.appendChild(li);
+        });
+    }
+
+    function restoreHistory(index) {
+        const item = historyData[index];
+        if (!item) return;
+        document.getElementById('inputArea').value = item.input;
+        if (item.mode === 'reverse') {
+            document.getElementById('modeReverse').checked = true;
+        } else if (item.mode === 'divide') {
+            document.getElementById('modeDivide').checked = true;
+            document.getElementById('multiplier').value = item.rate;
+        } else {
+            document.getElementById('modeMultiply').checked = true;
+            document.getElementById('multiplier').value = item.rate;
+        }
+        changeCalcMode();
+        document.getElementById('inputArea').focus();
+    }
+
+    function clearHistory() {
+        if(confirm("履歴を全て消去しますか？")) {
+            historyData = []; localStorage.removeItem('calcHistory_v3'); renderHistory();
+        }
+    }
+
+    // --- 3. 物流シミュレーター (v5.0 New) ---
+    function renderLogisticsOptions(list) {
+        const select = document.getElementById('logiProductSelect');
+        select.innerHTML = "";
+        
+        if (list.length === 0) {
+            const option = document.createElement('option');
+            option.text = "該当なし";
+            select.appendChild(option);
+            return;
+        }
+
+        list.forEach((p) => {
+            const originalIndex = logisticsProductData.indexOf(p);
+            const option = document.createElement('option');
+            option.value = originalIndex;
+            option.text = p.name;
+            select.appendChild(option);
+        });
+    }
+
+    function filterLogisticsProducts() {
+        const keyword = document.getElementById('logiFilterInput').value.toLowerCase();
+        const filtered = logisticsProductData.filter(p => p.name.toLowerCase().includes(keyword));
+        renderLogisticsOptions(filtered);
+        document.getElementById('logiResultArea').classList.remove('active');
+        document.getElementById('logiSpecDisplay').textContent = "商品を選択してください";
+    }
+
+    function calculateLogistics() {
+        const index = document.getElementById('logiProductSelect').value;
+        const qtyInput = document.getElementById('logiInputQty').value;
+        const resArea = document.getElementById('logiResultArea');
+        const specDisplay = document.getElementById('logiSpecDisplay');
+
+        if (index === "" || index === null || qtyInput === "" || qtyInput < 0) {
+            resArea.classList.remove('active');
+            return;
+        }
+
+        const product = logisticsProductData[index];
+        const qty = parseInt(qtyInput);
+
+        // スペック表示
+        let specText = `規格：1ケース ${product.perCase}入 / 重量 ${product.weightCase}kg`;
+        if(product.perPallet > 0) {
+            specText += ` / 1パレ ${product.perPallet}ケース(個)`;
+        } else {
+            specText += ` / 積載データなし`;
+        }
+        specDisplay.textContent = specText;
+
+        // 1. ケース数計算
+        const cases = Math.floor(qty / product.perCase);
+        const remainder = qty % product.perCase;
+        let caseStr = "";
+        
+        if (product.perCase === 1) {
+            caseStr = `${cases} 個(本/枚)`;
+        } else {
+            caseStr = `${cases} ケース`;
+            if (remainder > 0) {
+                caseStr += ` + バラ ${remainder}`;
+            }
+            if (cases === 0 && remainder === 0) caseStr = "0";
+        }
+
+        // 2. 重量計算
+        const weightPerItem = product.weightCase / product.perCase;
+        const totalWeight = (qty * weightPerItem);
+        const weightStr = `約 ${totalWeight.toFixed(1)} kg`;
+
+        // 3. パレット計算
+        let palletStr = "";
+        let palletType = "通常 (1100×1100)";
+        if (product.isLong) {
+            palletType = "長尺 (900×1800)";
+        }
+
+        if (product.perPallet > 0) {
+            let loadUnitCount = 0;
+            if (product.perCase === 1) {
+                loadUnitCount = qty; 
+            } else {
+                loadUnitCount = cases + (remainder > 0 ? 1 : 0);
+            }
+
+            const pallets = Math.floor(loadUnitCount / product.perPallet);
+            const modUnits = loadUnitCount % product.perPallet; 
+            const palletSpace = (loadUnitCount / product.perPallet).toFixed(2);
+            
+            if (parseFloat(palletSpace) === 0.00) {
+                palletStr = `0 PL`;
+            } else if (parseFloat(palletSpace) > 0 && parseFloat(palletSpace) < 1.0 && pallets === 0) {
+                palletStr = `0 PL <span class="error-reason">※パレット未満 (バラ出荷)</span>`;
+                palletStr += `<span class="pallet-note">※${palletType}換算で約 ${palletSpace}枚分</span>`;
+            } else {
+                palletStr = `${pallets} PL`;
+                if(modUnits > 0) palletStr += ` + ${modUnits} 箱(個)`;
+                palletStr += `<span class="pallet-note">※${palletType}換算で約 ${palletSpace}枚分</span>`;
+            }
+
+        } else {
+            palletStr = `0 PL <span class="error-reason">※積載データなし (マスター未登録)</span>`;
+        }
+
+        document.getElementById('logiResCase').textContent = caseStr;
+        document.getElementById('logiResWeight').textContent = weightStr;
+        document.getElementById('logiResPallet').innerHTML = palletStr;
+        
+        resArea.classList.add('active');
+    }
+
+    // --- 4. 単位変換 ---
+    const SHAKU_MM = 303.0303; const TSUBO_M2 = 3.305785; const TATAMI_M2 = 1.6562;
+    function switchUnitTab(targetId, tabEl) {
+        document.querySelectorAll('.unit-content').forEach(c => c.classList.remove('active'));
+        document.getElementById(targetId).classList.add('active');
+        document.querySelectorAll('.unit-tab').forEach(t => t.classList.remove('active'));
+        tabEl.classList.add('active');
+    }
+    function calcFromShaku() {
+        const val = parseFloat(document.getElementById('inputShaku').value);
+        document.getElementById('inputMm').value = isNaN(val) ? '' : (val * SHAKU_MM).toFixed(1);
+    }
+    function calcFromMm() {
+        const val = parseFloat(document.getElementById('inputMm').value);
+        document.getElementById('inputShaku').value = isNaN(val) ? '' : (val / SHAKU_MM).toFixed(3);
+    }
+    function setLength(val) { document.getElementById('inputShaku').value = val; calcFromShaku(); }
+    function calcFromTsubo() {
+        const val = parseFloat(document.getElementById('inputTsubo').value);
+        if(isNaN(val)) { document.getElementById('inputM2').value=''; document.getElementById('inputTatami').value=''; return; }
+        document.getElementById('inputM2').value = (val * TSUBO_M2).toFixed(2);
+        document.getElementById('inputTatami').value = (val * 2).toFixed(1);
+    }
+    function calcFromM2() {
+        const val = parseFloat(document.getElementById('inputM2').value);
+        if(isNaN(val)) { document.getElementById('inputTsubo').value=''; document.getElementById('inputTatami').value=''; return; }
+        document.getElementById('inputTsubo').value = (val / TSUBO_M2).toFixed(2);
+        document.getElementById('inputTatami').value = (val / TATAMI_M2).toFixed(1);
+    }
+    function calcFromTatami() {
+        const val = parseFloat(document.getElementById('inputTatami').value);
+        if(isNaN(val)) { document.getElementById('inputTsubo').value=''; document.getElementById('inputM2').value=''; return; }
+        document.getElementById('inputM2').value = (val * TATAMI_M2).toFixed(2);
+        document.getElementById('inputTsubo').value = (val / 2).toFixed(2);
+    }
+    function setArea(val) { document.getElementById('inputTsubo').value = val; calcFromTsubo(); }
+    function clearUnitInputs() {
+        document.getElementById('app-unit').querySelectorAll('input').forEach(i => i.value = '');
+    }
+
+    // --- 5. 文字変換ツール ---
+    function toggleGroup(type, mode) {
+        if (type === 'num') {
+            if (mode === 'half' && document.getElementById('mode_num_half').checked) document.getElementById('mode_num_full').checked = false;
+            else if (mode === 'full' && document.getElementById('mode_num_full').checked) document.getElementById('mode_num_half').checked = false;
+        }
+        if (type === 'kana') {
+            if (mode === 'full' && document.getElementById('mode_kana_full').checked) document.getElementById('mode_kana_half').checked = false;
+            else if (mode === 'half' && document.getElementById('mode_kana_half').checked) document.getElementById('mode_kana_full').checked = false;
+        }
+    }
+    function convertText() {
+        let text = document.getElementById('convInput').value;
+        if (document.getElementById('mode_num_half').checked) {
+            text = text.replace(/[！-～]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ');
+        }
+        if (document.getElementById('mode_num_full').checked) {
+            text = text.replace(/[!-~]/g, s => String.fromCharCode(s.charCodeAt(0) + 0xFEE0)).replace(/ /g, '　');
+        }
+        if (document.getElementById('mode_kana_full').checked) {
+            const km = {'ｶﾞ':'ガ','ｷﾞ':'ギ','ｸﾞ':'グ','ｹﾞ':'ゲ','ｺﾞ':'ゴ','ｻﾞ':'ザ','ｼﾞ':'ジ','ｽﾞ':'ズ','ｾﾞ':'ゼ','ｿﾞ':'ゾ','ﾀﾞ':'ダ','ﾁﾞ':'ヂ','ﾂﾞ':'ヅ','ﾃﾞ':'デ','ﾄﾞ':'ド','ﾊﾞ':'バ','ﾋﾞ':'ビ','ﾌﾞ':'ブ','ﾍﾞ':'ベ','ﾎﾞ':'ボ','ﾊﾟ':'パ','ﾋﾟ':'ピ','ﾌﾟ':'プ','ﾍﾟ':'ペ','ﾎﾟ':'ポ','ｳﾞ':'ヴ','ヷ':'ﾜﾞ','ヺ':'ｦﾞ','ア':'ｱ','イ':'ｲ','ウ':'ｳ','エ':'ｴ','オ':'ｵ','カ':'ｶ','キ':'ｷ','ク':'ｸ','ケ':'ｹ','コ':'ｺ','サ':'ｻ','シ':'ｼ','ス':'ｽ','セ':'ｾ','ソ':'ｿ','タ':'ﾀ','チ':'ﾁ','ツ':'ﾂ','テ':'ﾃ','ト':'ﾄ','ナ':'ﾅ','ニ':'ﾆ','ヌ':'ﾇ','ネ':'ﾈ','ノ':'ﾉ','ハ':'ﾊ','ヒ':'ﾋ','フ':'ﾌ','ヘ':'ﾍ','ホ':'ﾎ','マ':'ﾏ','ミ':'ﾐ','ム':'ﾑ','メ':'ﾒ','モ':'ﾓ','ヤ':'ﾔ','ユ':'ﾕ','ヨ':'ﾖ','ラ':'ﾗ','リ':'ﾘ','ル':'ﾙ','レ':'ﾚ','ロ':'ﾛ','ワ':'ﾜ','ヲ':'ｦ','ン':'ﾝ','ｧ':'ァ','ｨ':'ィ','ｩ':'ゥ','ェ':'ｪ','ォ':'ｫ','ッ':'ｯ','ャ':'ｬ','ュ':'ｭ','ョ':'ｮ','。':'｡','「':'｢','」':'｣','、':'､','・':'･','ー':'ｰ'};
+            let reg = new RegExp('(' + Object.keys(km).join('|') + ')', 'g');
+            text = text.replace(reg, m => km[m]).replace(/ﾞ/g, '゛').replace(/ﾟ/g, '゜');
+        }
+        if (document.getElementById('mode_kana_half').checked) {
+            const hm = {'ガ':'ｶﾞ','ギ':'ｷﾞ','グ':'ｸﾞ','ゲ':'ｹﾞ','ゴ':'ｺﾞ','ザ':'ｻﾞ','ジ':'ｼﾞ','ズ':'ｽﾞ','ゼ':'ｾﾞ','ゾ':'ｿﾞ','ダ':'ﾀﾞ','ヂ':'ﾁﾞ','ヅ':'ﾂﾞ','デ':'ﾃﾞ','ド':'ﾄﾞ','バ':'ﾊﾞ','ビ':'ﾋﾞ','ブ':'ﾌﾞ','ベ':'ﾍﾞ','ボ':'ﾎﾞ','パ':'ﾊﾟ','ピ':'ﾋﾟ','プ':'ﾌﾟ','ペ':'ﾍﾟ','ポ':'ﾎﾟ','ヴ':'ｳﾞ','ヷ':'ﾜﾞ','ヺ':'ｦﾞ','ア':'ｱ','イ':'ｲ','ウ':'ｳ','エ':'ｴ','オ':'ｵ','カ':'ｶ','キ':'ｷ','ク':'ｸ','ケ':'ｹ','コ':'ｺ','サ':'ｻ','シ':'ｼ','ス':'ｽ','セ':'ｾ','ソ':'ｿ','タ':'ﾀ','チ':'ﾁ','ツ':'ﾂ','テ':'ﾃ','ト':'ﾄ','ナ':'ﾅ','ニ':'ﾆ','ヌ':'ﾇ','ネ':'ﾈ','ノ':'ﾉ','ハ':'ﾊ','ヒ':'ﾋ','フ':'ﾌ','ヘ':'ﾍ','ホ':'ﾎ','マ':'ﾏ','ミ':'ﾐ','ム':'ﾑ','メ':'ﾒ','モ':'ﾓ','ヤ':'ﾔ','ユ':'ﾕ','ヨ':'ﾖ','ラ':'ﾗ','リ':'ﾘ','ル':'ﾙ','レ':'ﾚ','ロ':'ﾛ','ワ':'ﾜ','ヲ':'ｦ','ン':'ﾝ','ァ':'ｧ','ィ':'ｨ','ゥ':'ｩ','ェ':'ｪ','ォ':'ｫ','ッ':'ｯ','ャ':'ｬ','ュ':'ｭ','ョ':'ｮ','。':'｡','「':'｢','」':'｣','、':'､','・':'･','ー':'ｰ','゛':'ﾞ','゜':'ﾟ'};
+            text = text.replace(/[ァ-ンヴー゛゜「」。、・]/g, s => hm[s] || s);
+        }
+        if (document.getElementById('checkRemoveSpace').checked) text = text.replace(/[ 　\t]+/g, '');
+        if (document.getElementById('checkRemoveHyphen').checked) text = text.replace(/-/g, '').replace(/ー/g, '').replace(/－/g, '');
+        document.getElementById('convOutput').value = text;
+    }
+    function copyConvResult() { copyToClipboard(document.getElementById('convOutput').value); }
+    function clearConv() {
+        document.getElementById('convInput').value = '';
+        document.getElementById('convOutput').value = '';
+    }
+
+    // --- 6. 電話メモ ---
+    function updateMemoPreview() {
+        const dt = document.getElementById('memoTime').value;
+        const cl = document.getElementById('memoClient').value || '（相手名未入力）';
+        const ph = document.getElementById('memoPhone').value;
+        const bd = document.getElementById('memoBody').value || '特になし';
+        let act = ''; document.getElementsByName('actionType').forEach(r => { if(r.checked) act = r.value; });
+        const phLine = ph ? `■連絡先：${ph}\n` : '';
+        document.getElementById('resultMemo').value = `【電話メモ】\n■日時　：${dt}\n■相手　：${cl}\n${phLine}■用件\n${bd}\n\n-------------------------\n★対応：${act}`;
+    }
+    function copyMemoResult() { copyToClipboard(document.getElementById('resultMemo').value); }
+
+</script>
+
+</body>
+</html>
