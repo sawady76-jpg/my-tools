@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>物流計算シミュレーター v1.4</title>
+<style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #f0f4f8; color: #333; padding: 20px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 650px; background: #fff; padding: 0; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); overflow: hidden; }
+    
+    /* タブナビゲーション */
+    .tab-header { display: flex; background: #e9ecef; border-bottom: 1px solid #ddd; }
+    .tab-btn { flex: 1; padding: 15px; border: none; background: none; cursor: pointer; font-weight: bold; color: #666; transition: 0.3s; border-bottom: 4px solid transparent; }
+    .tab-btn:hover { background: #dee2e6; color: #0056b3; }
+    .tab-btn.active { background: #fff; color: #0056b3; border-bottom-color: #0056b3; }
+    
+    /* コンテンツエリア */
+    .content-area { padding: 25px; display: none; animation: fadeIn 0.3s ease; }
+    .content-area.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+    h2 { text-align: center; color: #0056b3; margin-top: 0; margin-bottom: 10px; font-size: 1.4rem; }
+    
+    /* 更新履歴エリア (New) */
+    .top-history { margin-bottom: 20px; font-size: 0.75em; color: #666; background: #f8f9fa; border-radius: 4px; padding: 5px 10px; border: 1px solid #e9ecef; }
+    .top-history summary { cursor: pointer; font-weight: bold; outline: none; }
+    .top-history ul { margin: 5px 0 0 0; padding-left: 20px; list-style-type: square; }
+    .top-history li { margin-bottom: 2px; }
+
+    .input-group { margin-bottom: 20px; }
+    label { display: block; font-weight: bold; margin-bottom: 8px; color: #555; }
+    
+    select, input[type="number"], input[type="text"] { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 16px; box-sizing: border-box; outline: none; transition: 0.3s; }
+    select:focus, input:focus { border-color: #0056b3; }
+
+    /* 検索フィルター */
+    .filter-input { margin-bottom: 10px; font-size: 0.9em; padding: 8px !important; background-color: #fcfcfc; }
+
+    /* 結果表示エリア */
+    .result-area { background-color: #f0f8ff; border: 2px solid #b3d7ff; border-radius: 8px; padding: 20px; margin-top: 20px; display: none; }
+    .result-area.active { display: block; animation: zoomIn 0.2s ease; }
+    @keyframes zoomIn { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+
+    .result-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 1px dashed #cce5ff; padding-bottom: 8px; }
+    .result-row:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .res-label { color: #666; font-size: 0.9em; }
+    .res-value { font-weight: bold; font-size: 1.2em; color: #333; }
+    .res-value.highlight { color: #0056b3; font-size: 1.4em; }
+    
+    /* パレット注釈 */
+    .pallet-note { display: block; font-size: 0.6em; font-weight: normal; color: #e65100; margin-top: 2px; }
+    .error-reason { font-size: 0.6em; color: #d32f2f; font-weight: normal; margin-left: 5px; }
+
+    .spec-info { font-size: 0.85em; color: #666; margin-top: 8px; padding: 8px; background: #eee; border-radius: 4px; }
+    .version { text-align: right; font-size: 0.8em; color: #aaa; margin-top: 10px; border-top: 1px solid #eee; padding-top: 5px; }
+
+    /* ガイドタブ用スタイル */
+    .guide-section { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+    .guide-section:last-child { border-bottom: none; }
+    .guide-title { font-weight: bold; color: #0056b3; margin-bottom: 10px; display: flex; align-items: center; }
+    .guide-text { font-size: 0.95em; color: #555; line-height: 1.6; }
+    .guide-note { font-size: 0.85em; background: #fff3cd; color: #856404; padding: 10px; border-radius: 6px; margin-top: 10px; }
+    .step-list { padding-left: 20px; margin: 5px 0; }
+    .step-list li { margin-bottom: 5px; }
+
+</style>
+</head>
+<body>
+
+<div class="container">
+    <div class="tab-header">
+        <button class="tab-btn active" onclick="switchTab('tab-sim')">🚚 シミュレーター</button>
+        <button class="tab-btn" onclick="switchTab('tab-guide')">📖 使い方・仕様</button>
+    </div>
+
+    <div id="tab-sim" class="content-area active">
+        <h2>物流・荷姿シミュレーター</h2>
+
+        <details class="top-history">
+            <summary>更新履歴 (最新: v1.4)</summary>
+            <ul>
+                <li><strong>v1.4:</strong> 画面上部に更新履歴の表示を追加。</li>
+                <li><strong>v1.3:</strong> 「長尺パレット(900×1800)」の自動判定ロジックを実装。パレット数0時の理由表示を追加。</li>
+                <li><strong>v1.2:</strong> 「使い方・仕様」タブを追加。</li>
+                <li><strong>v1.1:</strong> 商品マスターを2026.1.27版に更新。主要商材の積載データを拡充。</li>
+            </ul>
+        </details>
+
+        <div class="input-group">
+            <label>① 商品を選択</label>
+            <input type="text" id="filterInput" class="filter-input" placeholder="🔍 品名を入力して絞り込み..." oninput="filterProducts()">
+            <select id="productSelect" onchange="calculateLogistics()" size="5" style="height: 120px;">
+                </select>
+            <div id="specDisplay" class="spec-info">商品を選択してください</div>
+        </div>
+
+        <div class="input-group">
+            <label>② 発注数量 (バラ個数/枚数/本数)</label>
+            <input type="number" id="inputQty" placeholder="例：100" min="0" oninput="calculateLogistics()">
+        </div>
+
+        <div id="resultArea" class="result-area">
+            <div class="result-row">
+                <span class="res-label">📦 荷姿（ケース数）</span>
+                <span class="res-value highlight" id="resCase">0 ケース</span>
+            </div>
+            <div class="result-row">
+                <span class="res-label">⚖️ 総重量（目安）</span>
+                <span class="res-value" id="resWeight">0 kg</span>
+            </div>
+            <div class="result-row">
+                <span class="res-label">🏗️ パレット換算</span>
+                <span class="res-value" id="resPallet">0 PL</span>
+            </div>
+        </div>
+        <div class="version">Data: 2026.1.27 ver.</div>
+    </div>
+
+    <div id="tab-guide" class="content-area">
+        <h2>このツールについて</h2>
+        
+        <div class="guide-section">
+            <div class="guide-title">📌 目的</div>
+            <div class="guide-text">
+                発注予定の商品が<strong>「全部で何ケースになるか」「重量はどれくらいか」「トラックのパレット何枚分か」</strong>を瞬時に計算し、配車や保管スペースの確保に役立てるためのツールです。
+            </div>
+        </div>
+
+        <div class="guide-section">
+            <div class="guide-title">📐 パレットサイズについて</div>
+            <div class="guide-text">
+                商品の種類によって、計算基準となるパレットサイズを自動で切り替えています。<br>
+                <ul>
+                    <li><strong>通常商品：</strong> 11型パレット (1100×1100mm)</li>
+                    <li><strong>長尺・大型：</strong> サブロクパレット (1800×900mm)<br>
+                        <span style="font-size:0.9em; color:#e65100;">（対象：プラベニヤ、ベストボード、ポリフィルムなど）</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="guide-section">
+            <div class="guide-title">⚠️ パレット計算「0」の理由</div>
+            <div class="guide-text">
+                計算結果が「0 PL」になる場合、以下の理由が表示されます。
+                <ul>
+                    <li><strong>「積載データなし」</strong>：商品マスターにパレット積載数が登録されていません。</li>
+                    <li><strong>「パレット未満」</strong>：数量が少なく、1パレットに満たない量です（バラ出荷など）。</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- 商品マスターデータ (2026.1.27版 + 補完) ---
+    // isLong: trueなら長尺パレット(900x1800)として計算
+    const productData = [
+        { name: "足場ゴムバンド", perCase: 200, weightCase: 23.0, perPallet: 0, isLong: false },
+        { name: "足場チェーン 2m", perCase: 20, weightCase: 24.0, perPallet: 0, isLong: false },
+        { name: "足場チェーン 4m", perCase: 10, weightCase: 23.0, perPallet: 0, isLong: false },
+        { name: "アンカーボルト M12×400", perCase: 50, weightCase: 16.25, perPallet: 48, isLong: false },
+        { name: "アンカーボルト M12×450", perCase: 50, weightCase: 18.0, perPallet: 48, isLong: false },
+        { name: "アンカーボルト M16×600", perCase: 10, weightCase: 11.35, perPallet: 80, isLong: false },
+        { name: "アンカーボルト M16×700", perCase: 10, weightCase: 12.8, perPallet: 72, isLong: false },
+        { name: "アンカーボルト M16×800", perCase: 10, weightCase: 14.5, perPallet: 60, isLong: false },
+        { name: "アンカーボルト M16×900", perCase: 10, weightCase: 16.15, perPallet: 50, isLong: false },
+        { name: "安全ネット(目合10cm) 5*10m輸入", perCase: 2, weightCase: 20.0, perPallet: 0, isLong: false },
+        { name: "一輪車タイヤのみ", perCase: 5, weightCase: 11.3, perPallet: 0, isLong: false },
+        { name: "MAスタンド", perCase: 1, weightCase: 3.75, perPallet: 320, isLong: false },
+        { name: "エラスタイト t10", perCase: 1, weightCase: 16.0, perPallet: 100, isLong: false },
+        { name: "カラーコーン H700", perCase: 20, weightCase: 21.5, perPallet: 20, isLong: false },
+        { name: "ガラ袋", perCase: 200, weightCase: 11.5, perPallet: 0, isLong: false },
+        { name: "基礎サポート L1", perCase: 1, weightCase: 2.6, perPallet: 418, isLong: false },
+        { name: "基礎サポート L2", perCase: 1, weightCase: 3.0, perPallet: 532, isLong: false },
+        { name: "基礎サポート L3", perCase: 1, weightCase: 3.5, perPallet: 530, isLong: false },
+        { name: "杭太郎 1.1m", perCase: 1, weightCase: 3.0, perPallet: 100, isLong: false },
+        { name: "杭太郎 1.5m", perCase: 1, weightCase: 4.02, perPallet: 100, isLong: false },
+        { name: "結束線 10kg", perCase: 1, weightCase: 11.0, perPallet: 100, isLong: false },
+        { name: "コンクリートサイコロ 30×40", perCase: 200, weightCase: 21.6, perPallet: 40, isLong: false },
+        { name: "コンクリートサイコロ 40×50", perCase: 100, weightCase: 28.1, perPallet: 64, isLong: false },
+        { name: "コンクリートサイコロ 50×60", perCase: 50, weightCase: 19.8, perPallet: 84, isLong: false },
+        { name: "コンクリートサイコロ 40×50×60", perCase: 50, weightCase: 12.9, perPallet: 120, isLong: false },
+        { name: "コンテナバック 丸型(角)", perCase: 10, weightCase: 20.0, perPallet: 25, isLong: false },
+        { name: "耐候性大型土のう", perCase: 10, weightCase: 30.0, perPallet: 10, isLong: false },
+        { name: "【新基準】耐候性大型土のう(3年)", perCase: 5, weightCase: 15.7, perPallet: 24, isLong: false },
+        { name: "白防炎シート 1.8×5.4", perCase: 10, weightCase: 30.0, perPallet: 20, isLong: false },
+        { name: "白防炎シート 3.6×5.4", perCase: 5, weightCase: 30.0, perPallet: 20, isLong: false },
+        { name: "白防炎シート 10×10", perCase: 1, weightCase: 29.0, perPallet: 0, isLong: false },
+        { name: "白防炎シート原反 1800×50m", perCase: 1, weightCase: 28.0, perPallet: 15, isLong: true },
+        
+        // --- ユーザー要望により追加/補完 ---
+        { name: "プラベニヤ 2.5mm", perCase: 20, weightCase: 10.0, perPallet: 42, isLong: true },
+        { name: "ベストボード(養生ボード) 3.0mm", perCase: 1, weightCase: 12.0, perPallet: 50, isLong: true }, // 仮データ
+        { name: "ポリフィルム(ポリシート) #15", perCase: 2, weightCase: 10.0, perPallet: 30, isLong: true }, // 仮データ
+        
+        { name: "ブルーシート #3000 5.4×7.2", perCase: 5, weightCase: 28.0, perPallet: 20, isLong: false },
+        { name: "防音シート 1.8×3.4 通常", perCase: 2, weightCase: 22.0, perPallet: 40, isLong: false },
+        { name: "防音シート 1.8×5.4 軽量", perCase: 5, weightCase: 31.1, perPallet: 0, isLong: false },
+        { name: "ナットアンカー 3分", perCase: 600, weightCase: 23.5, perPallet: 36, isLong: false },
+        { name: "ナットアンカー 4分", perCase: 300, weightCase: 22.0, perPallet: 24, isLong: false },
+        { name: "溶接アンカー 1045", perCase: 600, weightCase: 16.7, perPallet: 36, isLong: false },
+        { name: "ワンタッチ差筋アンカー D10", perCase: 50, weightCase: 13.0, perPallet: 100, isLong: false },
+        { name: "ワンタッチ差筋アンカー D13", perCase: 30, weightCase: 18.0, perPallet: 50, isLong: false },
+        { name: "ワンタッチ差筋アンカー D16", perCase: 20, weightCase: 25.0, perPallet: 0, isLong: false }
+    ];
+
+    // --- 初期化 & フィルタリング機能 ---
+    window.onload = function() {
+        renderOptions(productData);
+    };
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.content-area').forEach(content => content.classList.remove('active'));
+        
+        event.currentTarget.classList.add('active');
+        document.getElementById(tabId).classList.add('active');
+    }
+
+    function renderOptions(list) {
+        const select = document.getElementById('productSelect');
+        select.innerHTML = "";
+        
+        if (list.length === 0) {
+            const option = document.createElement('option');
+            option.text = "該当なし";
+            select.appendChild(option);
+            return;
+        }
+
+        list.forEach((p) => {
+            const originalIndex = productData.indexOf(p);
+            const option = document.createElement('option');
+            option.value = originalIndex;
+            option.text = p.name;
+            select.appendChild(option);
+        });
+    }
+
+    function filterProducts() {
+        const keyword = document.getElementById('filterInput').value.toLowerCase();
+        const filtered = productData.filter(p => p.name.toLowerCase().includes(keyword));
+        renderOptions(filtered);
+        document.getElementById('resultArea').classList.remove('active');
+        document.getElementById('specDisplay').textContent = "商品を選択してください";
+    }
+
+    // --- 計算ロジック ---
+    function calculateLogistics() {
+        const index = document.getElementById('productSelect').value;
+        const qtyInput = document.getElementById('inputQty').value;
+        const resArea = document.getElementById('resultArea');
+        const specDisplay = document.getElementById('specDisplay');
+
+        if (index === "" || index === null || qtyInput === "" || qtyInput < 0) {
+            resArea.classList.remove('active');
+            return;
+        }
+
+        const product = productData[index];
+        const qty = parseInt(qtyInput);
+
+        // スペック表示
+        let specText = `規格：1ケース ${product.perCase}入 / 重量 ${product.weightCase}kg`;
+        if(product.perPallet > 0) {
+            specText += ` / 1パレ ${product.perPallet}ケース(個)`;
+        } else {
+            specText += ` / 積載データなし`;
+        }
+        specDisplay.textContent = specText;
+
+        // 1. ケース数計算
+        const cases = Math.floor(qty / product.perCase);
+        const remainder = qty % product.perCase;
+        let caseStr = "";
+        
+        if (product.perCase === 1) {
+            caseStr = `${cases} 個(本/枚)`;
+        } else {
+            caseStr = `${cases} ケース`;
+            if (remainder > 0) {
+                caseStr += ` + バラ ${remainder}`;
+            }
+            if (cases === 0 && remainder === 0) caseStr = "0";
+        }
+
+        // 2. 重量計算
+        const weightPerItem = product.weightCase / product.perCase;
+        const totalWeight = (qty * weightPerItem);
+        const weightStr = `約 ${totalWeight.toFixed(1)} kg`;
+
+        // 3. パレット計算
+        let palletStr = "";
+        
+        // パレットサイズ判定
+        let palletType = "通常 (1100×1100)";
+        if (product.isLong) {
+            palletType = "長尺 (900×1800)";
+        }
+
+        if (product.perPallet > 0) {
+            let loadUnitCount = 0;
+            if (product.perCase === 1) {
+                loadUnitCount = qty; 
+            } else {
+                // バラが出るとその分もスペースを取るため切り上げ
+                loadUnitCount = cases + (remainder > 0 ? 1 : 0);
+            }
+
+            const pallets = Math.floor(loadUnitCount / product.perPallet);
+            const modUnits = loadUnitCount % product.perPallet; 
+            const palletSpace = (loadUnitCount / product.perPallet).toFixed(2);
+            
+            // パレット計算結果
+            if (parseFloat(palletSpace) === 0.00) {
+                // 数量0の場合
+                palletStr = `0 PL`;
+            } else if (parseFloat(palletSpace) > 0 && parseFloat(palletSpace) < 1.0 && pallets === 0) {
+                // 1パレット未満の場合
+                palletStr = `0 PL <span class="error-reason">※パレット未満 (バラ出荷)</span>`;
+                palletStr += `<span class="pallet-note">※${palletType}換算で約 ${palletSpace}枚分</span>`;
+            } else {
+                // 1パレット以上
+                palletStr = `${pallets} PL`;
+                if(modUnits > 0) palletStr += ` + ${modUnits} 箱(個)`;
+                palletStr += `<span class="pallet-note">※${palletType}換算で約 ${palletSpace}枚分</span>`;
+            }
+
+        } else {
+            // データなしの場合
+            palletStr = `0 PL <span class="error-reason">※積載データなし (マスター未登録)</span>`;
+        }
+
+        // 表示更新
+        document.getElementById('resCase').textContent = caseStr;
+        document.getElementById('resWeight').textContent = weightStr;
+        document.getElementById('resPallet').innerHTML = palletStr;
+        
+        resArea.classList.add('active');
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>物流シミュレーター v1.5 (単独検証版)</title>
+<style>
+    body { font-family: "Helvetica Neue", Arial, sans-serif; background-color: #f4f6f9; color: #333; padding: 20px; display: flex; justify-content: center; }
+    .container { width: 100%; max-width: 800px; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-top: 6px solid #0056b3; }
+    
+    h1 { text-align: center; color: #0056b3; margin-top: 0; font-size: 1.6rem; }
+    h2 { font-size: 1.1rem; color: #555; border-bottom: 2px solid #eee; padding-bottom: 5px; margin-top: 30px; margin-bottom: 15px; }
+
+    /* CSVエリア */
+    .csv-area { background: #f8f9fa; border: 2px dashed #ccc; padding: 20px; text-align: center; border-radius: 8px; transition: 0.3s; }
+    .csv-area.dragover { background: #e3f2fd; border-color: #0056b3; }
+    .csv-btn-group { margin-top: 15px; display: flex; gap: 10px; justify-content: center; }
+    button { padding: 8px 16px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; }
+    .btn-main { background: #0056b3; color: white; }
+    .btn-main:hover { opacity: 0.9; }
+    .btn-sub { background: #fff; border: 1px solid #aaa; color: #555; }
+    .btn-sub:hover { background: #eee; }
+    .btn-danger { background: #fff; border: 1px solid #d32f2f; color: #d32f2f; }
+    .btn-danger:hover { background: #ffebee; }
+
+    /* シミュレーターエリア */
+    .sim-box { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-end; }
+    .input-group { flex: 1; min-width: 250px; }
+    label { display: block; font-weight: bold; margin-bottom: 5px; color: #444; }
+    select, input[type="text"], input[type="number"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 16px; box-sizing: border-box; }
+    
+    /* 結果表示 */
+    .result-box { background: #e8f5e9; border: 2px solid #a5d6a7; padding: 20px; border-radius: 8px; margin-top: 20px; display: none; }
+    .result-box.active { display: block; animation: fadeIn 0.3s ease; }
+    .res-row { display: flex; justify-content: space-between; border-bottom: 1px dashed #ccc; padding: 8px 0; font-size: 1.1rem; }
+    .res-row:last-child { border-bottom: none; }
+    .res-val { font-weight: bold; color: #2e7d32; font-size: 1.3rem; }
+    
+    /* 補足情報 */
+    .spec-info { font-size: 0.85em; color: #666; margin-top: 5px; min-height: 1.2em; }
+    .note-text { font-size: 0.75em; color: #d32f2f; display: block; }
+    .pallet-note { font-size: 0.7em; color: #ef6c00; }
+
+    /* データプレビューテーブル */
+    .preview-table { width: 100%; border-collapse: collapse; font-size: 0.85em; margin-top: 10px; }
+    .preview-table th, .preview-table td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+    .preview-table th { background: #eee; }
+    .preview-wrapper { max-height: 200px; overflow-y: auto; border: 1px solid #ddd; margin-top: 10px; display: none; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🚚 物流シミュレーター v1.5</h1>
+    <p style="text-align:center; font-size:0.9em; color:#666;">CSVデータの形式検証用・単独アプリケーション</p>
+
+    <h2>① データ読み込み (CSV)</h2>
+    <div id="dropZone" class="csv-area">
+        <div id="csvMessage">ここにCSVファイルをドラッグ＆ドロップ</div>
+        <div class="csv-btn-group">
+            <button class="btn-sub" onclick="downloadTemplate()">📥 形式見本(CSV)をDL</button>
+            <input type="file" id="fileInput" accept=".csv" style="display:none" onchange="handleFileSelect(event)">
+            <button class="btn-main" onclick="document.getElementById('fileInput').click()">ファイルを選択</button>
+            <button class="btn-danger" onclick="resetData()">🗑️ リセット</button>
+        </div>
+    </div>
+
+    <div id="previewWrapper" class="preview-wrapper">
+        <table class="preview-table">
+            <thead>
+                <tr><th>No</th><th>商品名</th><th>入数</th><th>重量(kg)</th><th>PL積載数</th><th>長尺</th></tr>
+            </thead>
+            <tbody id="previewBody"></tbody>
+        </table>
+    </div>
+
+    <h2>② 計算実行</h2>
+    <div class="sim-box">
+        <div class="input-group">
+            <label>商品検索・選択</label>
+            <input type="text" id="filterInput" placeholder="品名で絞り込み..." oninput="filterList()" style="margin-bottom:5px;">
+            <select id="productSelect" size="5" style="height:100px;" onchange="calc()">
+                <option value="">(データなし)</option>
+            </select>
+            <div id="specInfo" class="spec-info"></div>
+        </div>
+        <div class="input-group" style="flex:0 0 150px;">
+            <label>数量 (バラ)</label>
+            <input type="number" id="inputQty" placeholder="0" oninput="calc()">
+        </div>
+    </div>
+
+    <div id="resultBox" class="result-box">
+        <div class="res-row">
+            <span>📦 荷姿</span>
+            <span id="resCase" class="res-val">-</span>
+        </div>
+        <div class="res-row">
+            <span>⚖️ 総重量</span>
+            <span id="resWeight" class="res-val">-</span>
+        </div>
+        <div class="res-row">
+            <span>🏗️ パレット</span>
+            <span id="resPallet" class="res-val">-</span>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    // --- 初期データ (CSVがない場合用) ---
+    const defaultData = [
+        { name: "【サンプル】アンカーボルト M12×400", perCase: 50, weight: 16.25, perPallet: 48, isLong: false },
+        { name: "【サンプル】プラベニヤ 2.5mm", perCase: 20, weight: 10.0, perPallet: 42, isLong: true },
+        { name: "【サンプル】コンクリートサイコロ", perCase: 200, weight: 21.6, perPallet: 40, isLong: false }
+    ];
+    let appData = [...defaultData];
+
+    // --- 初期化 ---
+    window.onload = function() {
+        // 保存データの確認
+        const stored = localStorage.getItem('logisim_v1.5_data');
+        if (stored) {
+            appData = JSON.parse(stored);
+            document.getElementById('csvMessage').textContent = `✅ 保存済みデータを使用中 (${appData.length}件)`;
+            showPreview(appData);
+        }
+        renderSelect(appData);
+
+        // D&Dイベント
+        const zone = document.getElementById('dropZone');
+        zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+        zone.addEventListener('dragleave', e => { e.preventDefault(); zone.classList.remove('dragover'); });
+        zone.addEventListener('drop', handleDrop);
+    };
+
+    // --- CSV処理 ---
+    function downloadTemplate() {
+        // Excelで開きやすいBOM付きUTF-8 CSV
+        const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+        const csvContent = "商品名,入数(個/箱),ケース重量(kg),パレット積載数(箱),長尺フラグ(1=長尺)\nサンプルA,10,15.5,50,0\nサンプル長尺B,20,10.0,40,1";
+        const blob = new Blob([bom, csvContent], { type: 'text/csv' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = "物流シミュレーター用データ雛形.csv";
+        link.click();
+    }
+
+    function handleFileSelect(e) { processFile(e.target.files[0]); }
+    function handleDrop(e) {
+        e.preventDefault();
+        document.getElementById('dropZone').classList.remove('dragover');
+        processFile(e.dataTransfer.files[0]);
+    }
+
+    function processFile(file) {
+        if (!file || !file.name.toLowerCase().endsWith('.csv')) { alert("CSVファイルを選択してください"); return; }
+        
+        const reader = new FileReader();
+        reader.onload = e => {
+            const text = e.target.result;
+            const lines = text.split(/\r\n|\n/);
+            const newData = [];
+            
+            // 1行目はヘッダーとしてスキップ
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+                // カンマ区切り（簡易パース）
+                const cols = line.split(',');
+                if (cols.length < 3) continue; // 最低限の列チェック
+
+                // データマッピング (列順序の仮定: 0:名, 1:入数, 2:重量, 3:PL数, 4:長尺)
+                const item = {
+                    name: cols[0],
+                    perCase: parseFloat(cols[1]) || 1,
+                    weight: parseFloat(cols[2]) || 0,
+                    perPallet: parseFloat(cols[3]) || 0,
+                    isLong: (cols[4] && cols[4].trim() === "1") ? true : false
+                };
+                if (item.name) newData.push(item);
+            }
+
+            if (newData.length > 0) {
+                appData = newData;
+                localStorage.setItem('logisim_v1.5_data', JSON.stringify(appData));
+                renderSelect(appData);
+                showPreview(appData);
+                document.getElementById('csvMessage').textContent = `✅ ${newData.length}件のデータを読み込みました`;
+                document.getElementById('filterInput').value = '';
+                document.getElementById('resultBox').classList.remove('active');
+            } else {
+                alert("有効なデータが見つかりませんでした。");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    function resetData() {
+        if(confirm("データを初期状態に戻しますか？")) {
+            localStorage.removeItem('logisim_v1.5_data');
+            appData = [...defaultData];
+            renderSelect(appData);
+            document.getElementById('previewWrapper').style.display = 'none';
+            document.getElementById('csvMessage').textContent = "ここにCSVファイルをドラッグ＆ドロップ";
+        }
+    }
+
+    // --- UI表示系 ---
+    function showPreview(data) {
+        const tbody = document.getElementById('previewBody');
+        tbody.innerHTML = "";
+        // 全件表示は重いので先頭50件のみ
+        data.slice(0, 50).forEach((d, i) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td>${i+1}</td><td>${d.name}</td><td>${d.perCase}</td><td>${d.weight}</td><td>${d.perPallet}</td><td>${d.isLong?'〇':'-'}</td>`;
+            tbody.appendChild(tr);
+        });
+        document.getElementById('previewWrapper').style.display = 'block';
+    }
+
+    function renderSelect(list) {
+        const select = document.getElementById('productSelect');
+        select.innerHTML = "";
+        if (list.length === 0) {
+            const opt = document.createElement('option');
+            opt.text = "該当なし";
+            select.appendChild(opt);
+            return;
+        }
+        list.forEach((d) => {
+            const opt = document.createElement('option');
+            // データ配列内のインデックスをvalueにする（フィルタリング時は再検索が必要）
+            opt.value = appData.indexOf(d); 
+            opt.text = d.name;
+            select.appendChild(opt);
+        });
+    }
+
+    function filterList() {
+        const key = document.getElementById('filterInput').value.toLowerCase();
+        const filtered = appData.filter(d => d.name.toLowerCase().includes(key));
+        renderSelect(filtered);
+        document.getElementById('resultBox').classList.remove('active');
+        document.getElementById('specInfo').textContent = "";
+    }
+
+    // --- 計算ロジック ---
+    function calc() {
+        const idx = document.getElementById('productSelect').value;
+        const qty = parseInt(document.getElementById('inputQty').value);
+        const resBox = document.getElementById('resultBox');
+        
+        if (idx === "" || isNaN(qty) || qty < 0) {
+            resBox.classList.remove('active');
+            return;
+        }
+
+        const item = appData[idx]; // 元データから取得
+        
+        // スペック表示
+        let spec = `入数:${item.perCase} / 重量:${item.weight}kg`;
+        if (item.perPallet > 0) spec += ` / PL:${item.perPallet}箱`;
+        document.getElementById('specInfo').textContent = spec;
+
+        // 計算
+        const cases = Math.floor(qty / item.perCase);
+        const mod = qty % item.perCase;
+        
+        // 荷姿
+        let caseStr = "";
+        if (item.perCase === 1) caseStr = `${qty} 個(枚/本)`;
+        else caseStr = `${cases} ケース` + (mod > 0 ? ` + バラ ${mod}` : "");
+        if (qty === 0) caseStr = "0";
+
+        // 重量
+        const unitWeight = item.weight / item.perCase;
+        const totalW = qty * unitWeight;
+        
+        // パレット
+        let plStr = "";
+        let plType = item.isLong ? "長尺(900×1800)" : "通常(1100×1100)";
+        
+        if (item.perPallet > 0) {
+            // パレットに乗せる箱数（バラが出たら1箱分のスペースとみなす）
+            let loadCount = (item.perCase === 1) ? qty : (cases + (mod > 0 ? 1 : 0));
+            
+            const plNum = Math.floor(loadCount / item.perPallet);
+            const plMod = loadCount % item.perPallet;
+            const plRatio = (loadCount / item.perPallet).toFixed(2);
+
+            if (parseFloat(plRatio) === 0.00) {
+                plStr = "0 PL";
+            } else if (plNum === 0) {
+                plStr = `0 PL <span class="note-text">※パレット未満</span><span class="pallet-note">(${plType} 約${plRatio}枚分)</span>`;
+            } else {
+                plStr = `${plNum} PL` + (plMod > 0 ? ` + ${plMod} 箱` : "");
+                plStr += `<span class="pallet-note"><br>(${plType} 約${plRatio}枚分)</span>`;
+            }
+        } else {
+            plStr = `0 PL <span class="note-text">※積載データなし</span>`;
+        }
+
+        document.getElementById('resCase').textContent = caseStr;
+        document.getElementById('resWeight').textContent = `約 ${totalW.toFixed(1)} kg`;
+        document.getElementById('resPallet').innerHTML = plStr;
+        resBox.classList.add('active');
+    }
+</script>
+
+</body>
+</html>
